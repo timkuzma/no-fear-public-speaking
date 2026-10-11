@@ -11,9 +11,12 @@
   --shadow: 0 22px 60px #14271812;
   --text-body: 16px;
   --text-label: 14px;
-  --text-hint: 13px;
-  --text-page: clamp(34px, 4vw, 48px);
-  --text-section: clamp(24px, 2.8vw, 30px);
+  --text-hint: 14px;
+  --text-small: 13px;
+  --text-lead: clamp(18px, 1.5vw, 22px);
+  --neutral: #f0f1eb;
+  --text-page: clamp(28px, 3.4vw, 48px);
+  --text-section: clamp(22px, 2.3vw, 30px);
   font-family: "Avenir Next", "Segoe UI", Arial, sans-serif;
   font-synthesis: none;
 }
@@ -89,18 +92,36 @@ h3 {
 p {
   max-width: 65ch;
 }
+section,
+article,
+fieldset,
+.hero-copy,
+.auth-panel,
+.setup-form,
+.row > * {
+  min-width: 0;
+}
+p,
+li,
+blockquote,
+label {
+  overflow-wrap: anywhere;
+}
 p + p {
   margin-top: 14px;
 }
 .header {
-  height: 100px;
+  height: auto;
   max-width: 1440px;
   margin: auto;
-  padding: 0 52px;
+  padding: 24px 52px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--line);
+  min-height: 100px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 .brand {
   display: flex;
@@ -111,6 +132,7 @@ p + p {
   line-height: 1.12;
   font-weight: 650;
   letter-spacing: -0.03em;
+  flex-shrink: 0;
 }
 .brand-symbol {
   display: grid;
@@ -125,9 +147,11 @@ p + p {
 }
 .header nav {
   display: flex;
-  gap: 32px;
+  gap: 12px 24px;
   align-items: center;
   font-size: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .header nav > a {
   text-decoration: none;
@@ -159,8 +183,8 @@ footer {
 .hero {
   position: relative;
   display: grid;
-  grid-template-columns: 1.12fr 0.88fr;
-  gap: 56px;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+  gap: clamp(32px, 4vw, 64px);
   padding: 62px 52px 90px;
   min-height: 680px;
   align-items: center;
@@ -168,13 +192,13 @@ footer {
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.13em;
-  font-size: 11px;
+  font-size: var(--text-small);
   font-weight: 600;
   color: var(--muted);
   margin-bottom: 24px;
 }
 .hero h1 {
-  font-size: clamp(44px, 4.5vw, 64px);
+  font-size: clamp(44px, 4.8vw, 70px);
   line-height: 1.12;
   letter-spacing: -0.04em;
 }
@@ -202,7 +226,7 @@ footer {
   border: 1px solid transparent;
   border-radius: 12px;
   text-decoration: none;
-  font-size: 14px;
+  font-size: var(--text-body);
   font-weight: 600;
   line-height: 1.4;
   transition:
@@ -260,45 +284,52 @@ footer {
   position: relative;
   align-self: center;
   min-width: 0;
-  padding-bottom: 70px;
+  padding-bottom: 100px;
+  isolation: isolate;
 }
 .hero-visual > img {
   width: 100%;
-  height: 480px;
+  height: auto;
   object-fit: cover;
   object-position: center;
-  border-radius: 130px 130px 22px 22px;
+  border-radius: 100px 100px 20px 20px;
   display: block;
+  aspect-ratio: 4 / 5;
+  max-height: 560px;
 }
 .floating-note {
   position: absolute;
-  bottom: 24px;
-  left: -28px;
-  width: 300px;
-  padding: 26px;
+  bottom: 12px;
+  left: 24px;
+  width: calc(100% - 48px);
+  padding: 24px;
   background: var(--surface);
   box-shadow: var(--shadow);
   border: 1px solid var(--line);
   border-radius: 16px;
-  transform: rotate(-4deg);
+  transform: none;
+  max-width: 340px;
+  z-index: 1;
 }
 .floating-note .eyebrow {
   display: block;
-  font-size: 9px;
-  margin-bottom: 16px;
+  font-size: var(--text-small);
+  margin-bottom: 12px;
+  letter-spacing: 0.06em;
 }
 .floating-note strong {
-  font-size: 21px;
+  font-size: 22px;
   line-height: 1.35;
-  font-weight: 500;
-  letter-spacing: -0.04em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   display: block;
 }
 .floating-note > span:last-child {
-  font-size: 11px;
+  font-size: var(--text-body);
   color: var(--muted);
   display: block;
-  margin-top: 18px;
+  margin-top: 12px;
+  line-height: 1.55;
 }
 .method {
   display: grid;
@@ -306,7 +337,7 @@ footer {
   gap: 70px;
   padding: 100px 90px;
   border-top: 1px solid var(--line);
-  background: #eef5e4;
+  background: var(--neutral);
 }
 .method h2 {
   font-size: clamp(36px, 4vw, 56px);
@@ -335,7 +366,7 @@ footer {
   margin-bottom: 12px;
 }
 .step-list p {
-  font-size: 14px;
+  font-size: var(--text-body);
   color: var(--muted);
   max-width: 400px;
 }
@@ -357,21 +388,21 @@ footer {
   border-radius: 20px;
   padding: 35px;
   box-shadow: var(--shadow);
-  transform: rotate(2deg);
+  transform: none;
 }
 .tag {
   display: inline-flex;
   align-items: center;
   border-radius: 30px;
   padding: 5px 11px;
-  background: #e6eadd;
-  font-size: 11px;
+  background: var(--neutral);
+  font-size: var(--text-small);
   font-weight: 500;
-  color: #43503d;
+  color: var(--muted);
   line-height: 1.4;
 }
 .tag.green {
-  background: #d7edbf;
+  background: var(--neutral);
 }
 .report-preview .eyebrow {
   margin: 30px 0 14px;
@@ -380,16 +411,16 @@ footer {
   font-size: 28px;
 }
 .report-preview p:last-child {
-  font-size: 14px;
+  font-size: var(--text-body);
   color: var(--muted);
 }
 blockquote {
   margin: 22px 0;
   padding: 0 0 0 18px;
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--line);
   font-size: 16px;
   line-height: 1.6;
-  color: var(--muted);
+  color: var(--ink);
 }
 .faq-section {
   max-width: 880px;
@@ -412,7 +443,7 @@ blockquote {
 .faq-section details p {
   margin: 20px 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--text-body);
 }
 .closing {
   text-align: center;
@@ -432,6 +463,9 @@ blockquote {
   margin-bottom: 42px;
 }
 .page-heading h1 {
+  font-size: var(--text-page);
+}
+.workspace > h1 {
   font-size: var(--text-page);
 }
 .row {
@@ -533,7 +567,7 @@ legend {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  font-size: var(--text-label);
+  font-size: var(--text-body);
   font-weight: 400;
   line-height: 1.65;
   margin-top: 0;
@@ -543,22 +577,22 @@ legend {
   width: 17px;
   height: 17px;
   flex-shrink: 0;
-  accent-color: #608e3e;
+  accent-color: var(--ink);
 }
 .auth-panel form > .button {
   width: 100%;
   margin-top: 0;
 }
 .auth-links {
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--muted);
   margin: 24px 0;
 }
 .auth-panel > .quiet-link {
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .form-error {
-  font-size: 13px;
+  font-size: var(--text-small);
   line-height: 1.6;
   color: var(--danger);
   margin-top: 15px;
@@ -570,9 +604,9 @@ legend {
 .notice {
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #e8ede0;
+  background: var(--neutral);
   padding: 20px 24px;
-  font-size: 13px;
+  font-size: var(--text-body);
   line-height: 1.7;
   margin: 20px 0;
   color: var(--ink);
@@ -614,10 +648,10 @@ legend {
   padding: 32px;
   border: 1px solid var(--line);
   border-radius: 20px;
-  background: var(--surface);
+  background: var(--neutral);
 }
 .guest-unlock {
-  background: #eef5e4;
+  background: var(--neutral);
 }
 .guest-result-layout h2 {
   font-size: var(--text-section);
@@ -678,7 +712,7 @@ video.recording-playback {
   min-height: 0;
 }
 .meeting-body:has(.meeting-chat) {
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 400px);
 }
 .meeting-scene {
   position: relative;
@@ -758,7 +792,7 @@ video.recording-playback {
   border-radius: 8px;
   background: transparent;
   color: var(--ink);
-  font-size: 11px;
+  font-size: var(--text-small);
   font-weight: 500;
   line-height: 1.3;
   transition: background-color 150ms;
@@ -790,8 +824,9 @@ video.recording-playback {
   justify-self: center;
 }
 .meeting-controls .button {
-  min-width: 220px;
+  min-width: 0;
   padding: 13px 24px;
+  max-width: 100%;
 }
 .meeting-controls .actions {
   margin: 0;
@@ -800,7 +835,7 @@ video.recording-playback {
   justify-self: end;
   max-width: 260px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-small);
   line-height: 1.5;
   text-align: right;
 }
@@ -852,7 +887,7 @@ video.recording-playback {
   padding: 14px;
   border: 1px solid transparent;
   border-radius: 12px;
-  background: #f1f3ed;
+  background: var(--neutral);
 }
 .chat-arrival .chat-message {
   animation: meeting-message-in 180ms ease-out both;
@@ -868,19 +903,20 @@ video.recording-playback {
   --message-delay: 120ms;
 }
 .chat-message.is-current {
-  border-color: #6d944f;
-  background: #eef5e4;
+  border-color: var(--ink);
+  background: var(--surface);
+  box-shadow: inset 3px 0 0 var(--ink);
 }
 .chat-author {
   display: block;
   margin-bottom: 7px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-small);
   font-weight: 500;
   line-height: 1.4;
 }
 .chat-message p {
-  font-size: 14px;
+  font-size: var(--text-body);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -888,7 +924,7 @@ video.recording-playback {
   display: block;
   margin-top: 10px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-small);
   line-height: 1.4;
 }
 .chat-message.is-answered p {
@@ -898,9 +934,9 @@ video.recording-playback {
   margin: 10px 0 0 36px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #e8eedf;
+  background: var(--neutral);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-small);
   line-height: 1.5;
 }
 .chat-reply .recording-playback {
@@ -916,7 +952,7 @@ video.recording-playback {
 }
 .chat-next p {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-body);
   line-height: 1.5;
 }
 .chat-next .button {
@@ -968,7 +1004,7 @@ video.recording-playback {
     gap: 18px;
   }
   .meeting-body:has(.meeting-chat) {
-    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-columns: minmax(0, 1fr) 340px;
   }
   .meeting-toolbar {
     grid-template-columns: 150px minmax(0, 1fr);
@@ -988,7 +1024,7 @@ video.recording-playback {
     display: none;
   }
 }
-@media (max-width: 680px) {
+@media (max-width: 680px), (max-width: 900px) and (max-height: 600px) {
   .meeting {
     height: auto;
     min-height: 100dvh;
@@ -1040,7 +1076,7 @@ video.recording-playback {
   .device-control {
     min-width: 59px;
     padding: 5px 3px;
-    font-size: 10px;
+    font-size: var(--text-small);
   }
   .meeting-controls,
   .meeting-controls .button {
@@ -1050,7 +1086,7 @@ video.recording-playback {
   .meeting-controls .button {
     min-height: 48px;
     padding: 12px 10px;
-    font-size: 12px;
+    font-size: var(--text-body);
   }
   .meeting-chat {
     border-top: 1px solid var(--line);
@@ -1067,6 +1103,14 @@ video.recording-playback {
     padding: 16px 20px 20px;
   }
 }
+@media (max-width: 360px) {
+  .meeting-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .meeting-devices {
+    justify-content: center;
+  }
+}
 .guest-recording .field-hint {
   margin-top: 24px;
 }
@@ -1078,7 +1122,7 @@ video.recording-playback {
   margin: 12px 0;
 }
 .guest-unlock > p {
-  font-size: 15px;
+  font-size: var(--text-body);
   color: var(--muted);
   line-height: 1.65;
 }
@@ -1108,6 +1152,7 @@ video.recording-playback {
 .consent-text {
   color: var(--muted);
   line-height: 1.65;
+  font-size: var(--text-body);
 }
 .consent-text h3 {
   font-size: 16px;
@@ -1131,7 +1176,7 @@ video.recording-playback {
   font-weight: 600;
 }
 .first-guide li p {
-  font-size: 14px;
+  font-size: var(--text-body);
   color: var(--muted);
   margin-top: 8px;
 }
@@ -1167,7 +1212,7 @@ video.recording-playback {
   font-weight: 600;
 }
 .starter {
-  background: #e5ebdc;
+  background: var(--neutral);
   border-radius: 20px;
   padding: 35px;
 }
@@ -1177,7 +1222,7 @@ video.recording-playback {
 }
 .starter p:not(.eyebrow) {
   margin-top: 25px;
-  font-size: 14px;
+  font-size: var(--text-body);
   color: var(--muted);
 }
 .starter > .button.primary {
@@ -1213,8 +1258,20 @@ video.recording-playback {
   display: block;
 }
 .scenario-options input:checked + span {
-  border-color: #668c46;
-  background: #e1efcf;
+  border-color: var(--ink);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.scenario-options input:checked + span strong::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 11px;
+  margin-left: 12px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  vertical-align: 2px;
 }
 .scenario-options input:focus-visible + span {
   outline: 3px solid #538824;
@@ -1414,19 +1471,24 @@ video.recording-playback {
   text-align: center;
 }
 .report-insight {
-  background: #e1e9d8;
+  background: var(--surface);
   padding: 40px;
   border-radius: 20px;
   margin: 35px 0 50px;
+  border: 1px solid var(--line);
 }
 .report-insight h2 {
-  font-size: var(--text-section);
+  font-size: var(--text-label);
+  letter-spacing: 0;
+  color: var(--muted);
 }
 .report-insight .insight-copy {
-  font-size: clamp(18px, 2vw, 24px);
+  font-size: var(--text-lead);
   line-height: 1.55;
   margin-top: 20px;
   max-width: 850px;
+  font-weight: 500;
+  color: var(--ink);
 }
 .report-columns {
   display: grid;
@@ -1442,20 +1504,20 @@ video.recording-playback {
   border-top: 1px solid var(--line);
 }
 .report-item h3 {
-  font-size: 24px;
-  line-height: 1.2;
+  font-size: 22px;
+  line-height: 1.35;
 }
 .report-item p {
-  font-size: 14px;
+  font-size: var(--text-body);
   color: var(--muted);
   margin-top: 18px;
 }
 .report-item blockquote {
-  font-size: 14px;
+  font-size: var(--text-body);
   margin: 18px 0;
 }
 .report-item.strength {
-  border-top-color: #a9c58c;
+  border-top-color: var(--line);
 }
 .report-metrics {
   margin: 50px 0;
@@ -1475,11 +1537,11 @@ video.recording-playback {
   border-radius: 12px;
 }
 .report-metrics .eyebrow {
-  font-size: 9px;
+  font-size: var(--text-small);
   margin-bottom: 12px;
 }
 .report-metrics p {
-  font-size: 13px;
+  font-size: var(--text-body);
   color: var(--muted);
   margin-top: 15px;
 }
@@ -1491,7 +1553,7 @@ video.recording-playback {
   margin-left: 12px;
 }
 .criterion p {
-  font-size: 13px;
+  font-size: var(--text-body);
   color: var(--muted);
   margin-top: 12px;
 }
@@ -1508,7 +1570,7 @@ video.recording-playback {
 }
 .transcript p {
   white-space: pre-wrap;
-  font-size: 14px;
+  font-size: var(--text-body);
   line-height: 1.8;
   margin-top: 20px;
   color: var(--muted);
@@ -1516,7 +1578,7 @@ video.recording-playback {
 .next-attempt {
   display: block;
   gap: 40px;
-  background: #e1e9d8;
+  background: var(--neutral);
   border-radius: 20px;
   padding: 35px;
   margin: 60px 0;
@@ -1525,7 +1587,7 @@ video.recording-playback {
   font-size: 35px;
 }
 .next-attempt p:not(.eyebrow) {
-  font-size: 13px;
+  font-size: var(--text-body);
   color: var(--muted);
   margin-top: 20px;
   max-width: 550px;
@@ -1554,11 +1616,19 @@ video.recording-playback {
   cursor: pointer;
 }
 .focus-option:has(input:checked) {
-  border-color: #668c46;
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.focus-option:has(input:focus-visible) {
+  outline: 3px solid #538824;
+  outline-offset: 4px;
 }
 .focus-option input {
   margin: 4px 0 0;
-  accent-color: #608e3e;
+  accent-color: var(--ink);
+  width: 18px;
+  height: 18px;
+  align-self: start;
 }
 .focus-option strong {
   font-size: 16px;
@@ -1566,7 +1636,7 @@ video.recording-playback {
 }
 .focus-description {
   display: block;
-  font-size: 14px;
+  font-size: var(--text-body);
   font-weight: 400;
   line-height: 1.6;
   color: var(--muted);
@@ -1583,6 +1653,7 @@ video.recording-playback {
 .ratings {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .ratings label {
   cursor: pointer;
@@ -1602,8 +1673,9 @@ video.recording-playback {
   background: var(--surface);
 }
 .ratings input:checked + span {
-  background: var(--accent);
-  border-color: #658842;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
 }
 .ratings input:focus-visible + span {
   outline: 3px solid #538824;
@@ -1622,7 +1694,7 @@ video.recording-playback {
   margin: 35px 0 18px;
 }
 .prose p {
-  font-size: 15px;
+  font-size: var(--text-body);
   line-height: 1.8;
   color: var(--muted);
 }
@@ -1711,7 +1783,7 @@ video.recording-playback {
     font-size: 48px;
   }
   .hero-visual > img {
-    height: 430px;
+    max-height: 520px;
   }
   .method,
   .landing-example {
@@ -1745,6 +1817,7 @@ video.recording-playback {
   .hero {
     padding: 50px 25px 85px;
     gap: 25px;
+    grid-template-columns: minmax(0, 1fr);
   }
   .hero h1 {
     font-size: 48px;
@@ -1752,13 +1825,22 @@ video.recording-playback {
   .hero-description {
     font-size: 16px;
   }
+  .hero-visual {
+    max-width: 470px;
+    width: 100%;
+    margin: auto;
+    padding-bottom: 0;
+  }
   .hero-visual > img {
-    height: 390px;
+    max-height: 480px;
   }
   .floating-note {
-    width: 240px;
-    left: -10px;
-    padding: 22px;
+    position: relative;
+    bottom: auto;
+    margin-top: -40px;
+    left: 16px;
+    width: calc(100% - 32px);
+    padding: 20px;
   }
   .floating-note strong {
     font-size: 21px;
@@ -1821,8 +1903,9 @@ video.recording-playback {
 }
 @media (max-width: 700px) {
   .header {
-    height: 80px;
-    padding: 0 20px;
+    height: auto;
+    min-height: 80px;
+    padding: 18px 20px;
   }
   .brand-symbol {
     width: 35px;
@@ -1846,7 +1929,7 @@ video.recording-playback {
     gap: 40px;
   }
   .hero h1 {
-    font-size: clamp(38px, 8.5vw, 52px);
+    font-size: clamp(34px, 8.5vw, 42px);
   }
   .hero-description {
     margin-top: 25px;
@@ -1861,18 +1944,19 @@ video.recording-playback {
     max-width: 470px;
     width: 100%;
     margin: auto;
-    padding-bottom: 35px;
+    padding-bottom: 0;
   }
   .hero-visual > img {
-    height: 340px;
-    border-radius: 100px 100px 18px 18px;
+    height: auto;
+    max-height: none;
+    border-radius: 80px 80px 18px 18px;
   }
   .floating-note {
-    bottom: 0;
-    left: 20px;
-    max-width: 320px;
-    width: calc(100% - 40px);
-    transform: rotate(-3deg);
+    bottom: auto;
+    left: 16px;
+    max-width: 340px;
+    width: calc(100% - 32px);
+    transform: none;
   }
   .floating-note strong {
     font-size: 18px;
@@ -1894,7 +1978,7 @@ video.recording-playback {
   }
   .report-preview {
     padding: 25px;
-    transform: rotate(1deg);
+    transform: none;
   }
   .faq-section {
     margin: 20px 5px 0;
@@ -1926,7 +2010,7 @@ video.recording-playback {
   }
   .auth-intro p:not(.eyebrow) {
     margin-top: 20px;
-    font-size: 14px;
+    font-size: var(--text-body);
     max-width: none;
   }
   .auth-panel {
@@ -1939,7 +2023,7 @@ video.recording-playback {
     margin-bottom: 30px;
   }
   .page-heading h1 {
-    font-size: 34px;
+    font-size: var(--text-page);
   }
   .setup-layout {
     grid-template-columns: 1fr;
@@ -2009,7 +2093,7 @@ video.recording-playback {
     margin: 25px 0 35px;
   }
   .report-insight h2 {
-    font-size: 27px;
+    font-size: var(--text-label);
   }
   .report-metrics {
     grid-template-columns: 1fr;
@@ -2035,7 +2119,7 @@ video.recording-playback {
   }
   .notice {
     padding: 18px;
-    font-size: 12px;
+    font-size: var(--text-body);
   }
   .empty {
     padding: 40px 22px;
@@ -2045,7 +2129,7 @@ video.recording-playback {
   }
   .eyebrow {
     margin-bottom: 18px;
-    font-size: 10px;
+    font-size: var(--text-small);
   }
   .criterion .tag {
     margin: 10px 0;
