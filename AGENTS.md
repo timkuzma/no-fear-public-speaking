@@ -9,6 +9,15 @@
 - Do not simulate authentication, store passwords/session tokens in localStorage, or expose provider credentials in frontend source. Never commit `.env`, private data, logs or temporary test artifacts.
 - Provider output is untrusted text. Verify transcript quotations; derive numerical metrics locally. Do not claim voice, gesture or psychological analysis from a text pipeline.
 
+## Interface and Russian copy
+
+- Apply these rules across every route and shared component, including generated report titles.
+- Use complete, connected headings and prose. Do not force line breaks or split one idea into a sequence of tiny sentences. Let text wrap naturally. Headings never end in a period; preserve question marks and meaningful source text outside headings.
+- CTA labels contain no decorative arrows. Do not use decorative online-status dots or padded numbering such as `01`, `02`, `03`. Use ordinary numbering only for a meaningful sequence.
+- Native single-select chevrons need an explicit inner right gutter and reserved text space. Keep keyboard interaction and native accessibility; do not replace selects with decorative divs.
+- Typography uses shared CSS tokens: distinguish page titles, section headings, field labels, input values and hints by size, weight, spacing and contrast. Keep optional-field labels inline and attach hints to their field group.
+- Visuals must suit a contemporary Russian audience and recognizable local settings. Do not infer or claim real people's nationality from appearance. Record generated-asset provenance; never present an illustration as a real user or testimonial.
+
 ## Validation and operations
 
 - Use Python 3.12+ in `.venv`; `pytest -q` covers API isolation, jobs and provider validation. Check both frontend modules with Node syntax checks, and verify the actual UI in a browser.

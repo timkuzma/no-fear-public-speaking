@@ -9,6 +9,11 @@
   --accent-ink: #213922;
   --danger: #9e342e;
   --shadow: 0 22px 60px #14271812;
+  --text-body: 16px;
+  --text-label: 14px;
+  --text-hint: 13px;
+  --text-page: clamp(34px, 4vw, 48px);
+  --text-section: clamp(24px, 2.8vw, 30px);
   font-family: "Avenir Next", "Segoe UI", Arial, sans-serif;
   font-synthesis: none;
 }
@@ -19,7 +24,7 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-size: 16px;
+  font-size: var(--text-body);
   line-height: 1.5;
 }
 a {
@@ -64,9 +69,11 @@ p {
 h1,
 h2,
 h3 {
-  line-height: 1.06;
-  letter-spacing: -0.045em;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
   font-weight: 600;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 h1 {
   font-size: clamp(40px, 5.4vw, 72px);
@@ -167,12 +174,9 @@ footer {
   margin-bottom: 24px;
 }
 .hero h1 {
-  font-size: clamp(48px, 5.6vw, 82px);
-  line-height: 1.01;
-  letter-spacing: -0.057em;
-}
-.hero h1 span {
-  color: #66725f;
+  font-size: clamp(44px, 4.5vw, 64px);
+  line-height: 1.12;
+  letter-spacing: -0.04em;
 }
 .hero-description {
   font-size: 18px;
@@ -205,11 +209,13 @@ footer {
     transform 0.18s,
     background-color 0.18s;
 }
-.button:hover:not(:disabled) {
-  transform: translateY(-2px);
+@media (hover: hover) and (pointer: fine) {
+  .button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
 }
 .button:active:not(:disabled) {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 .button.primary {
   background: var(--accent);
@@ -245,7 +251,7 @@ footer {
 }
 .caption,
 .field-hint {
-  font-size: 12px;
+  font-size: var(--text-hint);
   line-height: 1.6;
   color: var(--muted);
   margin-top: 14px;
@@ -279,14 +285,6 @@ footer {
   border: 1px solid #ffffff44;
   border-radius: 20px;
 }
-.dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #c5e78b;
-  margin-right: 8px;
-}
 .floating-note {
   position: absolute;
   bottom: 24px;
@@ -305,8 +303,8 @@ footer {
   margin-bottom: 16px;
 }
 .floating-note strong {
-  font-size: 23px;
-  line-height: 1.1;
+  font-size: 21px;
+  line-height: 1.35;
   font-weight: 500;
   letter-spacing: -0.04em;
   display: block;
@@ -316,14 +314,6 @@ footer {
   color: var(--muted);
   display: block;
   margin-top: 18px;
-}
-.hero-index {
-  position: absolute;
-  bottom: 35px;
-  left: 52px;
-  font-size: 10px;
-  letter-spacing: 0.17em;
-  color: var(--muted);
 }
 .method {
   display: grid;
@@ -457,7 +447,7 @@ blockquote {
   margin-bottom: 42px;
 }
 .page-heading h1 {
-  font-size: clamp(38px, 5vw, 64px);
+  font-size: var(--text-page);
 }
 .row {
   display: flex;
@@ -495,12 +485,23 @@ label:not(.check) {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-label);
+  font-weight: 600;
 }
-form > label + label,
-form > fieldset + label {
-  margin-top: 22px;
+.setup-form,
+.auth-panel form,
+.feedback-form {
+  display: grid;
+  gap: 24px;
+}
+.label-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.field-group .field-hint {
+  margin-top: 8px;
 }
 input:not([type="checkbox"]):not([type="radio"]),
 select,
@@ -511,8 +512,18 @@ textarea {
   padding: 13px 14px;
   background: var(--surface);
   color: var(--ink);
-  font-size: 15px;
-  min-height: 47px;
+  font-size: var(--text-body);
+  font-weight: 400;
+  min-height: 50px;
+}
+select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 52px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='%23202a25' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 18px center;
+  background-size: 16px 16px;
 }
 textarea {
   resize: vertical;
@@ -530,17 +541,17 @@ fieldset {
 legend {
   padding: 0;
   margin-bottom: 12px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-label);
+  font-weight: 600;
 }
 .check {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  font-size: 12px;
+  font-size: var(--text-label);
   font-weight: 400;
   line-height: 1.65;
-  margin-top: 22px;
+  margin-top: 0;
 }
 .check input {
   margin: 4px 0 0;
@@ -551,7 +562,7 @@ legend {
 }
 .auth-panel form > .button {
   width: 100%;
-  margin-top: 20px;
+  margin-top: 0;
 }
 .auth-links {
   font-size: 12px;
@@ -569,6 +580,7 @@ legend {
 }
 .form-error:empty {
   margin: 0;
+  display: none;
 }
 .notice {
   border: 1px solid var(--line);
@@ -605,7 +617,7 @@ legend {
   padding: 35px;
 }
 .starter h2 {
-  font-size: 36px;
+  font-size: 28px;
   margin-top: 28px;
 }
 .starter p:not(.eyebrow) {
@@ -621,8 +633,8 @@ legend {
   margin-top: 10px;
 }
 .setup-form h2 {
-  font-size: 30px;
-  margin-bottom: 30px;
+  font-size: var(--text-section);
+  margin-bottom: 8px;
 }
 .scenario-options {
   display: grid;
@@ -654,12 +666,13 @@ legend {
   outline-offset: 3px;
 }
 .scenario-options strong {
-  font-size: 12px;
+  font-size: var(--text-label);
+  font-weight: 600;
   display: block;
   line-height: 1.4;
 }
 .scenario-options small {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
   color: var(--muted);
   display: block;
@@ -669,10 +682,11 @@ legend {
 .optional {
   font-weight: 400;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .setup-form > .button {
-  margin-top: 28px;
+  margin-top: 4px;
+  justify-self: start;
 }
 .empty {
   padding: 70px 45px;
@@ -851,14 +865,22 @@ legend {
   margin: 35px 0 50px;
 }
 .report-insight h2 {
-  font-size: 32px;
-  line-height: 1.25;
+  font-size: var(--text-section);
+}
+.report-insight .insight-copy {
+  font-size: clamp(18px, 2vw, 24px);
+  line-height: 1.55;
+  margin-top: 20px;
   max-width: 850px;
 }
 .report-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 45px;
+}
+.report-columns > section > h2 {
+  font-size: var(--text-section);
+  margin-bottom: 24px;
 }
 .report-item {
   padding: 26px 0;
@@ -963,8 +985,8 @@ legend {
   margin-top: 50px;
 }
 .feedback-form h2 {
-  font-size: 30px;
-  margin-bottom: 25px;
+  font-size: var(--text-section);
+  margin-bottom: 0;
 }
 .ratings {
   display: flex;
@@ -996,7 +1018,8 @@ legend {
   outline-offset: 3px;
 }
 .feedback-form > .button {
-  margin-top: 20px;
+  margin-top: 0;
+  justify-self: start;
 }
 .narrow {
   max-width: 740px;
@@ -1093,7 +1116,7 @@ legend {
     padding: 55px 40px 90px;
   }
   .hero h1 {
-    font-size: 64px;
+    font-size: 48px;
   }
   .hero-visual > img {
     height: 430px;
@@ -1132,7 +1155,7 @@ legend {
     gap: 25px;
   }
   .hero h1 {
-    font-size: 54px;
+    font-size: 48px;
   }
   .hero-description {
     font-size: 16px;
@@ -1174,7 +1197,7 @@ legend {
     padding: 25px;
   }
   .starter h2 {
-    font-size: 31px;
+    font-size: 27px;
   }
   .scenario-options {
     grid-template-columns: 1fr;
@@ -1236,7 +1259,7 @@ legend {
     gap: 40px;
   }
   .hero h1 {
-    font-size: clamp(43px, 10vw, 64px);
+    font-size: clamp(38px, 8.5vw, 52px);
   }
   .hero-description {
     margin-top: 25px;
@@ -1260,14 +1283,12 @@ legend {
   .floating-note {
     bottom: 0;
     left: 20px;
-    max-width: 280px;
-    width: 65%;
+    max-width: 320px;
+    width: calc(100% - 40px);
     transform: rotate(-3deg);
   }
-  .hero-index {
-    left: 20px;
-    bottom: 15px;
-    font-size: 9px;
+  .floating-note strong {
+    font-size: 18px;
   }
   .method,
   .landing-example {
@@ -1276,10 +1297,10 @@ legend {
     gap: 40px;
   }
   .method h2 {
-    font-size: 40px;
+    font-size: 32px;
   }
   .landing-example h2 {
-    font-size: 38px;
+    font-size: 32px;
   }
   .landing-example .report-preview {
     margin: 0 4px;
@@ -1298,7 +1319,7 @@ legend {
     padding: 80px 20px 45px;
   }
   .closing h2 {
-    font-size: 42px;
+    font-size: 32px;
   }
   .workspace {
     padding: 35px 0;
@@ -1313,7 +1334,7 @@ legend {
     margin-bottom: 18px;
   }
   .auth-intro h1 {
-    font-size: 43px;
+    font-size: 36px;
     margin: 0;
   }
   .auth-intro p:not(.eyebrow) {
@@ -1331,7 +1352,7 @@ legend {
     margin-bottom: 30px;
   }
   .page-heading h1 {
-    font-size: 41px;
+    font-size: 34px;
   }
   .setup-layout {
     grid-template-columns: 1fr;
@@ -1342,7 +1363,7 @@ legend {
     padding: 28px;
   }
   .starter h2 {
-    font-size: 35px;
+    font-size: 27px;
   }
   .setup-form h2 {
     font-size: 28px;
@@ -1495,4 +1516,12 @@ legend {
   font-size: 14px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+@media (forced-colors: active) {
+  select:not([multiple]) {
+    appearance: auto;
+    background-image: none;
+    padding-right: 14px;
+  }
 }
