@@ -345,3 +345,40 @@ def test_webm_cancel_when_child_already_exited(tmp_path, monkeypatch):
     assert child.calls == 2
     assert path.is_file()
     assert not (tmp_path / 'cancel.finalizing.webm').exists()
+
+
+def test_practice_import_replay_is_scoped_and_idempotent(app):
+    one, two = TestClient(app), TestClient(app)
+    headers = account(one)
+    other_headers = account(two, 'second-import@example.org')
+    body = {'scenario': 'speech', 'topic': 'Запись до регистрации', 'duration': 1, 'idempotency_key': 'a' * 32}
+    first = one.post('/api/practices', headers=headers, json=body)
+    replay = one.post('/api/practices', headers=headers, json=body)
+    other = two.post('/api/practices', headers=other_headers, json=body)
+    assert first.status_code == replay.status_code == other.status_code == 200
+    assert first.json()['id'] == replay.json()['id'] != other.json()['id']
+    assert 'idempotency_key' not in first.json()['config']
+    assert one.get('/api/practices').json()['total'] == 1
+    assert app.state.store.one("SELECT COUNT(*) AS n FROM events WHERE kind='practice_started'")['n'] == 2
+    assert two.get('/api/practices/' + first.json()['id']).status_code == 404
+    changed = one.post('/api/practices', headers=headers, json={**body, 'topic': 'Другая тема'})
+    assert changed.status_code == 409
+    assert one.post('/api/practices', json=body).status_code == 403
+
+
+def test_practice_import_can_resume_after_upload_and_quota(app, monkeypatch):
+    monkeypatch.setattr('server.app.decoded_duration', AsyncMock(return_value={'duration_seconds': 1, 'extension': '.wav'}))
+    client = TestClient(app)
+    headers = account(client)
+    body = {'scenario': 'speech', 'topic': 'Гостевой импорт', 'duration': 1, 'idempotency_key': 'b' * 32}
+    first = client.post('/api/practices', headers=headers, json=body).json()
+    assert upload(client, headers, first['id']).status_code == 200
+    user_id = client.get('/api/auth/me').json()['user']['id']
+    for _ in range(30):
+        app.state.store.limited('practice:' + user_id, 100, 86400)
+    replay = client.post('/api/practices', headers=headers, json=body)
+    assert replay.status_code == 200
+    assert replay.json()['id'] == first['id']
+    assert len(replay.json()['segments']) == 1
+    assert client.get('/api/practices').json()['total'] == 1
+    assert client.post('/api/practices', headers=headers, json={**body, 'idempotency_key': 'not-a-key'}).status_code == 422

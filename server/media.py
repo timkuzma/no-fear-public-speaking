@@ -19,7 +19,7 @@ async def finalize_webm(path: Path):
         process = await asyncio.create_subprocess_exec(
             binary, '-nostdin', '-v', 'error', '-protocol_whitelist', 'file,pipe',
             '-format_whitelist', 'matroska,webm', '-i', str(path.resolve()),
-            '-map', '0:a:0', '-vn', '-t', '601', '-c:a', 'copy', '-y', str(target),
+            '-map', '0:a:0', '-map', '0:v:0?', '-t', '601', '-c', 'copy', '-y', str(target),
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
         )
         try:

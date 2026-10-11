@@ -13,6 +13,10 @@ async def process(store, job):
     try:
         segments = store.all('SELECT * FROM segments WHERE practice_id=? ORDER BY segment_index', (practice_id,))
         selected = [s for s in segments if s['kind'] == 'speech'] if job['kind'] == 'questions' else segments
+        questions = []
+        if job['kind'] == 'report':
+            practice = store.one('SELECT questions FROM practices WHERE id=?', (practice_id,))
+            questions = json.loads(practice['questions'])
         prepared = []
         for segment in selected:
             text = segment['transcript']
@@ -23,7 +27,13 @@ async def process(store, job):
                 with store.connect() as db:
                     db.execute('UPDATE segments SET transcript=? WHERE id=?', (text, segment['id']))
                     db.execute('INSERT INTO usage VALUES(?,?,?,?,?)', (__import__('uuid').uuid4().hex, job['id'], job['user_id'], now(), json.dumps(result['usage'])))
-            prepared.append({'kind': segment['kind'], 'index': segment['segment_index'], 'text': text, 'duration_seconds': segment['duration']})
+            item = {'kind': segment['kind'], 'index': segment['segment_index'], 'text': text, 'duration_seconds': segment['duration']}
+            if segment['kind'] == 'answer':
+                index = segment['segment_index']
+                if not isinstance(questions, list) or not 1 <= index <= len(questions):
+                    raise ai.ProviderError('AI_INPUT_INVALID', 'Не удалось связать ответ с вопросом. Запись сохранена; повторите разбор.')
+                item['question'] = questions[index - 1]
+            prepared.append(item)
         config = json.loads(job['config'])
         store.execute('UPDATE jobs SET stage=? WHERE id=?', (job['kind'], job['id']))
         if job['kind'] == 'questions':

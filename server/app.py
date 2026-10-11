@@ -89,6 +89,7 @@ class Practice(BaseModel):
     duration: float = Field(ge=0.5, le=10)
     questions: bool = False
     criteria: str = Field(default='', max_length=5000)
+    idempotency_key: str | None = Field(default=None, pattern=r'^[a-f0-9]{32}$')
 
 
 class JobRequest(BaseModel):
@@ -114,7 +115,7 @@ def job_json(row):
 
 
 def segment_json(row):
-    return {'id': row['id'], 'kind': row['kind'], 'index': row['segment_index'], 'media_url': '/api/practices/' + row['practice_id'] + '/segments/' + row['id'] + '/media', 'duration_seconds': row['duration'], 'transcript': row['transcript']}
+    return {'id': row['id'], 'kind': row['kind'], 'index': row['segment_index'], 'media_url': '/api/practices/' + row['practice_id'] + '/segments/' + row['id'] + '/media', 'duration_seconds': row['duration'], 'transcript': row['transcript'], 'has_video': '.video.' in row['filename']}
 
 
 async def decoded_duration(path):
@@ -308,10 +309,23 @@ def create_app(data_dir=None, start_worker=True):
     @app.post('/api/practices')
     async def create_practice(body: Practice, request: Request):
         user = auth(request, True)
+        config = body.model_dump(exclude={'idempotency_key'})
+        practice_id = digest(user['id'] + ':' + body.idempotency_key)[:32] if body.idempotency_key else uid()
+        def existing():
+            row = store.one('SELECT * FROM practices WHERE id=? AND user_id=?', (practice_id, user['id']))
+            if row and json.loads(row['config']) != config:
+                fail(409, 'PRACTICE_KEY_CONFLICT', 'Эта запись уже относится к другой тренировке.')
+            return practice_json(row) if row else None
+        if body.idempotency_key and (saved := existing()):
+            return saved
         if store.limited('practice:' + user['id'], 30, 86400):
             fail(429, 'PRACTICE_QUOTA', 'Лимит на сегодня достигнут. Продолжите завтра.')
-        practice_id = uid()
-        store.execute('INSERT INTO practices(id,user_id,config,created) VALUES(?,?,?,?)', (practice_id, user['id'], json.dumps(body.model_dump(), ensure_ascii=False), now()))
+        try:
+            store.execute('INSERT INTO practices(id,user_id,config,created) VALUES(?,?,?,?)', (practice_id, user['id'], json.dumps(config, ensure_ascii=False), now()))
+        except sqlite3.IntegrityError:
+            if body.idempotency_key and (saved := existing()):
+                return saved
+            raise
         store.event('practice_started', user['id'], practice_id)
         return practice_json(owned(practice_id, user['id']))
 
@@ -362,7 +376,8 @@ def create_app(data_dir=None, start_worker=True):
                 os.fsync(destination.fileno())
             probe = await decoded_duration(path)
             duration = probe['duration_seconds']
-            filename = segment_id + probe['extension']
+            video = (file.content_type or '').startswith('video/') and probe['extension'] in ('.webm', '.mp4')
+            filename = segment_id + ('.video' if video else '') + probe['extension']
             verified_path = store.media / filename
             path.rename(verified_path)
             path = verified_path

@@ -25,7 +25,7 @@ Development registration may omit an invite; production must fail closed without
  questions:[],report:null|Report,segments:[],active_job:null|Job}
 ```
 
-`POST /api/practices/{id}/segments` multipart `{file,kind:"speech"|"answer",index:0|1|2|3}` -> segment `{id,kind,index,media_url,duration_seconds,transcript?}`. Speech index is 0; answer indexes 1–3. Server uses persisted questions to identify answers. Stream/bound upload, confirm real decodable audio, generated private filenames. Return success only after disk and database persistence. Repeated same segment index is a conflict, not a second billable upload.
+`POST /api/practices/{id}/segments` multipart `{file,kind:"speech"|"answer",index:0|1|2|3}` -> segment `{id,kind,index,media_url,duration_seconds,has_video:boolean,transcript?}`. Speech index is 0; answer indexes 1–3. Server uses persisted questions to identify answers. Stream/bound upload, confirm real decodable audio, generated private filenames. Return success only after disk and database persistence. Repeated same segment index is a conflict, not a second billable upload.
 
 `POST /api/practices/{id}/jobs` body `{kind:"questions"|"report"}` -> job `{id,practice_id,kind,status:"pending"|"running"|"succeeded"|"failed",stage,result:null|object,error:null|{code,message}}`. Duplicate active job returns existing job.
 
@@ -41,7 +41,7 @@ Development registration may omit an invite; production must fail closed without
 
 `GET /api/operator/metrics` and `/api/operator/export?format=json|csv`: operator bearer credential, no credentials in URL, no raw speech in general logs.
 
-Export also accepts `kind=usage|events` and `limit` capped at 10000. JSON is `{items:[row]}`; metrics is a separate aggregate. Media download uses `?download=true`, a validated container extension and MIME. Browser streaming WebM is losslessly finalized before persistence for finite duration and seeking. Total audio across all segments is capped at 600 seconds.
+Export also accepts `kind=usage|events` and `limit` capped at 10000. JSON is `{items:[row]}`; metrics is a separate aggregate. Media download uses `?download=true`, a validated container extension and MIME. Browser streaming WebM is losslessly finalized before persistence for finite duration and seeking, preserving required audio and optional video. Video is available for private playback; the analysis pipeline uses only audio and transcript. Total audio across all segments is capped at 600 seconds.
 
 ## Report shape shared by worker and UI
 
@@ -63,7 +63,13 @@ Transcript evidence must be verified against actual supplied segment text. No in
 - `ProviderError(code: str, message: str)`; messages are safe and Russian, never contain key/provider response bodies.
 - `async transcribe(path: Path) -> dict`: `{text:string,duration_seconds:number,usage:Usage}`. Decode using environment `FFMPEG_BINARY` or imageio-ffmpeg binary fallback; enforce ten-minute media limit. Provider config from `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (default gigachat-3-pro), `TRANSCRIPTION_MODEL` (default whisper-large-v3), optional timeout settings. No secret files or logs.
 - `async generate_questions(config:dict, transcript:str) -> dict`: `{questions:[string,string,string],usage:Usage}`.
-- `async analyze(config:dict, segments:list[dict]) -> dict`: `{report:Report,usage:Usage}`. Segments include `{kind,index,text,duration_seconds}`. Module does not access DB or private ownership.
+- `async analyze(config:dict, segments:list[dict]) -> dict`: `{report:Report,usage:Usage}`. Segments include `{kind,index,text,duration_seconds,question?}`. The worker binds each answer to its persisted question by index. Question text is untrusted context, excluded from transcript evidence and word counts. Module does not access DB or private ownership.
 - `Usage`: `{model:string,input_tokens:int,output_tokens:int,audio_seconds:number,latency_ms:number,operation:string}`. Real provider counts when available; unknown counts remain null rather than fake zero. Retries bounded, record attempts if possible.
 
 Backend worker stores transcripts and usage immediately after each successful stage. AI agent owns only `server/ai.py`, `tests/test_ai.py`, `docs/llm.md`; backend agent owns remaining `server/` and `tests/test_backend.py`. Frontend agent owns only `public/`. Root owns tooling, integration tests, dependencies, operations/docs and root agent instructions. No subagent commits or Git operations.
+
+## Recording before authentication
+
+Guest drafts remain client-side until registration/login and consent. No anonymous API exposes private media or report data. The browser resumes the same configuration and uploads the same audio after authentication.
+
+`POST /api/practices` accepts an optional `idempotency_key` of 32 lowercase hexadecimal characters. Replaying the same configuration/key for the same account returns the existing practice, including any uploaded segments. A changed configuration returns `409 PRACTICE_KEY_CONFLICT`. The key is scoped to the authenticated account and omitted from stored/returned configuration. Existing authentication, origin and CSRF checks still apply. This supports recovery from an ambiguous creation/upload response without creating another practice.
