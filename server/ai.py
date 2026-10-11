@@ -18,7 +18,7 @@ import httpx
 MAX_DURATION = 600
 MAX_TEXT = 60000
 MAX_MEDIA_BYTES = 100 * 1024 * 1024
-PROMPT_VERSION = "pilot-evidence-v4"
+PROMPT_VERSION = "pilot-evidence-v5"
 
 
 class ProviderError(Exception):
@@ -309,19 +309,48 @@ DATA_RULE = (
 
 async def generate_questions(config: dict, transcript: str):
     safe_config = _input(config, transcript)
+    quotes = _quote_candidates([{"index": 0, "text": transcript}])
+    quote_map = {quote["id"]: quote for quote in quotes}
     result, usage = await _chat("questions", DATA_RULE +
-        'Составь ровно три разных вопроса аудитории по содержанию речи. '
-        'Каждый вопрос ссылается на конкретную мысль из речи и помогает проверить аргумент '
-        'или развить мысль. Формат: {"questions":["вопрос", "вопрос", "вопрос"]}.',
-        {"config": safe_config, "speech": transcript})
-    questions = result.get("questions")
-    if (not isinstance(questions, list) or len(questions) != 3 or
-            any(not isinstance(item, str) or not 8 <= len(item.strip()) <= 600 for item in questions) or
-            len({item.strip().casefold() for item in questions}) != 3):
+        'Ты слушатель, который только что услышал речь speech. Составь ровно три разных '
+        'вопроса именно к сказанному, а не к общей теме тренировки. config.topic — только '
+        'контекст: он не доказывает, что говорящий обсуждал эти идеи. Каждый вопрос должен '
+        'называть конкретную мысль, пример или утверждение из выбранного фрагмента quotes '
+        'и уточнять его смысл, основание или следствие. Не приписывай выступающему '
+        'технологии, планы, числа, результаты или аргументы, которых нет в speech. '
+        'Не используй общий вопрос, который подошёл бы любому выступлению по этой теме. '
+        'Не задавай три переформулировки одного вопроса. Если речь короткая и в ней только '
+        'одна мысль, можно выбрать один evidence_id несколько раз и уточнить разные стороны '
+        'этой мысли; не достраивай за человека отсутствующее выступление. '
+        'evidence_id — ровно один существующий id из quotes, относящийся к вопросу. '
+        'Не переписывай цитату и не добавляй поля: сервер проверит выбранный id. '
+        'Верни JSON с questions из ровно трёх объектов text и evidence_id: '
+        '{"questions":[{"text":"вопрос к сказанному?","evidence_id":"s0-q0"},'
+        '{"text":"другой вопрос?","evidence_id":"s0-q0"},'
+        '{"text":"третий вопрос?","evidence_id":"s0-q0"}]}.',
+        {"config": safe_config, "speech": transcript, "quotes": quotes})
+    try:
+        items = result.get("questions")
+        if not isinstance(items, list) or len(items) != 3:
+            raise ValueError()
+        questions = []
+        for item in items:
+            if not isinstance(item, dict) or set(item) != {"text", "evidence_id"}:
+                raise ValueError()
+            evidence_id = item["evidence_id"]
+            if not isinstance(evidence_id, str) or evidence_id not in quote_map:
+                raise ValueError()
+            question = _string(item["text"], 600)
+            if len(question) < 8:
+                raise ValueError()
+            questions.append(question)
+        if len({question.casefold() for question in questions}) != 3:
+            raise ValueError()
+    except (KeyError, TypeError, ValueError):
         error = ProviderError("AI_INVALID_RESPONSE", "Не удалось подготовить три вопроса по вашей речи. Попробуйте ещё раз.")
         error.usage = usage
-        raise error
-    return {"questions": [item.strip() for item in questions], "usage": usage}
+        raise error from None
+    return {"questions": questions, "usage": usage}
 
 
 def _string(value, maximum=2000):

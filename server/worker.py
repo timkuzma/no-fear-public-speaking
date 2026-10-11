@@ -22,11 +22,16 @@ async def process(store, job):
             text = segment['transcript']
             if text is None:
                 store.execute('UPDATE jobs SET stage=? WHERE id=?', ('transcription_' + str(segment['segment_index']), job['id']))
-                result = await ai.transcribe(store.media / segment['filename'])
-                text = result['text']
+                from .live import reusable_transcript
+                text = await reusable_transcript(store, segment) if segment['kind'] == 'speech' else None
+                result = None
+                if text is None:
+                    result = await ai.transcribe(store.media / segment['filename'])
+                    text = result['text']
                 with store.connect() as db:
                     db.execute('UPDATE segments SET transcript=? WHERE id=?', (text, segment['id']))
-                    db.execute('INSERT INTO usage VALUES(?,?,?,?,?)', (__import__('uuid').uuid4().hex, job['id'], job['user_id'], now(), json.dumps(result['usage'])))
+                    if result:
+                        db.execute('INSERT INTO usage VALUES(?,?,?,?,?)', (__import__('uuid').uuid4().hex, job['id'], job['user_id'], now(), json.dumps(result['usage'])))
             item = {'kind': segment['kind'], 'index': segment['segment_index'], 'text': text, 'duration_seconds': segment['duration']}
             if segment['kind'] == 'answer':
                 index = segment['segment_index']

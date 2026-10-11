@@ -35,6 +35,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,practice_id TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,stage TEXT NOT NULL,created REAL NOT NULL,started REAL,finished REAL,result TEXT,error TEXT);
                 CREATE UNIQUE INDEX IF NOT EXISTS one_active_job ON jobs(practice_id) WHERE status IN ('pending','running');
                 CREATE TABLE IF NOT EXISTS usage(id TEXT PRIMARY KEY,job_id TEXT NOT NULL,user_id TEXT NOT NULL,created REAL NOT NULL,data TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS live_sessions(practice_id TEXT NOT NULL,session_id TEXT NOT NULL,created REAL NOT NULL,segment_id TEXT,status TEXT NOT NULL DEFAULT 'open',expected_chunks INTEGER,PRIMARY KEY(practice_id,session_id));
+                CREATE TABLE IF NOT EXISTS live_chunks(id TEXT PRIMARY KEY,practice_id TEXT NOT NULL,session_id TEXT NOT NULL,chunk_index INTEGER NOT NULL,offset_seconds REAL NOT NULL,duration REAL NOT NULL,filename TEXT NOT NULL,sha256 TEXT NOT NULL,status TEXT NOT NULL,transcript TEXT,error TEXT,created REAL NOT NULL,UNIQUE(practice_id,session_id,chunk_index));
+                CREATE INDEX IF NOT EXISTS live_queue ON live_chunks(status,created);
                 CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,user_id TEXT,practice_id TEXT,kind TEXT NOT NULL,created REAL NOT NULL,data TEXT NOT NULL DEFAULT '{}');
                 CREATE TABLE IF NOT EXISTS feedback(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,practice_id TEXT NOT NULL,rating INTEGER NOT NULL,text TEXT NOT NULL,created REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS invites(token TEXT PRIMARY KEY,expires REAL NOT NULL,uses_left INTEGER NOT NULL);
@@ -44,6 +47,8 @@ class Store:
                 CREATE INDEX IF NOT EXISTS practices_owner ON practices(user_id,created);
                 CREATE INDEX IF NOT EXISTS events_day ON events(created,kind);
             ''')
+            if 'expected_chunks' not in [row[1] for row in db.execute('PRAGMA table_info(live_sessions)')]:
+                db.execute('ALTER TABLE live_sessions ADD COLUMN expected_chunks INTEGER')
         os.chmod(self.path, 0o600)
 
     @contextmanager
@@ -89,6 +94,18 @@ class Store:
 
     def recover_jobs(self):
         self.execute("UPDATE jobs SET status='pending',stage='restart_recovery' WHERE status='running'")
+
+    def recover_live_chunks(self):
+        self.execute("UPDATE live_chunks SET status='pending' WHERE status='running'")
+
+    def claim_live_chunk(self):
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute("SELECT c.*,p.user_id FROM live_chunks c JOIN practices p ON p.id=c.practice_id JOIN live_sessions s ON s.practice_id=c.practice_id AND s.session_id=c.session_id WHERE c.status='pending' AND s.status IN ('open','bound') ORDER BY c.created LIMIT 1").fetchone()
+            if not row:
+                return None
+            db.execute("UPDATE live_chunks SET status='running' WHERE id=?", (row['id'],))
+            return dict(row)
 
     def claim_job(self):
         with self.connect() as db:

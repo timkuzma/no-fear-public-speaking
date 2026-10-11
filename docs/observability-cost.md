@@ -8,6 +8,8 @@ DAU is the number of distinct authenticated users who start a practice or open a
 
 Provider usage records include model, operation, prompt version, latency, attempts and reported input/output token counts. Missing provider counts are null. Failed responses, validation failures and retries preserve available usage. A timed-out request may still be billed remotely: neither a timeout nor a restart proves zero provider cost. The app cannot reconstruct unknown provider billing.
 
+Incremental ASR stores one usage row per independently transcribed chunk; `job_id` is the private chunk ID for those rows. A speech of `S` seconds normally needs `ceil(S / 15)` transcription requests. Complete cached speech avoids another whole-speech ASR request; incomplete/failed capture may add a full `S`-second transcription. Include both chunk calls and fallback/retry calls in cost, and check the provider's minimum per-request billing before comparing this path with a single full upload. The default daily live limit is 120 new chunks per account; it does not replace the final-job quota.
+
 ## Verified bounded API load
 
 See `outputs/load-report.json`. Actual local HTTP test on macOS ARM, Python 3.12.14, one Uvicorn worker, disposable SQLite. Equal endpoint mix: authenticated current user, owned history, owned practice and health. Every request also persists a metric. No AI generation or upload in this load profile.

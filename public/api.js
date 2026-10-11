@@ -6,9 +6,15 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
-async function request(path, { method = "GET", body, timeout = 120000 } = {}) {
+async function request(
+  path,
+  { method = "GET", body, timeout = 120000, signal } = {},
+) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
+  const cancel = () => controller.abort();
+  if (signal?.aborted) cancel();
+  signal?.addEventListener("abort", cancel, { once: true });
   try {
     const headers = {};
     if (body && !(body instanceof FormData))
@@ -64,6 +70,7 @@ async function request(path, { method = "GET", body, timeout = 120000 } = {}) {
     );
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", cancel);
   }
 }
 export const api = {
@@ -84,13 +91,35 @@ export const api = {
   createPractice: (body) => request("/practices", { method: "POST", body }),
   practices: (offset = 0) => request(`/practices?limit=30&offset=${offset}`),
   practice: (id) => request(`/practices/${encodeURIComponent(id)}`),
-  upload: (id, file, kind, index) => {
+  liveChunk: (id, file, sessionId, index, offsetSeconds, signal) => {
+    const body = new FormData();
+    body.append("file", file, "speech-chunk.wav");
+    body.append("session_id", sessionId);
+    body.append("index", String(index));
+    body.append("offset_seconds", String(offsetSeconds));
+    return request(`/practices/${encodeURIComponent(id)}/live-chunks`, {
+      method: "POST",
+      body,
+      timeout: 20000,
+      signal,
+    });
+  },
+  liveTranscript: (id, sessionId, signal) =>
+    request(
+      `/practices/${encodeURIComponent(id)}/live-transcript?session_id=${encodeURIComponent(sessionId)}`,
+      { timeout: 10000, signal },
+    ),
+  upload: (id, file, kind, index, liveSessionId, liveChunkCount) => {
     const body = new FormData();
     body.append(
       "file",
       file,
       `recording.${file.type.includes("mp4") ? "m4a" : file.type.includes("ogg") ? "ogg" : "webm"}`,
     );
+    if (liveSessionId) {
+      body.append("live_session_id", liveSessionId);
+      body.append("live_chunk_count", String(liveChunkCount));
+    }
     body.append("kind", kind);
     body.append("index", String(index));
     return request(`/practices/${encodeURIComponent(id)}/segments`, {

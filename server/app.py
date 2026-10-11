@@ -7,6 +7,7 @@ import io
 import json
 import logging
 import mimetypes
+import math
 import os
 import re
 import secrets
@@ -138,18 +139,24 @@ def create_app(data_dir=None, start_worker=True):
     @asynccontextmanager
     async def lifespan(app):
         task = asyncio.create_task(run(store)) if start_worker else None
+        from .live import run as run_live
+        live_task = asyncio.create_task(run_live(store)) if start_worker else None
         app.state.worker_task = task
+        app.state.live_worker_task = live_task
         yield
-        if task:
-            task.cancel()
+        for running in (task, live_task):
+            if not running:
+                continue
+            running.cancel()
             with contextlib.suppress(asyncio.CancelledError):
-                await task
+                await running
 
     app = FastAPI(title='Сцена без страха', lifespan=lifespan, docs_url=None if production else '/api/docs', redoc_url=None, openapi_url=None if production else '/api/openapi.json')
     app.state.store = store
     app.state.production = production
     app.state.origin = origin
     app.state.worker_task = None
+    app.state.live_worker_task = None
     app.state.worker_enabled = start_worker
 
     @app.exception_handler(HTTPException)
@@ -345,8 +352,98 @@ def create_app(data_dir=None, start_worker=True):
             store.event('report_opened', user['id'], practice_id)
         return practice_json(row)
 
+    @app.post('/api/practices/{practice_id}/live-chunks')
+    async def live_chunk(practice_id: str, request: Request, file: UploadFile = File(...), session_id: str = Form(...), index: int = Form(...), offset_seconds: float = Form(...)):
+        user = auth(request, True)
+        practice = owned(practice_id, user['id'])
+        if not user['consent']:
+            fail(403, 'CONSENT_REQUIRED', 'Подтвердите согласие на обработку записи.')
+        if not provider_ready():
+            fail(503, 'AI_NOT_CONFIGURED', 'Расшифровка пока не подключена. Запись можно сохранить и обработать позже.')
+        if not re.fullmatch(r'[a-f0-9]{32}', session_id) or not 0 <= index < 64 or not math.isfinite(offset_seconds) or offset_seconds < 0:
+            fail(422, 'LIVE_CHUNK_INVALID', 'Не удалось прочитать фрагмент выступления.')
+        content = await file.read(524289)
+        await file.close()
+        if len(content) > 524288:
+            fail(413, 'MEDIA_TOO_LARGE', 'Фрагмент записи слишком большой.')
+        try:
+            with wave.open(io.BytesIO(content), 'rb') as audio:
+                if (audio.getnchannels(), audio.getsampwidth(), audio.getframerate(), audio.getcomptype()) != (1, 2, 16000, 'NONE'):
+                    raise ValueError
+                frames = audio.getnframes()
+                if len(audio.readframes(frames)) != frames * 2:
+                    raise ValueError
+                duration = frames / 16000
+            if not 1 / 16000 <= duration <= 16.1:
+                raise ValueError
+        except (wave.Error, EOFError, ValueError):
+            fail(422, 'LIVE_CHUNK_INVALID', 'Не удалось прочитать фрагмент выступления.')
+        checksum = hashlib.sha256(content).hexdigest()
+        chunk_id, keep = uid(), False
+        filename = chunk_id + '.live.wav'
+        path = store.media / filename
+        try:
+            with path.open('xb') as output:
+                output.write(content)
+                output.flush()
+                os.fsync(output.fileno())
+            os.chmod(path, 0o600)
+            with store.connect() as db:
+                db.execute('BEGIN IMMEDIATE')
+                current = db.execute('SELECT * FROM practices WHERE id=? AND user_id=?', (practice_id, user['id'])).fetchone()
+                if not current:
+                    fail(404, 'NOT_FOUND', 'Тренировка не найдена.')
+                session = db.execute('SELECT * FROM live_sessions WHERE practice_id=? AND session_id=?', (practice_id, session_id)).fetchone()
+                existing = db.execute('SELECT * FROM live_chunks WHERE practice_id=? AND session_id=? AND chunk_index=?', (practice_id, session_id, index)).fetchone()
+                if session and (session['status'] == 'obsolete' or session['created'] < now() - 86400):
+                    fail(409, 'LIVE_SESSION_STALE', 'Этот фрагмент относится к предыдущей записи.')
+                if existing:
+                    if existing['sha256'] != checksum or abs(existing['offset_seconds'] - offset_seconds) > 0.0001:
+                        fail(409, 'LIVE_CHUNK_CONFLICT', 'Этот фрагмент уже сохранён с другим содержимым.')
+                    return {'session_id': session_id, 'index': index, 'status': existing['status']}
+                if current['status'] in ('processing', 'ready') or db.execute("SELECT id FROM segments WHERE practice_id=? AND kind='speech'", (practice_id,)).fetchone() or (session and session['status'] != 'open'):
+                    fail(409, 'PRACTICE_LOCKED', 'Выступление уже сохранено или обрабатывается.')
+                chunks = db.execute('SELECT * FROM live_chunks WHERE practice_id=? AND session_id=? ORDER BY chunk_index', (practice_id, session_id)).fetchall()
+                expected_offset = sum(chunk['duration'] for chunk in chunks)
+                if index != len(chunks) or abs(offset_seconds - expected_offset) > 0.05:
+                    fail(409, 'LIVE_CHUNK_ORDER', 'Фрагменты записи должны поступать последовательно.')
+                config = json.loads(current['config'])
+                limit = min(config['duration'] * 60, 600)
+                if offset_seconds + duration > limit + 0.75:
+                    fail(413, 'MEDIA_TOO_LONG', 'Длительность записи превышает настройки тренировки.')
+                # Retain this quota after practice deletion, and count only new chunks.
+                quota_key = 'live:' + user['id']
+                db.execute('DELETE FROM rate_limits WHERE created<?', (now() - 86400,))
+                count = db.execute('SELECT COUNT(*) FROM rate_limits WHERE key=?', (quota_key,)).fetchone()[0]
+                if count >= int(os.environ.get('DAILY_LIVE_CHUNK_LIMIT', '120')):
+                    fail(429, 'LIVE_QUOTA', 'Лимит промежуточной расшифровки на сегодня достигнут. Выступление можно обработать целиком после записи.')
+                if not session:
+                    obsolete = db.execute("SELECT c.filename,c.status FROM live_chunks c JOIN live_sessions s ON s.practice_id=c.practice_id AND s.session_id=c.session_id WHERE c.practice_id=? AND s.status='open'", (practice_id,)).fetchall()
+                    db.execute("UPDATE live_sessions SET status='obsolete' WHERE practice_id=? AND status='open'", (practice_id,))
+                    db.execute("UPDATE live_chunks SET status='cancelled' WHERE practice_id=? AND status='pending'", (practice_id,))
+                    for old in obsolete:
+                        if old['status'] != 'running':
+                            (store.media / old['filename']).unlink(missing_ok=True)
+                    db.execute('INSERT INTO live_sessions(practice_id,session_id,created) VALUES(?,?,?)', (practice_id, session_id, now()))
+                db.execute('INSERT INTO rate_limits VALUES(?,?)', (quota_key, now()))
+                db.execute('INSERT INTO live_chunks(id,practice_id,session_id,chunk_index,offset_seconds,duration,filename,sha256,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)', (chunk_id, practice_id, session_id, index, offset_seconds, duration, filename, checksum, 'pending', now()))
+            keep = True
+            return {'session_id': session_id, 'index': index, 'status': 'pending'}
+        finally:
+            if not keep:
+                path.unlink(missing_ok=True)
+
+    @app.get('/api/practices/{practice_id}/live-transcript')
+    async def live_transcript(practice_id: str, request: Request, session_id: str):
+        user = auth(request)
+        owned(practice_id, user['id'])
+        if not re.fullmatch(r'[a-f0-9]{32}', session_id):
+            fail(422, 'LIVE_SESSION_INVALID', 'Не удалось прочитать состояние расшифровки.')
+        from .live import snapshot
+        return snapshot(store, practice_id, session_id)
+
     @app.post('/api/practices/{practice_id}/segments')
-    async def upload(practice_id: str, request: Request, file: UploadFile = File(...), kind: str = Form(...), index: int = Form(...)):
+    async def upload(practice_id: str, request: Request, file: UploadFile = File(...), kind: str = Form(...), index: int = Form(...), live_session_id: str | None = Form(None), live_chunk_count: int | None = Form(None)):
         user = auth(request, True)
         practice = owned(practice_id, user['id'])
         if not user['consent']:
@@ -398,6 +495,11 @@ def create_app(data_dir=None, start_worker=True):
                     if total + duration > 600:
                         fail(413, 'MEDIA_TOO_LONG', 'Общая длительность тренировки — не больше 10 минут.')
                     db.execute('INSERT INTO segments VALUES(?,?,?,?,?,?,?,?)', (segment_id, practice_id, kind, index, filename, duration, None, now()))
+                    if live_session_id:
+                        session = db.execute("SELECT * FROM live_sessions WHERE practice_id=? AND session_id=? AND status='open'", (practice_id, live_session_id)).fetchone()
+                        if kind != 'speech' or not session or session['created'] < now() - 86400 or (live_chunk_count is not None and not 1 <= live_chunk_count <= 64):
+                            fail(409, 'LIVE_SESSION_STALE', 'Промежуточная расшифровка относится к другой записи. Сохраните выступление без неё.')
+                        db.execute("UPDATE live_sessions SET status='bound',segment_id=?,expected_chunks=? WHERE practice_id=? AND session_id=?", (segment_id, live_chunk_count, practice_id, live_session_id))
             except sqlite3.IntegrityError:
                 fail(409, 'SEGMENT_EXISTS', 'Эта запись уже сохранена.')
             keep = True
@@ -463,11 +565,16 @@ def create_app(data_dir=None, start_worker=True):
                 fail(404, 'NOT_FOUND', 'Тренировка не найдена.')
             if db.execute("SELECT id FROM jobs WHERE practice_id=? AND status IN ('pending','running')", (practice_id,)).fetchone():
                 fail(409, 'PRACTICE_BUSY', 'Дождитесь завершения обработки, затем удалите тренировку.')
+            if db.execute("SELECT id FROM live_chunks WHERE practice_id=? AND status='running'", (practice_id,)).fetchone():
+                fail(409, 'PRACTICE_BUSY', 'Дождитесь завершения расшифровки, затем удалите тренировку.')
             files = db.execute('SELECT filename FROM segments WHERE practice_id=?', (practice_id,)).fetchall()
+            files += db.execute('SELECT filename FROM live_chunks WHERE practice_id=?', (practice_id,)).fetchall()
             # Retain rows on filesystem failure so the deletion can be retried.
             for row in files:
                 (store.media / row['filename']).unlink(missing_ok=True)
             db.execute('DELETE FROM segments WHERE practice_id=?', (practice_id,))
+            db.execute('DELETE FROM live_chunks WHERE practice_id=?', (practice_id,))
+            db.execute('DELETE FROM live_sessions WHERE practice_id=?', (practice_id,))
             db.execute('DELETE FROM feedback WHERE practice_id=?', (practice_id,))
             db.execute('DELETE FROM jobs WHERE practice_id=?', (practice_id,))
             db.execute('UPDATE events SET practice_id=NULL WHERE practice_id=?', (practice_id,))
@@ -506,9 +613,11 @@ def create_app(data_dir=None, start_worker=True):
             disk_ok = False
         task = app.state.worker_task
         worker_alive = bool(task and not task.done())
-        worker_ok = worker_alive or not start_worker
+        live_task = app.state.live_worker_task
+        live_worker_alive = bool(live_task and not live_task.done())
+        worker_ok = (worker_alive and live_worker_alive) or not start_worker
         ready = disk_ok and provider_ready() and worker_ok
-        return JSONResponse({'ok': ready, 'storage_ready': disk_ok, 'provider_configured': provider_ready(), 'worker_enabled': start_worker, 'worker_alive': worker_alive}, status_code=200 if ready else 503)
+        return JSONResponse({'ok': ready, 'storage_ready': disk_ok, 'provider_configured': provider_ready(), 'worker_enabled': start_worker, 'worker_alive': worker_alive, 'live_worker_alive': live_worker_alive}, status_code=200 if ready else 503)
 
     def operator(request):
         configured = os.environ.get('OPERATOR_TOKEN', '')
@@ -571,11 +680,12 @@ def create_app(data_dir=None, start_worker=True):
         async def __call__(self, scope, receive, send):
             if scope['type'] != 'http' or scope['method'] not in ('POST', 'PATCH', 'DELETE') or not scope['path'].startswith('/api/'):
                 return await self.app(scope, receive, send)
-            is_upload = bool(re.fullmatch(r'/api/practices/[^/]+/segments', scope['path']))
+            is_upload = bool(re.fullmatch(r'/api/practices/[^/]+/(segments|live-chunks)', scope['path']))
+            is_live_upload = scope['path'].endswith('/live-chunks') and is_upload
             request = Request(scope)
             began = time.monotonic()
             request_id = uid()
-            route_template = '/api/practices/{practice_id}/segments' if is_upload else scope['path'] if scope['path'] in ('/api/auth/register', '/api/auth/login', '/api/auth/reset', '/api/auth/logout', '/api/auth/me', '/api/practices') else 'guarded_mutation'
+            route_template = '/api/practices/{practice_id}/live-chunks' if is_live_upload else '/api/practices/{practice_id}/segments' if is_upload else scope['path'] if scope['path'] in ('/api/auth/register', '/api/auth/login', '/api/auth/reset', '/api/auth/logout', '/api/auth/me', '/api/practices') else 'guarded_mutation'
 
             async def reject(status, error, disconnected=False):
                 elapsed = round((time.monotonic() - began) * 1000, 1)
@@ -593,7 +703,7 @@ def create_app(data_dir=None, start_worker=True):
                     check_origin(request)
                 else:
                     auth(request, True)
-                maximum = int(os.environ.get('MAX_UPLOAD_BYTES', 32 * 1024 * 1024)) + 16384 if is_upload else 65536
+                maximum = 524288 + 16384 if is_live_upload else int(os.environ.get('MAX_UPLOAD_BYTES', 32 * 1024 * 1024)) + 16384 if is_upload else 65536
                 content_length = request.headers.get('content-length')
                 if content_length and int(content_length) > maximum:
                     fail(413, 'MEDIA_TOO_LARGE', 'Файл слишком большой. Запишите более короткую тренировку без видео.')

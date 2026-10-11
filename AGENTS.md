@@ -5,7 +5,7 @@
 - Serve `public/` and the API through `server/app.py`, on the same origin. Root `index.html` and `styles.css` are imported legacy copies, not the maintained application.
 - Keep native JavaScript/CSS. Anonymous visitors can record before registration. Full AI reports and server history require an account; import the same recording after authentication instead of restarting practice.
 - API and module boundaries are in `docs/api-contract.md`. Private recordings are outside `public/`; every practice, job and media request must enforce ownership on the server.
-- SQLite WAL, private media and the durable worker form a single-host pilot. Run exactly one application process/worker; startup queue recovery is not safe across simultaneous application instances sharing a database.
+- SQLite WAL, private media and durable queues form a single-host pilot. Run exactly one application process, with one final-job worker and one incremental-ASR worker; startup queue recovery is not safe across simultaneous application instances sharing a database.
 - Do not simulate authentication, store passwords/session tokens in localStorage, or expose provider credentials in frontend source. Never commit `.env`, private data, logs or temporary test artifacts.
 - Provider output is untrusted text. Verify transcript quotations; derive numerical metrics locally. Do not claim voice, gesture or psychological analysis from a text pipeline.
 
@@ -21,6 +21,7 @@
 - Keep imagery bright, naturally colored and welcoming. Do not equate Russian context with gloomy or desaturated photography. Avoid copy overlays across faces; landing cards must convey a specific product benefit or a clearly labeled example.
 
 - Recording is an immersive meeting scene, with one device toolbar and optional self-video. Keep speech advice and audience labels off this screen. Camera captures video plus audio; AI receives the audio track and transcript, not visual analysis. Speech auto-saves on recorder completion (manual or timer). Upload, retry and question generation stay in the same meeting DOM; never replace the audience/self-video for these transitions. Failed upload retains the Blob and offers retry. Guests save locally and see the authentication continuation in this meeting chat. Answers still use their existing review step. Questions map to confirmed saved answers.
+- Logged-in speech also captures independent 15-second mono 16 kHz PCM WAV chunks through an AudioWorklet. Never upload MediaRecorder timeslice blobs as standalone audio, transcribe the microphone check, or send guest audio before authentication. Keep full recording as the fallback; reuse live transcripts only for the bound capture session with complete indices, offsets, final manifest and matching duration. Provider question objects must select server-issued speech evidence IDs; public questions remain strings.
 
 ## Validation and operations
 

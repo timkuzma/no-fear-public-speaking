@@ -1,4 +1,5 @@
-import { api, demoResult } from "./api.js";
+import { api, demoResult } from "./api.js?v=20261011-live";
+import { LiveAudioCapture } from "./live-audio.js?v=20261011-live";
 import {
   saveDraft,
   loadDraft,
@@ -20,6 +21,7 @@ const state = {
   cameraBusy: false,
   cameraVersion: 0,
   audioContext: null,
+  liveCapture: null,
   recording: false,
   recordingWithVideo: false,
   pending: null,
@@ -111,7 +113,7 @@ function authScreen(mode) {
   );
 }
 function privacyContent(level = 2) {
-  return `<h${level}>Что сохраняется</h${level}><p>Имя, электронная почта, настройки тренировок, записи, расшифровки и разборы. Для входа сервер хранит хеш пароля. Другие пользователи не получают доступ к твоим тренировкам.</p><h${level}>Как появляется разбор</h${level}><p>Аудио передаётся внешнему сервису расшифровки. Текст речи и выбранные критерии передаются нейросети. Разбор основан на содержании текста и может содержать ошибки.</p><h${level}>Как удалить запись</h${level}><p>Открой историю и удали тренировку. Вместе с ней сервер удалит запись, расшифровку и разбор. Удаление не отменяет обработку, уже выполненную внешним сервисом, и не удаляет данные из ранее созданных резервных копий.</p><h${level}>Гостевой режим</h${level}><p>До регистрации запись хранится только в этом браузере. Черновик доступен сутки; просроченный черновик удаляется при следующем открытии сайта. Если включена камера, запись содержит и видео. Для разбора внешнему сервису передаётся только звуковая дорожка. После регистрации или входа запись передаётся в твой аккаунт для разбора и удаляется из локального черновика. Если браузер не разрешает локальное сохранение, не закрывай вкладку до завершения регистрации.</p><h${level}>Обратная связь</h${level}><p>Оценку разбора и комментарий можно отправить с его страницы. Не добавляй в комментарий пароли или данные других людей.</p>`;
+  return `<h${level}>Что сохраняется</h${level}><p>Имя, электронная почта, настройки тренировок, записи, расшифровки и разборы. Для входа сервер хранит хеш пароля. Другие пользователи не получают доступ к твоим тренировкам.</p><h${level}>Как появляется разбор</h${level}><p>Во время выступления в аккаунте аудио передаётся внешнему сервису расшифровки фрагментами примерно по 15 секунд. Если распознавание во время записи недоступно, расшифровываем полную запись после завершения. Текст речи и выбранные критерии передаются нейросети для вопросов и разбора. Разбор основан на содержании текста и может содержать ошибки. Гостевая запись не передаётся внешним сервисам до входа или регистрации.</p><h${level}>Как удалить запись</h${level}><p>Открой историю и удали тренировку. Вместе с ней сервер удалит запись, расшифровку и разбор. Удаление не отменяет обработку, уже выполненную внешним сервисом, и не удаляет данные из ранее созданных резервных копий.</p><h${level}>Гостевой режим</h${level}><p>До регистрации запись хранится только в этом браузере. Черновик доступен сутки; просроченный черновик удаляется при следующем открытии сайта. Если включена камера, запись содержит и видео. Для разбора внешнему сервису передаётся только звуковая дорожка. После регистрации или входа запись передаётся в твой аккаунт для разбора и удаляется из локального черновика. Если браузер не разрешает локальное сохранение, не закрывай вкладку до завершения регистрации.</p><h${level}>Обратная связь</h${level}><p>Оценку разбора и комментарий можно отправить с его страницы. Не добавляй в комментарий пароли или данные других людей.</p>`;
 }
 function privacy() {
   frame(
@@ -508,6 +510,7 @@ async function checkMic() {
         "Этот браузер не поддерживает запись. Открой сайт в актуальном Chrome, Safari или Firefox.",
       );
     closeMedia({ keepCamera: true });
+    updateMicUI();
     stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: false,
@@ -543,6 +546,47 @@ async function checkMic() {
         state.raf = raf;
       };
       draw();
+      if (
+        state.user &&
+        state.providerReady &&
+        state.practice?.id !== "guest" &&
+        nextSegment(state.practice)?.kind === "speech"
+      ) {
+        const capture = new LiveAudioCapture({
+          context,
+          stream,
+          api,
+          practiceId: state.practice.id,
+          onStatus: (result) => {
+            if (!state.recording || state.liveCapture !== capture) return;
+            const status = document.querySelector("#record-status");
+            if (!status) return;
+            const enabled = stream
+              .getAudioTracks()
+              .some((track) => track.enabled);
+            status.textContent = !enabled
+              ? "Микрофон выключен"
+              : result.status === "unavailable"
+                ? "Идёт запись. Распознаем речь после завершения"
+                : result.recognized_words > 0
+                  ? `Идёт запись. Распознано слов: ${result.recognized_words}`
+                  : "Идёт запись. Распознаём речь фрагментами";
+          },
+        });
+        state.liveCapture = capture;
+        try {
+          const ready = await capture.bounded(capture.prepare(), 2500);
+          if (!ready) throw new Error("Worklet preparation timeout");
+        } catch {
+          capture.cancel();
+          if (state.liveCapture === capture) state.liveCapture = null;
+        }
+        if (version !== state.routeVersion || !ownsMedia()) {
+          capture.cancel();
+          releaseMedia();
+          return;
+        }
+      }
     }
     const status = document.querySelector("#record-status");
     if (status) status.textContent = "Можно начинать";
@@ -695,10 +739,13 @@ async function toggleCamera() {
     }
   }
 }
-function closeMedia({ keepCamera = false } = {}) {
+function closeMedia({ keepCamera = false, keepLive = false } = {}) {
   if (!keepCamera) closeCamera();
   clearInterval(state.timer);
   cancelAnimationFrame(state.raf);
+  if (keepLive) return;
+  state.liveCapture?.cancel();
+  state.liveCapture = null;
   state.stream?.getTracks().forEach((t) => t.stop());
   state.stream = null;
   if (state.audioContext) {
@@ -707,6 +754,7 @@ function closeMedia({ keepCamera = false } = {}) {
   }
 }
 function startRecording() {
+  if (state.recording || state.pending || state.uploading) return;
   if (
     !state.stream ||
     state.stream.getAudioTracks().some((t) => t.readyState !== "live")
@@ -767,8 +815,17 @@ function startRecording() {
         practiceId: p.id,
         durationSeconds: Math.max(1, (Date.now() - state.started) / 1000),
       };
+      const capture = state.liveCapture;
+      state.liveCapture = null;
+      if (capture && segment.kind === "speech") {
+        state.pending.liveCompletion = capture.finish().finally(() => {
+          if (state.audioContext === capture.context)
+            closeMedia({ keepCamera: p.config.questions });
+        });
+      } else capture?.cancel();
       closeMedia({
         keepCamera: segment.kind === "speech" && p.config.questions,
+        keepLive: !!state.pending.liveCompletion,
       });
       if (segment.kind === "speech") void saveRecording();
       else showPending();
@@ -779,6 +836,12 @@ function startRecording() {
     updateCameraUI();
     state.started = Date.now();
     document.querySelector("#record-status").textContent = "Идёт запись";
+    if (segment.kind === "speech") {
+      const live = state.liveCapture?.start();
+      if (!live && state.user && state.providerReady)
+        document.querySelector("#record-status").textContent =
+          "Идёт запись. Распознаем речь после завершения";
+    }
     document.querySelector("#record-controls").innerHTML = button(
       segment.kind === "answer" ? "Завершить ответ" : "Завершить выступление",
       "stop-record",
@@ -880,12 +943,25 @@ async function saveRecording() {
       guestResult();
       return;
     }
-    const saved = await api.upload(
-      p.id,
-      pending.blob,
-      pending.kind,
-      pending.index,
-    );
+    const live = pending.liveCompletion ? await pending.liveCompletion : null;
+    const upload = (session) =>
+      api.upload(
+        p.id,
+        pending.blob,
+        pending.kind,
+        pending.index,
+        session?.sessionId,
+        session?.chunkCount,
+      );
+    let saved;
+    try {
+      saved = await upload(live);
+    } catch (error) {
+      if (error.code !== "LIVE_SESSION_STALE") throw error;
+      // This rejection happens before the server stores a segment.
+      pending.liveCompletion = null;
+      saved = await upload(null);
+    }
     p.segments.push(saved);
     p.status = "draft";
     p.latest_job = null;

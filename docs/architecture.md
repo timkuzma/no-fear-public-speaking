@@ -1,6 +1,6 @@
 # Pilot architecture
 
-The browser and REST API share one origin. `public/` is native JavaScript/CSS, served by FastAPI. The application is one process on one host, with SQLite WAL and private files on a persistent volume. A serialized asynchronous worker polls a database-backed job queue. A reverse proxy must terminate HTTPS in production.
+The browser and REST API share one origin. `public/` is native JavaScript/CSS, served by FastAPI. The application is one process on one host, with SQLite WAL and private files on a persistent volume. Two serialized asynchronous workers poll database-backed queues: one for incremental speech transcription and one for final questions/reports. A reverse proxy must terminate HTTPS in production.
 
 ```mermaid
 flowchart LR
@@ -9,6 +9,9 @@ flowchart LR
   App -->|short transactions| DB[(SQLite WAL)]
   App -->|validated upload / owner-only playback| Media[Private media volume]
   Worker[Serialized durable worker] --> DB
+  User -->|Authenticated 15-second PCM WAV chunks| App
+  Live[Serialized incremental ASR worker] --> DB
+  Live --> STT
   Worker --> Media
   Worker --> Decode[FFmpeg: bounded audio decode]
   Decode --> STT[External transcription API]
@@ -38,7 +41,11 @@ Practice configuration, segments, transcripts, reports and jobs belong to a user
 
 Recovery is at-least-once. If the process crashes after the provider accepted a request but before the database saved the result, the provider call can be repeated and charged again. This pilot does not claim exactly-once remote billing.
 
-The worker never holds a SQLite transaction while awaiting a remote call. One worker bounds provider concurrency; per-user upload/practice/job quotas bound use. SQLite and local files deliberately limit this release to one host. Multiple replicas require a different coordination/storage design.
+Workers never hold a SQLite transaction while awaiting a remote call. Each queue runs one provider operation at a time, with at most two concurrent operations across the two queues. Per-user upload/practice/job/chunk quotas bound use. SQLite and local files deliberately limit this release to one host. Multiple replicas require a different coordination/storage design.
+
+Authenticated speech capture keeps the full MediaRecorder recording and runs a parallel AudioWorklet for independent mono 16 kHz PCM WAV chunks. The worklet is armed only when recording starts, so the microphone check is never transcribed. MediaRecorder timeslice blobs are not used as independent files: they may lack container headers. See [MDN recording API](https://developer.mozilla.org/en-US/docs/Web/API/MediaStream_Recording_API) and [AudioWorklet](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet).
+
+Each private chunk belongs to a practice and capture session; ordered indices, offsets and content hashes protect retries. Successful transcripts and provider usage survive restart. The final speech upload binds the capture session to its authoritative saved recording. Questions/reports reuse a complete, contiguous, duration-matched transcript only; missing or failed chunks trigger full-recording transcription. Browser capability, upload and polling failures never discard the complete recording. Guests retain the existing local draft and authenticate before any provider call. Questions appear only after the speech ends; incremental transcription does not change the meeting or answer flow.
 
 ## Observable limits
 
