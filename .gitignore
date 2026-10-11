@@ -1,0 +1,14 @@
+.venv/
+.env
+.env.*
+!.env.example
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+outputs/test-artifacts/
+outputs/*-actual.json
+outputs/*-actual.wav
+outputs/*-actual.mp3
+node_modules/
