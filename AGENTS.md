@@ -25,5 +25,6 @@
 - `scripts/run-local.sh` starts the maintained app. Environment variables are not automatically read from `.env`; export them privately before starting.
 - Offline backup/restore is in `scripts/backup.py`. Stop the application before backup, verify checksums, and restore into a new location.
 - Load tests of ordinary authenticated endpoints do not prove LLM generation capacity. Label real provider calls separately; unknown billing/token counts stay unknown.
+- First-user onboarding is one speech recording of up to a minute without audience questions. Saving continues to the next question or a durable analysis job; a failed job start must retain the saved recording and offer continuation. Repeat practices use the selected recommendation, and choosing a repeat or another topic completes onboarding.
 - README and UI are Russian; technical documentation is English. Update relevant documentation when changing API or operational behavior.
 - Review changes and commit only relevant files. Use branch `frentend`; do not modify remote `main`. Report local, pushed and externally deployed status separately.

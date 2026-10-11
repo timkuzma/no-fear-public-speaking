@@ -85,7 +85,7 @@ function frame(content, kind = "workspace") {
 }
 function landing() {
   frame(
-    `<section class="hero"><div class="hero-copy"><p class="eyebrow">Твоя репетиция перед важным днём</p><h1>Отрепетируй выступление перед встречей с аудиторией</h1><p class="hero-description">Отрепетируй выступление, ответь на вопросы и получи разбор: что уже получается и что попробовать в следующей попытке.</p><div class="actions">${startLink()}<a class="quiet-link" href="#/example">Посмотреть разбор</a></div>${!state.user ? '<p class="caption">Для сохранения тренировок сначала создай аккаунт.</p>' : ""}</div><div class="hero-visual"><img src="/audience-russian-campus-bright.jpg" width="1122" height="1402" alt="Иллюстрация: студенты слушают выступление в вузовской аудитории" fetchpriority="high"><div class="floating-note"><span class="eyebrow">Пример рекомендации</span><strong>Подкрепи свою мысль убедительным примером</strong><span>Так слушателям будет проще понять идею</span></div></div></section><section class="method"><div><p class="eyebrow">Как проходит тренировка</p><h2>От первой записи к следующей попытке</h2></div><ol class="step-list"><li><span aria-hidden="true">1</span><div><h3>Выбери задачу</h3><p>Выступление, защита проекта или свободная речь. Для знакомства начни с одной минуты.</p></div></li><li><span aria-hidden="true">2</span><div><h3>Запиши выступление</h3><p>Говори в своём темпе. При желании ответь на три вопроса по содержанию речи.</p></div></li><li><span aria-hidden="true">3</span><div><h3>Возьми одну рекомендацию</h3><p>Разбор опирается на расшифровку. Найди фрагмент, который хочешь улучшить, и запиши новую попытку.</p></div></li></ol></section><section class="landing-example"><div><p class="eyebrow">Что ты получишь</p><h2>Узнай, что улучшить в своём выступлении</h2><p>Наблюдение, цитата из речи и действие для следующей попытки.</p><a class="quiet-link" href="#/example">Открыть пример целиком</a></div><article class="report-preview"><span class="tag">Демонстрационный пример</span><p class="eyebrow">Что попробовать</p><h3>Покажи, как это работает</h3><blockquote>«Так подготовка станет удобнее»</blockquote><p>После главной мысли приведи один случай: что делает пользователь и какой результат получает.</p></article></section><section class="faq-section"><h2>Перед началом</h2><details><summary>Что именно анализирует нейросеть?</summary><p>Содержание расшифровки: главную мысль, аргументы, структуру и ответы на вопросы. Разбор может ошибаться. Он не оценивает личность, эмоции или жесты.</p></details><details><summary>Можно попробовать без аккаунта?</summary><p>Да. В гостевом режиме можно записать и прослушать речь прямо в браузере. Запись не отправляется на сервер и исчезнет после закрытия страницы. Разбор нейросети и история доступны после входа.</p><a href="#/guest">Попробовать запись без аккаунта</a></details><details><summary>Что происходит с моей записью?</summary><p>В аккаунте запись хранится на сервере. Для разбора аудио передаётся сервису расшифровки, а текст — нейросети. Можно удалить тренировку вместе с записью.</p><a href="#/privacy">Подробнее о данных</a></details></section><section class="closing"><p class="eyebrow">До выступления есть время попробовать</p><h2>Расскажи о своей идее за минуту</h2>${startLink()}</section>`,
+    `<section class="hero"><div class="hero-copy"><p class="eyebrow">Твоя репетиция перед важным днём</p><h1>Отрепетируй выступление перед встречей с аудиторией</h1><p class="hero-description">Запиши короткую речь, получи разбор и повтори выступление с одной выбранной рекомендацией. Вопросы аудитории можно добавить позже.</p><div class="actions">${startLink()}<a class="quiet-link" href="#/example">Посмотреть разбор</a></div>${!state.user ? '<p class="caption">Первая тренировка — речь до минуты. Для разбора и истории создай аккаунт.</p>' : ""}</div><div class="hero-visual"><img src="/audience-russian-campus-bright.jpg" width="1122" height="1402" alt="Иллюстрация: студенты слушают выступление в вузовской аудитории" fetchpriority="high"><div class="floating-note"><span class="eyebrow">Пример рекомендации</span><strong>Подкрепи свою мысль убедительным примером</strong><span>Так слушателям будет проще понять идею</span></div></div></section><section class="method"><div><p class="eyebrow">Как проходит тренировка</p><h2>От первой записи к следующей попытке</h2></div><ol class="step-list"><li><span aria-hidden="true">1</span><div><h3>Начни с минуты речи</h3><p>В первой тренировке тема и время уже выбраны. Для своей задачи можно настроить тему, сценарий и продолжительность.</p></div></li><li><span aria-hidden="true">2</span><div><h3>Запиши выступление</h3><p>Говори в своём темпе. При желании ответь на три вопроса по содержанию речи.</p></div></li><li><span aria-hidden="true">3</span><div><h3>Возьми одну рекомендацию</h3><p>Разбор опирается на расшифровку. Найди фрагмент, который хочешь улучшить, и запиши новую попытку.</p></div></li></ol></section><section class="landing-example"><div><p class="eyebrow">Что ты получишь</p><h2>Узнай, что улучшить в своём выступлении</h2><p>Наблюдение, цитата из речи и действие для следующей попытки.</p><a class="quiet-link" href="#/example">Открыть пример целиком</a></div><article class="report-preview"><span class="tag">Демонстрационный пример</span><p class="eyebrow">Что попробовать</p><h3>Покажи, как это работает</h3><blockquote>«Так подготовка станет удобнее»</blockquote><p>После главной мысли приведи один случай: что делает пользователь и какой результат получает.</p></article></section><section class="faq-section"><h2>Перед началом</h2><details><summary>Что именно анализирует нейросеть?</summary><p>Содержание расшифровки: главную мысль, аргументы, структуру и ответы на вопросы. Разбор может ошибаться. Он не оценивает личность, эмоции или жесты.</p></details><details><summary>Можно попробовать без аккаунта?</summary><p>Да. В гостевом режиме можно записать и прослушать речь прямо в браузере. Запись не отправляется на сервер и исчезнет после закрытия страницы. Разбор нейросети и история доступны после входа.</p><a href="#/guest">Попробовать запись без аккаунта</a></details><details><summary>Что происходит с моей записью?</summary><p>В аккаунте запись хранится на сервере. Для разбора аудио передаётся сервису расшифровки, а текст — нейросети. Можно удалить тренировку вместе с записью.</p><a href="#/privacy">Подробнее о данных</a></details></section><section class="closing"><p class="eyebrow">До выступления есть время попробовать</p><h2>Расскажи о своей идее за минуту</h2>${startLink()}</section>`,
     "landing",
   );
 }
@@ -93,12 +93,15 @@ function authScreen(mode) {
   const register = mode === "register",
     reset = mode === "reset";
   frame(
-    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Для пилота организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? "Сохрани выступление и возвращайся к разбору после каждой попытки." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Создай аккаунт" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}<label class="check"><input type="checkbox" name="consent" required><span>Соглашаюсь на хранение записи и передачу аудио и текста сервисам нейросети для разбора. <a href="#/privacy">Условия обработки данных</a></span></label>` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Создать аккаунт" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Создать аккаунт</a> · <a href="#/reset">Восстановить доступ</a>'}</p>${register ? '<a class="quiet-link" href="#/guest">Попробовать запись без аккаунта</a>' : ""}</section></div>`,
+    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Для пилота организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? "После регистрации начни с короткого упражнения: запиши минуту речи и получи первый разбор." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Создай аккаунт" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}<div class="field-group"><label class="check"><input type="checkbox" name="consent" required><span>Соглашаюсь на хранение записи и передачу аудио и текста сервисам нейросети для разбора.</span></label><details class="consent-details"><summary>Условия обработки данных</summary><div class="consent-text">${privacyContent(3)}</div></details></div>` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Создать аккаунт" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Создать аккаунт</a> · <a href="#/reset">Восстановить доступ</a>'}</p>${register ? '<a class="quiet-link" href="#/guest">Попробовать запись без аккаунта</a>' : ""}</section></div>`,
   );
+}
+function privacyContent(level = 2) {
+  return `<h${level}>Что сохраняется</h${level}><p>Имя, электронная почта, настройки тренировок, записи, расшифровки и разборы. Для входа сервер хранит хеш пароля. Другие пользователи не получают доступ к твоим тренировкам.</p><h${level}>Как появляется разбор</h${level}><p>Аудио передаётся внешнему сервису расшифровки. Текст речи и выбранные критерии передаются нейросети. Разбор основан на содержании текста и может содержать ошибки.</p><h${level}>Как удалить запись</h${level}><p>Открой историю и удали тренировку. Вместе с ней сервер удалит запись, расшифровку и разбор. Удаление не отменяет обработку, уже выполненную внешним сервисом, и не удаляет данные из ранее созданных резервных копий.</p><h${level}>Гостевой режим</h${level}><p>Гостевая запись остаётся в памяти этой страницы. Она не отправляется на сервер и не сохраняется после закрытия или обновления страницы.</p><h${level}>Обратная связь</h${level}><p>Оценку разбора и комментарий можно отправить с его страницы. Не добавляй в комментарий пароли или данные других людей.</p>`;
 }
 function privacy() {
   frame(
-    `<section class="narrow prose"><p class="eyebrow">Пилотная версия</p><h1>Записи и данные</h1><h2>Что сохраняется</h2><p>Имя, электронная почта, настройки тренировок, записи, расшифровки и разборы. Для входа сервер хранит хеш пароля. Другие пользователи не получают доступ к твоим тренировкам.</p><h2>Как появляется разбор</h2><p>Аудио передаётся внешнему сервису расшифровки. Текст речи и выбранные критерии передаются нейросети. Разбор основан на содержании текста и может содержать ошибки.</p><h2>Как удалить запись</h2><p>Открой историю и удали тренировку. Вместе с ней сервер удалит запись, расшифровку и разбор. Удаление не отменяет обработку, уже выполненную внешним сервисом, и не удаляет данные из ранее созданных резервных копий.</p><h2>Гостевой режим</h2><p>Гостевая запись остаётся в памяти этой страницы. Она не отправляется на сервер и не сохраняется после закрытия или обновления страницы.</p><h2>Обратная связь</h2><p>Оценку разбора и комментарий можно отправить с его страницы. Не добавляй в комментарий пароли или данные других людей.</p><a class="button secondary" href="#/landing">На главную</a></section>`,
+    `<section class="narrow prose"><p class="eyebrow">Пилотная версия</p><h1>Записи и данные</h1>${privacyContent()}<a class="button secondary" href="#/landing">На главную</a></section>`,
   );
 }
 function savedTopic() {
@@ -108,10 +111,42 @@ function savedTopic() {
     return "";
   }
 }
+function setupForm(guest) {
+  return `<form id="setup-form" data-guest="${guest}" class="setup-form"><h2>${guest ? "Твоя пробная запись" : "Настроить тренировку"}</h2><fieldset><legend>Сценарий</legend><div class="scenario-options"><label><input type="radio" name="scenario" value="speech" checked><span><strong>Выступление</strong><small>Речь для аудитории</small></span></label><label><input type="radio" name="scenario" value="defense"><span><strong>Защита проекта</strong><small>Идея и аргументы</small></span></label><label><input type="radio" name="scenario" value="free"><span><strong>Свободная речь</strong><small>Тема на твой выбор</small></span></label></div></fieldset><label>Тема выступления<input name="topic" maxlength="300" placeholder="Например, идея моего проекта" required value="${escape(savedTopic())}"></label><label>Продолжительность<select name="duration"><option value="1">1 минута</option><option value="3">3 минуты</option><option value="5" selected>5 минут</option><option value="10">10 минут</option></select></label>${guest ? "" : '<div class="field-group"><label class="check"><input type="checkbox" name="questions" aria-describedby="questions-hint"><span>После выступления ответить на три вопроса аудитории</span></label><p class="field-hint" id="questions-hint">До 10 минут аудио на тренировку. С вопросами: выступление до 7 минут и три ответа до минуты каждый.</p></div><label><span class="label-title">На что обратить внимание <span class="optional">необязательно</span></span><textarea name="criteria" maxlength="2000" rows="3" placeholder="Например, понятны ли аргументы и вывод"></textarea></label>'}<div class="form-error" role="alert"></div><button type="submit" class="button primary">Перейти к записи</button></form>`;
+}
 function setup(guest = false) {
+  const first = !guest && !state.user.onboarding_completed;
   frame(
-    `<div class="page-heading"><p class="eyebrow">${guest ? "Попробовать без аккаунта" : "Рабочее пространство"}</p><h1>${guest ? "Послушай свою речь" : "Что будем репетировать?"}</h1></div>${guest ? '<div class="notice">Гостевая запись остаётся только на этой странице. Для разбора нейросети и истории <a href="#/register">создай аккаунт</a>.</div>' : !state.providerReady ? '<div class="notice">Сервис нейросети ещё не настроен. Можно сохранить запись; разбор станет доступен после подключения сервиса.</div>' : ""}<div class="setup-layout">${!guest && !state.user.onboarding_completed ? `<aside class="starter"><span class="tag">Первая тренировка · 60 секунд</span><h2>Объясни идею своего проекта</h2><p>Какую проблему он решает? Кому поможет? Назови один пример применения.</p>${button("Начать с этого упражнения", "starter")}<p class="caption">После разбора выбери одну рекомендацию и повтори попытку.</p>${button("Выбрать свою задачу", "skip-onboarding", "text")}</aside>` : `<aside class="starter"><p class="eyebrow">Один фокус на попытку</p><h2>Подкрепи главную мысль примером</h2><p>${guest ? "Выбери тему, запиши выступление и прослушай его. Попробуй объяснить одну мысль конкретным примером." : "Выбери тему, которую предстоит объяснить аудитории. После разбора повтори выступление с одной рекомендацией."}</p></aside>`}<form id="setup-form" data-guest="${guest}" class="setup-form"><h2>${guest ? "Твоя пробная запись" : "Настроить тренировку"}</h2><fieldset><legend>Сценарий</legend><div class="scenario-options"><label><input type="radio" name="scenario" value="speech" checked><span><strong>Выступление</strong><small>Речь для аудитории</small></span></label><label><input type="radio" name="scenario" value="defense"><span><strong>Защита проекта</strong><small>Идея и аргументы</small></span></label><label><input type="radio" name="scenario" value="free"><span><strong>Свободная речь</strong><small>Тема на твой выбор</small></span></label></div></fieldset><label>Тема выступления<input name="topic" maxlength="300" placeholder="Например, идея моего проекта" required value="${escape(savedTopic())}"></label><label>Продолжительность<select name="duration"><option value="1">1 минута</option><option value="3">3 минуты</option><option value="5" selected>5 минут</option><option value="10">10 минут</option></select></label>${guest ? "" : '<div class="field-group"><label class="check"><input type="checkbox" name="questions" aria-describedby="questions-hint" checked><span>После выступления ответить на три вопроса аудитории</span></label><p class="field-hint" id="questions-hint">До 10 минут аудио на тренировку. С вопросами: выступление до 7 минут и три ответа до минуты каждый.</p></div><label><span class="label-title">На что обратить внимание <span class="optional">необязательно</span></span><textarea name="criteria" maxlength="2000" rows="3" placeholder="Например, понятны ли аргументы и вывод"></textarea></label>'}<div class="form-error" role="alert"></div><button type="submit" class="button primary">Перейти к записи</button></form></div>`,
+    `<div class="page-heading"><p class="eyebrow">${guest ? "Попробовать без аккаунта" : first ? "Первая тренировка" : "Рабочее пространство"}</p><h1>${guest ? "Послушай свою речь" : first ? "Начни с короткого выступления" : "Что будем репетировать?"}</h1>${first ? '<p class="page-description">Для первой попытки тема и время уже выбраны. Запиши речь до минуты, получи разбор и попробуй применить одну рекомендацию.</p>' : ""}</div>${guest ? '<div class="notice">Гостевая запись остаётся только на этой странице. Для разбора нейросети и истории <a href="#/register">создай аккаунт</a>.</div>' : !state.providerReady ? '<div class="notice">Сервис нейросети ещё не настроен. Можно сохранить запись; разбор станет доступен после подключения сервиса.</div>' : ""}<div class="setup-layout">${first ? `<aside class="starter"><span class="tag">Речь до 1 минуты</span><h2>Объясни идею своего проекта</h2><p>Какую проблему он решает? Кому поможет? Назови один пример применения.</p>${button("Записать первую минуту", "starter")}<p class="caption">В этой тренировке нет вопросов аудитории. Их можно добавить при самостоятельной настройке.</p></aside><section class="first-guide"><h2>Как пройти первую тренировку</h2><ol><li><strong>Запиши речь</strong><p>Расскажи о проблеме и решении своими словами. Можно закончить раньше минуты.</p></li><li><strong>Получи разбор</strong><p>Прослушай запись, затем сохрани её. Нейросеть подготовит наблюдения и рекомендации.</p></li><li><strong>Повтори с одной рекомендацией</strong><p>Выбери в разборе, что хочешь улучшить. Тема и выбранный фокус перейдут в новую попытку.</p></li></ol><details class="custom-setup"><summary>Настроить свою тренировку</summary>${setupForm(false)}</details></section>` : `<aside class="starter"><p class="eyebrow">Один фокус на попытку</p><h2>Подкрепи главную мысль примером</h2><p>${guest ? "Выбери тему, запиши выступление и прослушай его. Попробуй объяснить одну мысль конкретным примером." : "Выбери тему, которую предстоит объяснить аудитории. После разбора повтори выступление с одной рекомендацией."}</p></aside>${setupForm(guest)}`}</div>`,
   );
+}
+function practiceProgress(p, stage) {
+  const labels = p.config.questions
+    ? ["Выступление", "Ответы на вопросы", "Разбор"]
+    : ["Запись речи", "Разбор", "Повторная попытка"];
+  const index =
+    stage === "report"
+      ? p.config.questions
+        ? 2
+        : 1
+      : stage === "questions" || nextSegment(p)?.kind === "answer"
+        ? 1
+        : 0;
+  return `<nav aria-label="Этапы тренировки"><ol class="practice-progress">${labels.map((label, i) => `<li${i === index ? ' aria-current="step"' : ""}>${label}</li>`).join("")}</ol></nav>`;
+}
+function repeatChoices(report) {
+  return [
+    { title: "Главное в этой попытке", text: report.insight },
+    ...(report.recommendations || []),
+  ].filter(
+    (item, index, all) =>
+      item.text &&
+      !all.slice(0, index).some((previous) => previous.text === item.text),
+  );
+}
+function repeatPanel(p) {
+  const recommendations = repeatChoices(p.report);
+  return `<section class="next-attempt"><div><h2>Примени рекомендацию в новой попытке</h2><p>Выбери, что хочешь улучшить. Сохраним тему, продолжительность и выбранный фокус.</p>${recommendations.length ? `<fieldset><legend>Фокус следующей попытки</legend><div class="focus-options">${recommendations.map((item, index) => `<label class="focus-option"><input type="radio" name="repeat-focus" value="${index}"${index === 0 ? " checked" : ""}><span><strong>${heading(item.title)}</strong><span class="focus-description">${escape(item.text)}</span></span></label>`).join("")}</div></fieldset>` : ""}<div class="actions">${button("Записать повторную попытку", "repeat")}${button("Выбрать другую тему", "new-topic", "secondary")}</div></div></section>`;
 }
 async function history(offset = 0) {
   frame(
@@ -182,7 +217,7 @@ function reportPage(p) {
     return;
   }
   frame(
-    `<div class="page-heading"><p class="eyebrow">Разбор · ${escape(date(p.created_at))}</p><h1>${heading(p.config.topic || "Твоя тренировка")}</h1></div>${button("Скачать разбор", "download-report", "secondary")}${reportMarkup(p.report)}<section class="report-section"><h2>Твои записи</h2>${mediaMarkup(p)}</section><section class="next-attempt"><div><p class="eyebrow">Примени рекомендацию</p><h2>Повтори выступление с выбранной рекомендацией</h2><p>${escape(p.report.recommendations?.[0]?.text || "Повтори выступление и сравни свою речь с прошлой попыткой.")}</p></div>${button("Повторить тренировку", "repeat")}</section>${!state.user.onboarding_completed ? `<div class="notice"><p>Ты прошёл полный цикл. Теперь выбери одну рекомендацию выше и попробуй применить её в следующей записи.</p>${button("Завершить знакомство", "finish-onboarding", "secondary")}</div>` : ""}<form id="feedback-form" class="feedback-form"><h2>Был ли разбор полезен?</h2><fieldset><legend>Оценка от 1 до 5</legend><div class="ratings">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join("")}</div></fieldset><label><span class="label-title">Что стоит улучшить? <span class="optional">необязательно</span></span><textarea name="text" rows="3" maxlength="2000"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button secondary">Отправить отзыв</button></form>`,
+    `${practiceProgress(p, "report")}<div class="page-heading"><p class="eyebrow">Разбор · ${escape(date(p.created_at))}</p><h1>${heading(p.config.topic || "Твоя тренировка")}</h1></div><p class="page-description">Прочитай наблюдения и рекомендации, затем выбери один фокус для повторной попытки.</p><div class="actions report-actions">${button("Выбрать фокус следующей попытки", "choose-focus")}${button("Скачать разбор", "download-report", "secondary")}</div>${reportMarkup(p.report)}<section class="report-section"><h2>Твои записи</h2>${mediaMarkup(p)}</section>${repeatPanel(p)}<form id="feedback-form" class="feedback-form"><h2>Был ли разбор полезен?</h2><fieldset><legend>Оценка от 1 до 5</legend><div class="ratings">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join("")}</div></fieldset><label><span class="label-title">Что стоит улучшить? <span class="optional">необязательно</span></span><textarea name="text" rows="3" maxlength="2000"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button secondary">Отправить отзыв</button></form>`,
   );
 }
 function mediaMarkup(p) {
@@ -235,7 +270,7 @@ function practicePage(p, guest = false) {
     p.segments?.some((s) => s.kind === "speech") &&
     !p.questions?.length;
   frame(
-    `<div class="page-heading row"><div><p class="eyebrow">${guest ? "Гостевая запись" : segment?.kind === "answer" ? `Вопрос ${segment.index} из ${p.questions.length}` : "Тренировка"} · ${escape(p.config.topic)}</p><h1>${needQuestions ? "Выступление сохранено" : segment?.kind === "answer" ? "Ответь аудитории" : segment ? "Запиши своё выступление" : "Записи сохранены"}</h1></div>${!guest ? '<a class="quiet-link" href="#/history">К истории</a>' : ""}</div>${guest ? '<div class="notice">Запись хранится только в этой вкладке. Нейросеть её не анализирует.</div>' : ""}${active?.status === "failed" || p.status === "failed" ? errorBox(active?.error?.message || "Обработка не завершилась. Записи сохранены. Можно попробовать ещё раз.") : ""}${segment ? `<section class="record-stage"><div class="record-prompt"><p class="eyebrow">${segment.kind === "answer" ? "Вопрос по твоему выступлению" : "Тема выступления"}</p><h2>${heading(segment.kind === "answer" ? p.questions[segment.index - 1] : p.config.topic)}</h2><p>${segment.kind === "answer" ? "Сначала дай прямой ответ, затем поясни его одним примером. На ответ — до 1 минуты." : "Обозначь главную мысль, подкрепи её примером и заверши выводом. Можно остановиться раньше таймера."}</p><span class="tag">${`До ${time(recordingLimit(p, segment))}`}</span>${segment.kind === "speech" && p.config.criteria ? `<div class="practice-focus"><p class="eyebrow">Фокус этой попытки</p><p>${escape(p.config.criteria)}</p></div>` : ""}</div><div class="recorder-panel"><div class="timer" id="record-timer">${time(recordingLimit(p, segment))}</div><div class="sound-meter" aria-label="Уровень звука"><span id="sound-level"></span></div><p id="record-status" role="status">Нажми «Проверить микрофон», затем начни запись.</p><div id="record-controls" class="actions">${button("Проверить микрофон", "check-mic", "secondary")}</div><div id="record-error" role="alert"></div><div id="record-preview"></div></div></section>` : `<section class="empty"><h2>${needQuestions ? "Подготовим вопросы по твоей речи" : guest ? "Прослушай свою попытку" : "Всё готово для разбора"}</h2><p>${needQuestions ? "Запись сохранена. Подготовка вопросов может занять несколько минут." : guest ? "Для сохранения истории и разбора своей речи создай аккаунт." : p.segments?.some((s) => s.kind === "answer") ? "Нейросеть разберёт содержание выступления и сохранённые ответы на вопросы." : "Нейросеть разберёт содержание выступления."}</p>${guest ? `${startLink("Создать аккаунт")}${button("Записать снова", "guest-again", "secondary")}` : button(needQuestions ? "Подготовить вопросы" : "Получить разбор", needQuestions ? "questions" : "report", "primary", state.providerReady ? "" : "disabled")}${!guest && !state.providerReady ? '<p class="caption">Сервис нейросети ещё не настроен. Записи уже сохранены в истории.</p>' : ""}</section>`}${p.segments?.length ? `<section class="report-section"><h2>Сохранённые записи</h2>${mediaMarkup(p)}</section>` : ""}`,
+    `${guest ? "" : practiceProgress(p, needQuestions ? "questions" : "record")}<div class="page-heading row"><div><p class="eyebrow">${guest ? "Гостевая запись" : segment?.kind === "answer" ? `Вопрос ${segment.index} из ${p.questions.length}` : "Тренировка"} · ${escape(p.config.topic)}</p><h1>${needQuestions ? "Выступление сохранено" : segment?.kind === "answer" ? "Ответь аудитории" : segment ? "Запиши своё выступление" : "Записи сохранены"}</h1></div>${!guest ? '<a class="quiet-link" href="#/history">К истории</a>' : ""}</div>${guest ? '<div class="notice">Запись хранится только в этой вкладке. Нейросеть её не анализирует.</div>' : ""}${active?.status === "failed" || p.status === "failed" ? errorBox(active?.error?.message || "Обработка не завершилась. Записи сохранены. Можно попробовать ещё раз.") : ""}${segment ? `<section class="record-stage"><div class="record-prompt"><p class="eyebrow">${segment.kind === "answer" ? "Вопрос по твоему выступлению" : "Тема выступления"}</p><h2>${heading(segment.kind === "answer" ? p.questions[segment.index - 1] : p.config.topic)}</h2><p>${segment.kind === "answer" ? "Сначала дай прямой ответ, затем поясни его одним примером. На ответ — до 1 минуты." : "Обозначь главную мысль, подкрепи её примером и заверши выводом. Можно остановиться раньше таймера."}</p><span class="tag">${`До ${time(recordingLimit(p, segment))}`}</span>${segment.kind === "speech" && p.config.criteria ? `<div class="practice-focus"><p class="eyebrow">Фокус этой попытки</p><p>${escape(p.config.criteria)}</p></div>` : ""}</div><div class="recorder-panel"><div class="timer" id="record-timer">${time(recordingLimit(p, segment))}</div><div class="sound-meter" aria-label="Уровень звука"><span id="sound-level"></span></div><p id="record-status" role="status">Нажми «Проверить микрофон», затем начни запись.</p><div id="record-controls" class="actions">${button("Проверить микрофон", "check-mic", "secondary")}</div><div id="record-error" role="alert"></div><div id="record-preview"></div></div></section>` : `<section class="empty"><h2>${needQuestions ? "Подготовим вопросы по твоей речи" : guest ? "Прослушай свою попытку" : "Всё готово для разбора"}</h2><p>${needQuestions ? "Запись сохранена. Подготовка вопросов может занять несколько минут." : guest ? "Для сохранения истории и разбора своей речи создай аккаунт." : p.segments?.some((s) => s.kind === "answer") ? "Нейросеть разберёт содержание выступления и сохранённые ответы на вопросы." : "Нейросеть разберёт содержание выступления."}</p>${guest ? `${startLink("Создать аккаунт")}${button("Записать снова", "guest-again", "secondary")}` : button(needQuestions ? "Подготовить вопросы" : "Получить разбор", needQuestions ? "questions" : "report", "primary", state.providerReady ? "" : "disabled")}${!guest && !state.providerReady ? '<p class="caption">Сервис нейросети ещё не настроен. Записи уже сохранены в истории.</p>' : ""}</section>`}${p.segments?.length ? `<section class="report-section"><h2>Сохранённые записи</h2>${mediaMarkup(p)}</section>` : ""}`,
   );
   if (state.pending) showPending();
 }
@@ -256,7 +291,7 @@ function jobStage(stage) {
 }
 function processingPage(p, job) {
   frame(
-    `<div class="processing"><span class="spinner" aria-hidden="true"></span><p class="eyebrow">Записи сохранены</p><h1>${job.kind === "questions" ? "Готовим вопросы по твоей речи" : "Собираем разбор выступления"}</h1><p id="job-status" role="status">${jobStage(job.stage)}</p><p class="caption">Можно оставить эту страницу или вернуться позже через историю. Обработка продолжится на сервере.</p><a href="#/history" class="button secondary">Открыть историю</a><div id="poll-error" role="alert"></div></div>`,
+    `${practiceProgress(p, job.kind)}<div class="processing"><span class="spinner" aria-hidden="true"></span><p class="eyebrow">Записи сохранены</p><h1>${job.kind === "questions" ? "Готовим вопросы по твоей речи" : "Собираем разбор выступления"}</h1><p id="job-status" role="status">${jobStage(job.stage)}</p><p class="caption">Можно оставить эту страницу или вернуться позже через историю. Обработка продолжится на сервере.</p><a href="#/history" class="button secondary">Открыть историю</a><div id="poll-error" role="alert"></div></div>`,
   );
   pollJob(p.id, job.id);
 }
@@ -438,6 +473,37 @@ function stopRecording(automatic = false) {
     state.recorder.stop();
   }
 }
+function saveLabel(p, pending) {
+  if (p.id === "guest") return "Сохранить в этой вкладке";
+  if (pending.kind === "speech" && p.config.questions)
+    return "Сохранить и перейти к вопросам";
+  if (pending.kind === "answer" && pending.index < p.questions.length)
+    return "Сохранить и перейти к следующему вопросу";
+  return "Сохранить и получить разбор";
+}
+async function continueAfterSave(p) {
+  practicePage(p);
+  const kind =
+    p.config.questions && !p.questions?.length
+      ? "questions"
+      : nextSegment(p)
+        ? null
+        : "report";
+  if (!kind || !state.providerReady) return;
+  try {
+    const job = await api.startJob(p.id, kind);
+    processingPage(p, job);
+  } catch (error) {
+    const panel = document.querySelector(".empty");
+    if (panel)
+      panel.insertAdjacentHTML(
+        "beforeend",
+        errorBox(
+          `Запись сохранена. ${errorText(error)} Нажми «${kind === "questions" ? "Подготовить вопросы" : "Получить разбор"}», чтобы продолжить.`,
+        ),
+      );
+  }
+}
 function showPending() {
   const pending = state.pending;
   if (!pending) return;
@@ -447,11 +513,9 @@ function showPending() {
   document.querySelector("#record-status").textContent =
     "Запись завершена. Прослушай её перед сохранением.";
   controls.innerHTML =
-    button(
-      state.practice.id === "guest" ? "Оставить запись" : "Сохранить запись",
-      "save-record",
-    ) + button("Перезаписать", "discard-record", "secondary");
-  preview.innerHTML = `<audio controls src="${escape(pending.url)}"></audio><a class="quiet-link" href="${escape(pending.url)}" download="моя-запись">Скачать копию записи</a><p class="caption">${state.practice.id === "guest" ? "Запись останется только в этой вкладке." : "Пока запись находится только в этой вкладке. Нажми «Сохранить запись», чтобы отправить её на сервер."}</p>`;
+    button(saveLabel(state.practice, pending), "save-record") +
+    button("Перезаписать", "discard-record", "secondary");
+  preview.innerHTML = `<audio controls src="${escape(pending.url)}"></audio><a class="quiet-link" href="${escape(pending.url)}" download="моя-запись">Скачать копию записи</a><p class="caption">${state.practice.id === "guest" ? "Запись останется только в этой вкладке." : `Пока запись находится только в этой вкладке. Нажми «${saveLabel(state.practice, pending)}», когда будешь готов продолжить.`}</p>`;
   if (state.recordingError)
     document.querySelector("#record-error").innerHTML = errorBox(
       state.recordingError,
@@ -487,7 +551,7 @@ async function saveRecording() {
     p.latest_job = null;
     discardPending();
     closeMedia();
-    practicePage(p);
+    await continueAfterSave(p);
   } catch (error) {
     if (error.status === 409) {
       try {
@@ -498,7 +562,7 @@ async function saveRecording() {
           )
         ) {
           discardPending();
-          practicePage(saved);
+          await continueAfterSave(saved);
           return;
         }
       } catch {}
@@ -524,7 +588,7 @@ async function navigate() {
     }
     if (
       !confirm(
-        "Несохранённая запись останется только в этой вкладке. Перейти на другую страницу и потерять её?",
+        "Несохранённая запись будет потеряна при переходе на другую страницу. Перейти?",
       )
     ) {
       window.history.replaceState(
@@ -598,6 +662,18 @@ async function submitForm(event) {
   const submit = form.querySelector("[type=submit]"),
     error = form.querySelector(".form-error");
   submit.disabled = true;
+  const previousLabel = submit.textContent;
+  submit.textContent =
+    form.id === "auth-form"
+      ? form.dataset.mode === "register"
+        ? "Создаём аккаунт…"
+        : form.dataset.mode === "reset"
+          ? "Сохраняем пароль…"
+          : "Входим…"
+      : form.id === "setup-form"
+        ? "Открываем запись…"
+        : "Отправляем отзыв…";
+  form.setAttribute("aria-busy", "true");
   error.textContent = "";
   const body = Object.fromEntries(new FormData(form));
   try {
@@ -662,6 +738,8 @@ async function submitForm(event) {
     error.textContent = errorText(e);
   } finally {
     submit.disabled = false;
+    submit.textContent = previousLabel;
+    form.removeAttribute("aria-busy");
   }
 }
 async function action(event) {
@@ -676,6 +754,14 @@ async function action(event) {
         break;
       case "download-report":
         downloadReport(state.practice);
+        break;
+      case "choose-focus":
+        document
+          .querySelector(".next-attempt")
+          ?.scrollIntoView({ block: "start", behavior: "instant" });
+        document
+          .querySelector('input[name="repeat-focus"]:checked')
+          ?.focus({ preventScroll: true });
         break;
       case "refresh":
         await navigate();
@@ -695,21 +781,21 @@ async function action(event) {
         break;
       case "starter": {
         const p = await api.createPractice({
-          scenario: "defense",
-          topic: "Идея моего проекта: какую проблему он решает и кому поможет",
+          scenario: "speech",
+          topic: "Идея моего проекта",
           duration: 1,
-          questions: true,
+          questions: false,
           criteria: "Понятны ли проблема, решение и пример применения",
         });
         go(`/practice/${encodeURIComponent(p.id)}`);
         break;
       }
-      case "skip-onboarding":
-      case "finish-onboarding": {
-        const data = await api.completeOnboarding();
-        state.user = data.user;
-        notify("Знакомство завершено.");
-        await navigate();
+      case "new-topic": {
+        if (!state.user.onboarding_completed) {
+          const data = await api.completeOnboarding();
+          state.user = data.user;
+        }
+        go("/app");
         break;
       }
       case "check-mic":
@@ -749,11 +835,18 @@ async function action(event) {
         break;
       }
       case "repeat": {
+        const selected = Number(
+          document.querySelector('input[name="repeat-focus"]:checked')?.value ||
+            0,
+        );
+        const recommendation = repeatChoices(state.practice.report)[selected];
+        if (!state.user.onboarding_completed) {
+          const data = await api.completeOnboarding();
+          state.user = data.user;
+        }
         const p = await api.createPractice({
           ...state.practice.config,
-          criteria:
-            state.practice.report.recommendations?.[0]?.text ||
-            state.practice.config.criteria,
+          criteria: recommendation?.text || state.practice.config.criteria,
         });
         go(`/practice/${encodeURIComponent(p.id)}`);
         break;

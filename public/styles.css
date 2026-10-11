@@ -596,6 +596,83 @@ legend {
   margin-top: 45px;
   align-items: start;
 }
+.page-description {
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin-top: 20px;
+  max-width: 65ch;
+}
+.consent-details {
+  margin-top: 12px;
+  font-size: 14px;
+}
+.consent-details summary {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.consent-text {
+  color: var(--muted);
+  line-height: 1.65;
+}
+.consent-text h3 {
+  font-size: 16px;
+  color: var(--ink);
+  margin: 24px 0 8px;
+}
+.first-guide h2 {
+  font-size: var(--text-section);
+  margin-bottom: 24px;
+}
+.first-guide ol {
+  padding-left: 24px;
+  margin: 0;
+}
+.first-guide li {
+  padding-left: 10px;
+  margin-bottom: 24px;
+}
+.first-guide li strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+.first-guide li p {
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.custom-setup {
+  border-top: 1px solid var(--line);
+  margin-top: 32px;
+  padding-top: 24px;
+}
+.custom-setup summary {
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+}
+.custom-setup[open] .setup-form {
+  margin-top: 28px;
+}
+.practice-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 32px;
+  padding: 0 0 20px 20px;
+  margin: 0 0 32px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
+}
+.practice-progress li {
+  padding-left: 4px;
+  margin-right: 12px;
+}
+.practice-progress [aria-current="step"] {
+  color: var(--ink);
+  font-weight: 600;
+}
 .starter {
   background: #e5ebdc;
   border-radius: 20px;
@@ -944,9 +1021,7 @@ legend {
   color: var(--muted);
 }
 .next-attempt {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: block;
   gap: 40px;
   background: #e1e9d8;
   border-radius: 20px;
@@ -963,7 +1038,46 @@ legend {
   max-width: 550px;
 }
 .next-attempt .button {
-  flex-shrink: 0;
+  max-width: 100%;
+}
+.next-attempt h2 {
+  font-size: var(--text-section);
+}
+.next-attempt fieldset {
+  margin-top: 28px;
+}
+.focus-options {
+  display: grid;
+  gap: 12px;
+}
+.next-attempt .focus-option {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 12px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.focus-option:has(input:checked) {
+  border-color: #668c46;
+}
+.focus-option input {
+  margin: 4px 0 0;
+  accent-color: #608e3e;
+}
+.focus-option strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+.focus-description {
+  display: block;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--muted);
+  margin-top: 6px;
 }
 .feedback-form {
   max-width: 550px;
