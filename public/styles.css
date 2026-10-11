@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  --paper: #f2f1eb;
+  --paper: #faf9f3;
   --surface: #fffefa;
   --ink: #202a25;
   --muted: #5d665e;
@@ -269,21 +269,6 @@ footer {
   object-position: center;
   border-radius: 130px 130px 22px 22px;
   display: block;
-  filter: contrast(0.96) saturate(0.65);
-}
-.visual-caption {
-  position: absolute;
-  top: 20px;
-  left: 22px;
-  right: 22px;
-  text-align: center;
-  font-size: 11px;
-  color: #fff;
-  background: #18251c88;
-  backdrop-filter: blur(15px);
-  padding: 12px 10px;
-  border: 1px solid #ffffff44;
-  border-radius: 20px;
 }
 .floating-note {
   position: absolute;
@@ -321,7 +306,7 @@ footer {
   gap: 70px;
   padding: 100px 90px;
   border-top: 1px solid var(--line);
-  background: #e9ede1;
+  background: #eef5e4;
 }
 .method h2 {
   font-size: clamp(36px, 4vw, 56px);
@@ -1171,11 +1156,6 @@ legend {
   .floating-note strong {
     font-size: 21px;
   }
-  .visual-caption {
-    font-size: 9px;
-    left: 12px;
-    right: 12px;
-  }
   .method,
   .landing-example {
     padding: 70px 35px;
@@ -1491,12 +1471,6 @@ legend {
   }
   .spinner {
     border-style: dashed;
-  }
-}
-@media (prefers-reduced-transparency: reduce) {
-  .visual-caption {
-    background: #1d2e23;
-    backdrop-filter: none;
   }
 }
 

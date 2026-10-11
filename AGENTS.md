@@ -17,6 +17,7 @@
 - Native single-select chevrons need an explicit inner right gutter and reserved text space. Keep keyboard interaction and native accessibility; do not replace selects with decorative divs.
 - Typography uses shared CSS tokens: distinguish page titles, section headings, field labels, input values and hints by size, weight, spacing and contrast. Keep optional-field labels inline and attach hints to their field group.
 - Visuals must suit a contemporary Russian audience and recognizable local settings. Do not infer or claim real people's nationality from appearance. Record generated-asset provenance; never present an illustration as a real user or testimonial.
+- Keep imagery bright, naturally colored and welcoming. Do not equate Russian context with gloomy or desaturated photography. Avoid copy overlays across faces; landing cards must convey a specific product benefit or a clearly labeled example.
 
 ## Validation and operations
 
