@@ -13,6 +13,7 @@ const state = {
   practice: null,
   guest: null,
   guestPersisted: false,
+  guestNotice: "",
   recorder: null,
   stream: null,
   cameraStream: null,
@@ -136,6 +137,8 @@ async function persistGuest() {
 function guestResult(message = "") {
   const p = state.guest;
   state.practice = p;
+  state.guestNotice = message;
+  if (p.config.questions) return meetingPage(p, true);
   frame(
     `<div class="page-heading"><p class="eyebrow">Твоя первая попытка</p><h1>Запись готова к разбору</h1><p class="page-description">${state.user ? "Перенесём выступление в твой аккаунт и подготовим разбор нейросети." : "Создай аккаунт, чтобы получить полный разбор этого выступления. Запись уже готова, повторять её не нужно."}</p></div><div class="guest-result-layout"><section class="guest-recording"><p class="eyebrow">Тема выступления</p><h2>${heading(p.config.topic)}</h2><p class="caption">Записано ${time(Math.round(p.durationSeconds || 0))}</p>${playback(p.segments[0].media_url, p.blob.type.startsWith("video/"))}<a class="quiet-link" href="${escape(p.segments[0].media_url)}" download="моя-запись">Скачать копию записи</a><p class="field-hint">${state.guestPersisted ? "Запись сохранена в этом браузере. В течение суток можно продолжить даже после обновления страницы." : "Браузер не разрешил сохранить черновик. Не обновляй и не закрывай вкладку до получения разбора."}</p></section><section class="guest-unlock"><h2>Что будет в полном разборе</h2><ul><li>Главная мысль и структура выступления</li><li>Что уже получается — с цитатами из твоей речи</li><li>Конкретная рекомендация для повторной попытки</li></ul><p>${p.config.questions ? "После входа в чате появятся три вопроса по выступлению. Запиши ответы, чтобы получить полный разбор речи и ответов." : "Разбор опирается на расшифровку твоей записи."} Затем можно повторить тренировку с выбранным фокусом.</p>${message ? errorBox(message) : ""}<div class="actions">${button(state.user ? "Получить разбор" : "Создать аккаунт и получить разбор", "guest-analyze")}${!state.user ? '<a class="quiet-link" href="#/login">Уже есть аккаунт? Войти</a>' : ""}${button("Записать заново", "guest-again", "secondary")}</div></section></div>`,
   );
@@ -179,7 +182,7 @@ async function importGuest() {
     else await continueAfterSave(p);
   } catch (error) {
     guestResult(
-      `Аккаунт готов, но продолжить пока не удалось. ${errorText(error)} Исходная запись остаётся в браузере. Нажми «Получить разбор», чтобы продолжить.`,
+      `Аккаунт готов, но продолжить пока не удалось. ${errorText(error)} Исходная запись остаётся в браузере. Попробуй продолжить тренировку ещё раз.`,
     );
   } finally {
     state.uploading = false;
@@ -362,24 +365,51 @@ function questionChat(p, segment, job) {
   const failed =
     (p.latest_job?.status === "failed" || p.status === "failed") &&
     !p.questions?.length;
+  if (state.pending?.kind === "speech" && state.pending.practiceId === p.id) {
+    return `<aside class="meeting-chat" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><div class="chat-next"><p role="status">${state.uploading ? "Сохраняем выступление…" : "Запись остаётся в этой вкладке. Повтори сохранение, чтобы продолжить тренировку."}</p>${!state.uploading ? `${button("Повторить сохранение", "save-record")}${button("Перезаписать", "discard-record", "secondary")}<a href="${escape(state.pending.url)}" download="моя-запись">Скачать копию записи</a>` : ""}</div></aside>`;
+  }
+  if (p.id === "guest" && p.blob) {
+    return `<aside class="meeting-chat" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><div class="chat-next"><p role="status">Выступление сохранено${state.guestPersisted ? " в браузере" : " в этой вкладке"}.</p><p>${state.user ? "Продолжи в своём аккаунте, чтобы получить вопросы и полный разбор." : "Создай аккаунт, чтобы получить вопросы по этой речи и полный разбор. Записывать заново не нужно."}</p>${state.guestNotice ? errorBox(state.guestNotice) : ""}${button(state.user ? "Продолжить тренировку" : "Создать аккаунт и продолжить", "guest-analyze")}${!state.user ? '<a href="#/login">Уже есть аккаунт? Войти</a>' : ""}${!state.guestPersisted ? "<p>Не закрывай и не обновляй вкладку: браузер не разрешил сохранить черновик.</p>" : ""}</div></aside>`;
+  }
   return `<aside class="meeting-chat${arrival ? " chat-arrival" : ""}" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><ol class="chat-messages" role="log" aria-label="Чат встречи" aria-live="polite" aria-relevant="additions">${messages}</ol><div class="chat-next">${job ? `<p id="job-status" role="status">${jobStage(job.stage)}</p><p class="caption">Вопросы появятся здесь, когда будут готовы.</p><div id="poll-error" role="alert"></div>` : !p.questions?.length ? `<p>${state.providerReady ? "Выступление сохранено. Осталось подготовить вопросы." : "Сервис нейросети недоступен. Выступление сохранено."}</p>${failed ? errorBox(p.latest_job?.error?.message || "Не удалось подготовить вопросы. Можно попробовать ещё раз.") : ""}${button("Подготовить вопросы", "questions", "primary", state.providerReady ? "" : "disabled")}` : segment && state.activeAnswer !== `${p.id}:${segment.index}` ? `<p>Вопрос ${segment.index} из ${p.questions.length}</p>${button("Ответить на вопрос", "open-answer")}` : `<p>Ответ на вопрос ${segment?.index} из ${p.questions.length}</p>`}</div></aside>`;
 }
 function meetingPage(p, guest = false, job = null) {
-  const segment = nextSegment(p);
+  const pendingSpeech =
+    state.pending?.kind === "speech" && state.pending.practiceId === p.id;
+  const segment = pendingSpeech ? null : nextSegment(p);
   const chat = !!(
     job ||
+    pendingSpeech ||
     (p.config.questions && p.segments?.some((s) => s.kind === "speech"))
   );
-  const devicesAvailable = !!segment && !job;
+  const devicesAvailable = true;
   const canRecord =
     !!segment &&
     !job &&
     (segment.kind === "speech" ||
       state.activeAnswer === `${p.id}:${segment.index}`);
-  frame(
-    `<div class="meeting-topbar"><a class="quiet-link" href="#${guest ? "/guest" : "/app"}">К тренировке</a><h1>${heading(p.config.topic)}</h1>${canRecord ? `<span class="meeting-time" id="record-timer" aria-label="Осталось времени">${time(recordingLimit(p, segment))}</span>` : '<span class="meeting-time">Вопросы</span>'}</div><div class="meeting-body${chat ? " has-chat" : ""}"><div class="meeting-scene"><img class="meeting-audience" src="/audience-meeting-v1.png" alt="Слушатели в переговорной"><div class="self-view" hidden><video id="camera-preview" autoplay muted playsinline aria-label="Твоё видео" hidden></video><span class="self-name">Ты</span></div></div>${chat ? questionChat(p, segment, job) : ""}</div><div class="meeting-toolbar"><div class="meeting-devices">${devicesAvailable ? `<button class="device-control" type="button" data-action="toggle-mic" aria-pressed="false" title="Включить микрофон">${deviceIcon("mic")}<span>Микрофон</span></button><button class="device-control" type="button" data-action="toggle-camera" aria-pressed="false" title="Включить камеру">${deviceIcon("camera")}<span>Камера</span></button>` : ""}</div><div class="meeting-controls" id="record-controls">${canRecord ? button(segment.kind === "answer" ? "Начать ответ" : "Начать выступление", "start-record", "primary", "disabled") : ""}</div><p class="meeting-status" id="record-status" role="status">${canRecord ? "Включи микрофон, чтобы начать" : "Выступление сохранено"}</p><div id="record-error" role="alert"></div><p id="camera-status" role="status"></p></div>`,
-    "meeting",
-  );
+  const content = `<div class="meeting-topbar"><a class="quiet-link" href="#${guest ? "/guest" : "/app"}">К тренировке</a><h1>${heading(p.config.topic)}</h1>${canRecord ? `<span class="meeting-time" id="record-timer" aria-label="Осталось времени">${time(recordingLimit(p, segment))}</span>` : '<span class="meeting-time">Вопросы</span>'}</div><div class="meeting-body${chat ? " has-chat" : ""}"><div class="meeting-scene"><img class="meeting-audience" src="/audience-meeting-v1.png" alt="Слушатели в переговорной"><div class="self-view" hidden><video id="camera-preview" autoplay muted playsinline aria-label="Твоё видео" hidden></video><span class="self-name">Ты</span></div></div>${chat ? questionChat(p, segment, job) : ""}</div><div class="meeting-toolbar"><div class="meeting-devices">${devicesAvailable ? `<button class="device-control" type="button" data-action="toggle-mic" aria-pressed="false" title="Включить микрофон" ${!segment || job ? "disabled" : ""}>${deviceIcon("mic")}<span>Микрофон</span></button><button class="device-control" type="button" data-action="toggle-camera" aria-pressed="false" title="Включить камеру">${deviceIcon("camera")}<span>Камера</span></button>` : ""}</div><div class="meeting-controls" id="record-controls">${canRecord ? button(segment.kind === "answer" ? "Начать ответ" : "Начать выступление", "start-record", "primary", "disabled") : ""}</div><p class="meeting-status" id="record-status" role="status">${pendingSpeech ? (state.uploading ? "Сохраняем выступление…" : "Запись ещё не сохранена") : canRecord ? "Включи микрофон, чтобы начать" : "Выступление сохранено"}</p><div id="record-error" role="alert"></div><p id="camera-status" role="status"></p></div>`;
+  const current = document.querySelector("#main.meeting");
+  if (current?.dataset.practiceId === p.id) {
+    const template = document.createElement("template");
+    template.innerHTML = content;
+    current
+      .querySelector(".meeting-topbar")
+      .replaceWith(template.content.querySelector(".meeting-topbar"));
+    current
+      .querySelector(".meeting-toolbar")
+      .replaceWith(template.content.querySelector(".meeting-toolbar"));
+    const body = current.querySelector(".meeting-body");
+    const oldChat = body.querySelector(".meeting-chat");
+    const newChat = template.content.querySelector(".meeting-chat");
+    if (oldChat && newChat) oldChat.replaceWith(newChat);
+    else if (newChat) body.append(newChat);
+    else oldChat?.remove();
+    body.classList.toggle("has-chat", chat);
+  } else {
+    frame(content, "meeting");
+    document.querySelector("#main").dataset.practiceId = p.id;
+  }
   updateCameraUI();
   updateMicUI();
 }
@@ -570,9 +600,7 @@ function updateCameraUI() {
   const control = document.querySelector('[data-action="toggle-camera"]');
   if (control) {
     control.disabled =
-      state.cameraBusy ||
-      !!state.pending ||
-      (state.recording && !state.recordingWithVideo);
+      state.cameraBusy || (state.recording && !state.recordingWithVideo);
     control.setAttribute("aria-pressed", String(!!cameraLive()));
     control.title = state.cameraBusy
       ? "Подключаем камеру…"
@@ -583,7 +611,8 @@ function updateCameraUI() {
   const preview = document.querySelector("#camera-preview");
   if (preview) {
     preview.hidden = !cameraLive();
-    preview.srcObject = cameraLive() ? state.cameraStream : null;
+    const stream = cameraLive() ? state.cameraStream : null;
+    if (preview.srcObject !== stream) preview.srcObject = stream;
     preview.closest(".self-view").hidden = !cameraLive();
   }
 }
@@ -597,7 +626,7 @@ function closeCamera() {
   updateCameraUI();
 }
 async function toggleCamera() {
-  if (state.pending || state.cameraBusy) return;
+  if (state.cameraBusy) return;
   const status = document.querySelector("#camera-status");
   if (state.recording) {
     if (!state.recordingWithVideo) return;
@@ -738,8 +767,11 @@ function startRecording() {
         practiceId: p.id,
         durationSeconds: Math.max(1, (Date.now() - state.started) / 1000),
       };
-      closeMedia();
-      showPending();
+      closeMedia({
+        keepCamera: segment.kind === "speech" && p.config.questions,
+      });
+      if (segment.kind === "speech") void saveRecording();
+      else showPending();
     };
     recorder.start(1000);
     state.recording = true;
@@ -774,9 +806,8 @@ function stopRecording(automatic = false) {
   }
 }
 function saveLabel(p, pending) {
+  if (pending.kind === "speech") return "Повторить сохранение";
   if (p.id === "guest") return "Перейти к разбору";
-  if (pending.kind === "speech" && p.config.questions)
-    return "Сохранить и перейти к вопросам";
   if (pending.kind === "answer" && pending.index < p.questions.length)
     return "Сохранить и перейти к следующему вопросу";
   return "Сохранить и получить разбор";
@@ -811,6 +842,14 @@ async function continueAfterSave(p) {
 function showPending() {
   const pending = state.pending;
   if (!pending) return;
+  if (pending.kind === "speech") {
+    meetingPage(state.practice, state.practice.id === "guest");
+    if (state.recordingError)
+      document.querySelector("#record-error").innerHTML = errorBox(
+        state.recordingError,
+      );
+    return;
+  }
   frame(
     `<section class="record-review narrow"><p class="eyebrow">${pending.kind === "answer" ? `Ответ на вопрос ${pending.index}` : "Тренировка"}</p><h1>${pending.kind === "answer" ? "Ответ записан" : "Выступление записано"}</h1><div id="record-preview">${playback(pending.url, pending.blob.type.startsWith("video/"))}</div><div id="record-controls" class="actions">${button(saveLabel(state.practice, pending), "save-record")}${button("Перезаписать", "discard-record", "secondary")}</div><p class="caption" id="record-status" role="status">${state.practice.id === "guest" ? "Продолжи, чтобы получить разбор этой записи после регистрации." : "Продолжи, чтобы сохранить запись и перейти к следующему этапу."}</p><a class="quiet-link" href="${escape(pending.url)}" download="моя-запись">Скачать копию записи</a><div id="record-error" role="alert">${state.recordingError ? errorBox(state.recordingError) : ""}</div></section>`,
   );
@@ -824,8 +863,10 @@ async function saveRecording() {
   const pending = state.pending,
     p = state.practice;
   state.uploading = true;
-  document.querySelector("#record-controls").innerHTML =
-    '<span class="caption" role="status">Сохраняем запись… Не закрывай страницу.</span>';
+  if (pending.kind === "speech") meetingPage(p, p.id === "guest");
+  else
+    document.querySelector("#record-controls").innerHTML =
+      '<span class="caption" role="status">Сохраняем запись… Не закрывай страницу.</span>';
   try {
     if (p.id === "guest") {
       p.blob = pending.blob;
@@ -849,7 +890,7 @@ async function saveRecording() {
     p.status = "draft";
     p.latest_job = null;
     discardPending();
-    closeMedia();
+    closeMedia({ keepCamera: pending.kind === "speech" && p.config.questions });
     await continueAfterSave(p);
   } catch (error) {
     if (error.status === 409) {
@@ -866,6 +907,7 @@ async function saveRecording() {
         }
       } catch {}
     }
+    state.uploading = false;
     showPending();
     document.querySelector("#record-error").innerHTML = errorBox(
       `${errorText(error)} Запись остаётся в этой вкладке.`,

@@ -19,7 +19,7 @@
 - Visuals must suit a contemporary Russian audience and recognizable local settings. Do not infer or claim real people's nationality from appearance. Record generated-asset provenance; never present an illustration as a real user or testimonial.
 - Keep imagery bright, naturally colored and welcoming. Do not equate Russian context with gloomy or desaturated photography. Avoid copy overlays across faces; landing cards must convey a specific product benefit or a clearly labeled example.
 
-- Recording is an immersive meeting scene, with one device toolbar and optional self-video. Keep speech advice and audience labels off this screen. Camera captures video plus audio; AI receives the audio track and transcript, not visual analysis. Questions stay in the same meeting scene and map to confirmed saved answers.
+- Recording is an immersive meeting scene, with one device toolbar and optional self-video. Keep speech advice and audience labels off this screen. Camera captures video plus audio; AI receives the audio track and transcript, not visual analysis. Speech auto-saves on recorder completion (manual or timer). Upload, retry and question generation stay in the same meeting DOM; never replace the audience/self-video for these transitions. Failed upload retains the Blob and offers retry. Guests save locally and see the authentication continuation in this meeting chat. Answers still use their existing review step. Questions map to confirmed saved answers.
 
 ## Validation and operations
 
