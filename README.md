@@ -1,31 +1,94 @@
-# Сцена без страха — independent frontend
+# Сцена без страха
 
-## Deployment
+Пилот для репетиции выступлений: запись речи → вопросы по содержанию → разбор с цитатами → новая попытка с одной рекомендацией.
 
-The `public/` folder is an ordinary static website. It contains no ChatGPT SDK, platform login or hosting-specific runtime code. Serve this directory on your own HTTPS hosting/domain; no build step is required. HTTPS is required for microphone and camera access.
+## Что работает
 
-For local use: `python -m http.server 8080 --directory public`, then open http://localhost:8080.
+- Новый лендинг, открытый пример разбора и гостевая запись без отправки на сервер.
+- Регистрация, вход, выход, приватные сессии, приглашения и одноразовое восстановление через организатора пилота.
+- Первое упражнение на минуту, три сценария и собственные критерии.
+- Запись в браузере, прослушивание, скачивание и сохранение на сервере.
+- Расшифровка русской речи, три вопроса по содержанию, отдельная запись ответов и AI-разбор.
+- Фоновая обработка с восстановлением после перезапуска и повтором после ошибки.
+- Приватная история, повторная тренировка, удаление, скачивание разбора и обратная связь.
+- Хранение событий, ошибок и расхода AI; закрытая выгрузка JSON/CSV; резервное копирование.
 
-Entrypoint: public/index.html. Relative assets work under a subdirectory. No SPA route rewrites are required.
+Разбор оценивает содержание расшифровки. Голос, интонация, жесты и психологическая уверенность не анализируются. Цитаты сверяются с исходным текстом; содержательную точность рекомендаций предстоит оценить с первыми пользователями.
 
-## Current product
+## Запуск
 
-Guest access is implemented. Devices, recording, playback and download work in compatible browsers. Questions and result text are explicitly demonstrative. History is stored in the browser, and recordings are in memory until the tab reloads or closes. No recordings are sent to a server.
+Нужен Python 3.12 или новее. Приложение обслуживает интерфейс и API на одном адресе; отдельный статический сервер не нужен.
 
-## Email/password accounts — backend work required
+```sh
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements.lock.txt
+.venv/bin/python scripts/start_with_provider.py
+```
 
-Real account authentication is not included in this frontend. Do not implement passwords or simulated login with localStorage. Coordinate authentication with the existing backend developer, preserving an anonymous guest option.
+Последняя команда запросит ключ AI скрытым вводом. Ключ останется в окружении запущенного процесса и не запишется в файл. Откройте **http://localhost:8080/**, создайте свой аккаунт и начните минутное упражнение. Разрешение на микрофон выдаётся самому сайту в браузере.
 
-Proposed UI: Sign in → email + password; Register → email + password + confirmation; Forgot password → email. Main training flow stays accessible through “Continue as guest”. Signed-in users should see their own server-backed history. Guest users see browser-local history.
+Если окружение уже настроено:
 
-Backend needs registration, sign-in, sign-out, current session, verification/reset flows and per-user attempt ownership. Suggested API operations (final paths and formats must be agreed with the backend developer): POST /auth/register, POST /auth/login, POST /auth/logout, GET /auth/me, POST /auth/password-reset/request, POST /auth/password-reset/confirm. Use server-managed sessions and appropriate cookie/CSRF protections, password hashing and login abuse protection. Email verification/reset needs a configured mail service.
+```sh
+./scripts/run-local.sh
+```
 
-A two-step registration interface is now included: email/name/password, then role selection. The auth adapter deliberately rejects until a real backend is connected; no account or session is simulated. Existing-account login is not included. No real authentication is claimed. See FRONTEND_README.md for the adapter contract.
+Без ключа можно зарегистрироваться и сохранять записи, но реальные вопросы и разбор будут недоступны. Гостевая запись остаётся в памяти вкладки и исчезает после обновления страницы.
 
-## AI integration
+## Настройки сервера
 
-Replace public/api.js with the actual backend adapter. Existing interfaces and result/recording schemas are documented in FRONTEND_README.md. Keep AI credentials on the server. If frontend and backend use different origins, configure CORS and cookie/session rules deliberately; hosting both behind the same domain simplifies integration.
+Файл `.env.example` содержит только имена и безопасные примеры; приложение не читает `.env` автоматически. Экспортируйте переменные в окружение процесса.
 
-## Outstanding release checks
+| Переменная | Назначение |
+|---|---|
+| `APP_ENV` | `development` для локального теста, `production` для внешнего пилота |
+| `APP_ORIGIN` | Точный адрес сайта; production требует HTTPS |
+| `DATA_DIR` | Постоянное приватное хранилище; по умолчанию `data/` |
+| `LLM_API_KEY` | Ключ провайдера, только на сервере |
+| `LLM_BASE_URL` | OpenAI-совместимый API; по умолчанию предоставленный агрегатор |
+| `LLM_MODEL` | `gigachat-3-pro`, проверенный доступный идентификатор |
+| `TRANSCRIPTION_MODEL` | `whisper-large-v3`, проверенный доступный идентификатор |
+| `OPERATOR_TOKEN` | Независимый секрет для метрик; production требует минимум 24 символа |
+| `REQUIRE_INVITE` | `1` включает приглашения локально; production всегда требует приглашение |
+| `MAX_UPLOAD_BYTES` | По умолчанию 32 MiB на файл |
+| `DAILY_JOB_LIMIT` | По умолчанию 20 заданий на пользователя за 24 часа |
+| `PORT` | Порт локальных скриптов; по умолчанию 8080 |
 
-Test physical camera/microphone, permission refusal, audio-only capture, recording download and mobile browsers on the final HTTPS domain. Automated state tests use fake media devices, not hardware.
+Общий лимит аудио тренировки — 10 минут. При включённых вопросах интерфейс резервирует время на ответы: выступление до 7 минут, три ответа до минуты каждый. После достижения лимита запись останавливается с небольшим запасом.
+
+## Приглашения, восстановление и метрики
+
+```sh
+.venv/bin/python -m server.cli invite --uses 1 --hours 72
+.venv/bin/python -m server.cli reset participant@example.com --minutes 30
+```
+
+Организатор передаёт код приватно. Для восстановления сначала проверяет владельца аккаунта. Автоматическая почтовая верификация и восстановление пока не подключены; внешний пилот работает по приглашениям.
+
+Операторские endpoints требуют `Authorization: Bearer <OPERATOR_TOKEN>`: `/api/operator/metrics`, `/api/operator/export?kind=usage&format=json` и `/api/operator/export?kind=events&format=csv`. Поддерживаются оба формата и ограничение `limit` до 10000 записей. Эти данные не показываются обычным участникам.
+
+## Проверки и документация
+
+```sh
+.venv/bin/python -m pytest -q
+.venv/bin/python scripts/load_test.py
+```
+
+Нагрузочный скрипт создаёт отдельное временное хранилище и сервер. Проверяет обычный API на 1, 5, 10 RPS и короткие ступени 20/40 RPS; не вызывает AI и не изменяет реальные тренировки. Результат — `outputs/load-report.json`.
+
+- [Архитектура](docs/architecture.md) — компоненты, данные и восстановление.
+- [Операционные инструкции](docs/operations.md) — deployment, приглашения, backup/restore и ограничения.
+- [Контракт API](docs/api-contract.md) — интеграция интерфейса и сервера.
+- [AI-модуль](docs/llm.md) — проверка результатов, модели и ограничения.
+- [Метрики и расходы](docs/observability-cost.md) — нагрузка, измеренные объёмы и формула cost/DAU.
+- [Отчёт о выполнении](outputs/implementation-report.md) — проверенные результаты и оставшиеся условия внешнего запуска.
+
+## Внешний запуск
+
+Подготовлен Dockerfile. Нужны один сервер/контейнер, постоянный том `DATA_DIR`, HTTPS-прокси и приватно настроенные секреты. Запускайте **один процесс и одну реплику**: очередь и SQLite рассчитаны на один хост. Контейнер пока не является подтверждённым внешним deployment.
+
+До приглашения внешних пользователей остаётся выбрать hosting/HTTPS-адрес, контакт организатора, срок хранения и правила участия; проверить весь путь на внешнем адресе. Тарифы агрегатора пока не предоставлены: стоимость в рублях/долларах не выдумывается. Метод расчёта и реальные объёмы запросов приводятся в отчёте.
+
+## Структура
+
+`public/` — поддерживаемый интерфейс; `server/` — API, хранение, worker и AI; `tests/` — проверки; `scripts/` — запуск и обслуживание. Корневые `index.html`/`styles.css` — исходные копии из ZIP, их не использует сервер. Приватные данные, ключи и резервные копии исключены из Git. Рабочая ветка — `frentend`.

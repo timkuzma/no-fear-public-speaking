@@ -41,6 +41,8 @@ Development registration may omit an invite; production must fail closed without
 
 `GET /api/operator/metrics` and `/api/operator/export?format=json|csv`: operator bearer credential, no credentials in URL, no raw speech in general logs.
 
+Export also accepts `kind=usage|events` and `limit` capped at 10000. JSON is `{items:[row]}`; metrics is a separate aggregate. Media download uses `?download=true`, a validated container extension and MIME. Browser streaming WebM is losslessly finalized before persistence for finite duration and seeking. Total audio across all segments is capped at 600 seconds.
+
 ## Report shape shared by worker and UI
 
 ```
@@ -59,7 +61,7 @@ Transcript evidence must be verified against actual supplied segment text. No in
 `server/ai.py` exports:
 
 - `ProviderError(code: str, message: str)`; messages are safe and Russian, never contain key/provider response bodies.
-- `async transcribe(path: Path) -> dict`: `{text:string,duration_seconds:number,usage:Usage}`. Decode using environment `FFMPEG_BINARY` or imageio-ffmpeg binary fallback; enforce ten-minute media limit. Provider config from `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (default GigaChat), `TRANSCRIPTION_MODEL` (default whisper-1), optional timeout settings. No secret files or logs.
+- `async transcribe(path: Path) -> dict`: `{text:string,duration_seconds:number,usage:Usage}`. Decode using environment `FFMPEG_BINARY` or imageio-ffmpeg binary fallback; enforce ten-minute media limit. Provider config from `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (default gigachat-3-pro), `TRANSCRIPTION_MODEL` (default whisper-large-v3), optional timeout settings. No secret files or logs.
 - `async generate_questions(config:dict, transcript:str) -> dict`: `{questions:[string,string,string],usage:Usage}`.
 - `async analyze(config:dict, segments:list[dict]) -> dict`: `{report:Report,usage:Usage}`. Segments include `{kind,index,text,duration_seconds}`. Module does not access DB or private ownership.
 - `Usage`: `{model:string,input_tokens:int,output_tokens:int,audio_seconds:number,latency_ms:number,operation:string}`. Real provider counts when available; unknown counts remain null rather than fake zero. Retries bounded, record attempts if possible.

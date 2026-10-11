@@ -1,45 +1,146 @@
-// Replace this adapter with your backend implementation. UI depends only on this interface.
-export const api = {
-  mode: 'demo',
-  // No mock account creation: replace this with a real backend registration request.
-  async register({email,name,password,role}) {
-    const error = new Error('Account registration backend is not connected');
-    error.code = 'AUTH_NOT_CONFIGURED';
-    throw error;
-  },
-  async getQuestions(config) {
-    await new Promise(r => setTimeout(r, 650));
-    return [
-      'Какую главную мысль слушатель должен запомнить после вашего выступления?',
-      'Какой пример или факт лучше всего подтверждает вашу позицию?',
-      'Какой следующий шаг вы предлагаете аудитории?'
-    ];
-  },
-  async analyze({ config, recording, segments }) {
-    if (!recording || recording.size === 0) throw new Error('Запись не сохранилась. Вернитесь к проверке устройств и повторите тренировку.');
-    await new Promise(r => setTimeout(r, 1800));
-    return demoResult(config.questions);
+let csrfToken = null;
+export class ApiError extends Error {
+  constructor(message, code, status) {
+    super(message);
+    this.code = code;
+    this.status = status;
   }
+}
+async function request(path, { method = "GET", body, timeout = 120000 } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const headers = {};
+    if (body && !(body instanceof FormData))
+      headers["Content-Type"] = "application/json";
+    if (csrfToken && method !== "GET") headers["X-CSRF-Token"] = csrfToken;
+    const response = await fetch(`/api${path}`, {
+      method,
+      headers,
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: controller.signal,
+      body:
+        body instanceof FormData
+          ? body
+          : body
+            ? JSON.stringify(body)
+            : undefined,
+    });
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw new ApiError(
+        "Сервер вернул неожиданный ответ. Попробуй ещё раз.",
+        "INVALID_RESPONSE",
+        response.status,
+      );
+    }
+    if (
+      response.status === 401 &&
+      !["/auth/me", "/auth/login", "/auth/register", "/auth/reset"].includes(
+        path,
+      )
+    )
+      window.dispatchEvent(new Event("session-expired"));
+    if (!response.ok)
+      throw new ApiError(
+        data.error?.message ||
+          "Не удалось выполнить действие. Попробуй ещё раз.",
+        data.error?.code || "REQUEST_FAILED",
+        response.status,
+      );
+    if ("csrf_token" in data) csrfToken = data.csrf_token;
+    return data;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(
+      error.name === "AbortError"
+        ? "Сервер не успел ответить. Проверь историю перед повторной попыткой."
+        : "Нет связи с сервером. Проверь подключение и попробуй ещё раз.",
+      "NETWORK_ERROR",
+      0,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+export const api = {
+  me: () => request("/auth/me"),
+  register: (body) => request("/auth/register", { method: "POST", body }),
+  login: (body) => request("/auth/login", { method: "POST", body }),
+  logout: async () => {
+    const result = await request("/auth/logout", { method: "POST" });
+    csrfToken = null;
+    return result;
+  },
+  reset: (body) => request("/auth/reset", { method: "POST", body }),
+  completeOnboarding: () =>
+    request("/auth/me", {
+      method: "PATCH",
+      body: { onboarding_completed: true },
+    }),
+  createPractice: (body) => request("/practices", { method: "POST", body }),
+  practices: (offset = 0) => request(`/practices?limit=30&offset=${offset}`),
+  practice: (id) => request(`/practices/${encodeURIComponent(id)}`),
+  upload: (id, file, kind, index) => {
+    const body = new FormData();
+    body.append(
+      "file",
+      file,
+      `recording.${file.type.includes("mp4") ? "m4a" : file.type.includes("ogg") ? "ogg" : "webm"}`,
+    );
+    body.append("kind", kind);
+    body.append("index", String(index));
+    return request(`/practices/${encodeURIComponent(id)}/segments`, {
+      method: "POST",
+      body,
+    });
+  },
+  startJob: (id, kind) =>
+    request(`/practices/${encodeURIComponent(id)}/jobs`, {
+      method: "POST",
+      body: { kind },
+    }),
+  job: (id) => request(`/jobs/${encodeURIComponent(id)}`),
+  deletePractice: (id) =>
+    request(`/practices/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  feedback: (id, body) =>
+    request(`/practices/${encodeURIComponent(id)}/feedback`, {
+      method: "POST",
+      body,
+    }),
 };
-export function demoResult(withQuestions = false) {
+export function demoResult() {
   return {
     demo: true,
-    insight: 'Сильное выступление строится вокруг одной главной мысли. Подкрепите её конкретным примером и завершите понятным выводом.',
+    insight:
+      "Главная мысль понятна. В следующей попытке подкрепи её одним конкретным примером.",
     metrics: [
-      { title: 'Темп речи', text: 'Пример: ровный темп с короткими паузами после важных мыслей.', label: 'Темп' },
-      { title: 'Структура', text: 'Пример: вступление → основная мысль → аргумент → вывод.', label: 'Структура' },
-      { title: 'Чистота речи', text: 'Пример: пауза помогает заменить слова «эээ» и «ну».', label: 'Речь' },
-      ...(withQuestions ? [{ title: 'Ответы', text: 'Пример: сначала прямой ответ, затем короткое пояснение.', label: 'Диалог' }] : [])
+      {
+        title: "Структура",
+        text: "Во вступлении обозначена идея проекта. Вывод стоит связать с действием слушателя.",
+        label: "Пример наблюдения",
+      },
     ],
     strengths: [
-      { title: 'Одна понятная мысль', text: 'Пример сильной стороны: слушателю легко понять, что вы хотите сказать.' },
-      { title: 'Конкретные примеры', text: 'Пример сильной стороны: аргументы связаны с понятными ситуациями.' },
-      { title: 'Контакт с аудиторией', text: 'Пример сильной стороны: паузы дают слушателям время осмыслить сказанное.' }
+      {
+        title: "Понятное предложение",
+        text: "В первой фразе названы продукт и его задача.",
+        evidence: "Наш сервис помогает студентам готовиться к защите проекта.",
+      },
     ],
     recommendations: [
-      { title: 'Сформулируйте главное в одной фразе', text: 'До начала выступления запишите: «После моего выступления аудитория должна понять…».' },
-      { title: 'Добавьте один убедительный пример', text: 'Выберите случай, цифру или короткую историю, которые подтверждают главную мысль.' },
-      { title: 'Закончите выводом', text: 'В последних двух предложениях повторите главное и предложите следующий шаг.' }
-    ]
+      {
+        title: "Покажи, как это работает",
+        text: "После главной мысли приведи один случай: что делает пользователь и какой результат получает.",
+        evidence: "Так подготовка станет удобнее.",
+      },
+    ],
+    criteria: [],
+    limitations: ["Это демонстрационный пример, а не анализ твоей записи."],
+    transcript:
+      "Наш сервис помогает студентам готовиться к защите проекта. Так подготовка станет удобнее.",
   };
 }
