@@ -38,9 +38,33 @@ The final successful report is prompt version `pilot-evidence-v3`. Earlier faile
 
 For the uninterrupted browser sample, observed LLM prompt+completion volume is 2503 tokens over a 4.212-second worker job: normalized **35655 tokens/minute** for this short sample. Output tokens divided by full nonstreaming report response latency gives **92.7 output tokens/second**. These ratios describe a tiny measured sample. They do not establish sustained TPM quota, streaming generation TPS or capacity under concurrent provider load. The provider did not return transcription token counts; audio duration is tracked separately.
 
+## Reconciled aggregator accounting, 12 October 2026
+
+A separate synthetic Russian audio practice completed through the application's actual authenticated API and both durable workers in an isolated database. Speech was exactly 180 seconds, followed by three 30-second answers. Twelve independent 15-second WAV chunks were recognized during the speech stage. Questions reused that complete transcript; the final report reused it again and recognized only the three answers. Both jobs succeeded and the persisted practice reached `ready`. This checks the server core loop; it is not a browser/microphone interaction test or a statistical average across users.
+
+The provided key's own `/spend/logs` rows were matched to the 17 local provider usage records by the isolated run's time interval, models and token counts. No additional provider calls, fallback or retries occurred. Chat response cost headers independently matched the two corresponding ledger rows.
+
+| Operation | Real provider calls | Audio / reported tokens | Recorded gateway `spend` |
+|---|---:|---|---:|
+| Incremental speech recognition | 12 | 180 seconds | 0.00000000 |
+| Answer recognition | 3 | 90 seconds | 0.00000000 |
+| Three audience questions | 1 | 4080 input / 94 output tokens | 0.19886354 |
+| Final report | 1 | 4998 input / 186 output tokens | 0.27278512 |
+| **Complete practice** | **17** | **270 seconds of audio** | **0.47164866** |
+
+The key's cumulative `spend` initially read `4.380966206199998` and, after asynchronous accounting flushed, read `4.852614866199998`. Their difference, `0.4716486599999996`, matches the sum of all 17 ledger entries within floating-point precision. Two later key readbacks confirmed the updated total. An initial read immediately after completion was stale; an unrelated TLS failure during the first ledger read was resolved with GET requests only, without repeating any generation.
+
+The gateway reports upstream prompt caching: 1584 question input tokens and 1712 report input tokens were cached. Its cost breakdown charges 2496 question input tokens and 3286 report input tokens, with no additional cached-input cost. This helps explain why a full-input token estimate overstates this particular run. The ledger's `cache_hit` field is the string `None`; it does not describe upstream prompt-token caching. Use `metadata.usage_object.prompt_tokens_details.cached_tokens` instead.
+
+Amortizing this complete practice over its 180-second speech gives **0.15721622 accounting units per speech minute** and **0.0026202703 per speech second**, including all three answers, questions and the report. Amortizing over all 270 recorded seconds gives 0.10481081 per audio minute and 0.0017468469 per audio second. These are allocations of one measured run's cost, not tariffs for independent one-second or one-minute practices.
+
+**Accounting scope:** the API does not declare a currency. The observed GigaChat rate numbers match Cloud.ru's published RUB rates, but that does not establish the gateway's account denomination or final monetary settlement. Do not label these confirmed ledger units as RUB or USD without operator confirmation. All 15 transcription rows contain zero `spend`; their recorded audio durations sum to 270 seconds. This establishes zero recognition expense in the gateway's current meter for this run, not free upstream recognition. Its Whisper model metadata supplies a token output rate rather than an audio-seconds rate, while transcription usage contains seconds and no tokens; this is consistent with missing audio cost accounting and requires operator verification before production cost forecasting.
+
+Sanitized local evidence is retained in ignored `outputs/test-artifacts/billing-audit-fb141800/evidence.json`: per-request identifiers, costs, usage, audio durations and reconciliation. Credentials, identities, raw provider payloads and voice content are excluded from this evidence file; the synthetic media and disposable application database remain outside the maintained application and Git. API documentation: [LiteLLM spend tracking](https://docs.litellm.ai/docs/proxy/cost_tracking).
+
 ## Cost per active user
 
-Provider tariffs have not been supplied or independently verified. No currency cost is claimed. Let `P_in` and `P_out` be actual currency per million input/output tokens and `P_audio` be currency per audio minute. For the measured 58.98-second speech-only sample:
+Public upstream tariffs and gateway model-rate metadata were checked on 12 October 2026, but the gateway's settlement currency and upstream transcription charges remain unconfirmed. The reconciled gateway accounting above supersedes tariff-only estimates for that specific run. For uncached planning estimates, let `P_in` and `P_out` be actual currency per million input/output tokens and `P_audio` be currency per audio minute. For the older measured 58.98-second speech-only sample:
 
 `C_practice = (2340 × P_in + 163 × P_out) / 1,000,000 + 0.983 × P_audio`.
 
@@ -56,4 +80,4 @@ For the measured speech-plus-answers sample:
 | 2 practices/day | `2 × C_practice + retries` |
 | 5 practices/day | `5 × C_practice + retries` |
 
-These samples are shorter than a typical five-minute speech. Re-measure typical speech and answers before forecasting production spend: fixed prompts, transcript length and answer duration make blind linear extrapolation unreliable. If the aggregator bills transcription differently, replace the audio-price term with its actual billing rule.
+The formula samples are shorter than a typical five-minute speech. Re-measure representative speech and answers before forecasting production spend: fixed prompts, transcript length, caching and answer duration make blind linear extrapolation unreliable. If the aggregator bills transcription differently, replace the audio-price term with its verified billing rule. Do not treat the observed zero audio meter as a permanent tariff.
