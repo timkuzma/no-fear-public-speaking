@@ -14,3 +14,10 @@ Automatic answer capture is bound to the current route and explicit in-memory re
 - Screenshot evidence is ignored local output under `outputs/test-artifacts/continuous-meeting/`.
 
 Physical microphone/device behavior and the usefulness of real AI feedback remain user pilot checks. This UI acceptance does not measure semantic report quality.
+
+
+## Production publication
+
+Source revision `83117ec69ca6d88b92cb680ac69b04e21dc2cb51` was published to the existing No Fear Stage HTTPS host. Image `sha256:d7d38054af3e7ff57f6ecbe1b438c213bac425fe2ac7c545b6837b34c9cc16da` inherits the currently published backend and changes only `public/`; no database or provider contract changed.
+
+The production controller returned success with `verified_backup: true` and no rollback. External HTTPS checks confirmed that `app.js` and the entry HTML exactly match this revision. Readiness confirmed writable storage, both live workers, configured provider and maintenance disabled. The previous production image is retained for code-only rollback. No real provider call or physical recording was made during this publication; no Git push was performed.
