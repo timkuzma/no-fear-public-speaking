@@ -8,6 +8,8 @@ Guests see separate login and registration links. Authenticated users see practi
 
 Scenario buttons switch explanatory copy and accessible pressed state. They do not set practice configuration; their CTA opens the real one-minute onboarding, which retains custom setup. The hero explicitly prepares a speech **before** meeting an audience, while the product scene is labeled virtual.
 
+The eight short prospect answers from `prospect-faq.md` form the native FAQ. The hero explains guest recording versus account-only AI before its primary action. The invitation condition is rendered from the existing server-provided `registration_requires_invite` value, so local development does not falsely require an invitation. The FAQ privacy link was followed in the browser; its narrow layout and keyboard disclosure were checked under reduced motion.
+
 Animations use finite WAAPI entrances, one-shot Intersection Observer reveals, interruptible context transitions and native FAQ disclosure. Route replacement cancels animations and disconnects observers/listeners. Reduced motion shows final content immediately. No animation library, scroll takeover or continuous decorative loop is added.
 
 Golos Text and Manrope are self-hosted variable fonts, obtained from the official Google Fonts repository (`ofl/golostext`, `ofl/manrope`). Their original OFL license files are included in `public/fonts/`. Existing meeting-image provenance remains in the project asset documentation.

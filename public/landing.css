@@ -45,7 +45,7 @@ body[data-view="landing"] footer { color: #bac8c0; border-color: #ffffff26; padd
 .landing-cta { border-radius: 10px; min-height: 54px; padding: 15px 25px; font-size: 16px; transition: transform 150ms ease, background-color 180ms ease, box-shadow 180ms ease; }
 .landing .button.primary:hover:not(:disabled) { background: #a0f2bb; box-shadow: 0 5px 20px #82eda71a; }
 .landing .button:active:not(:disabled) { transform: scale(.97); }
-.landing-start-note { color: #b1beb6; font-size: var(--text-small); margin-top: 18px; }
+.landing-start-note { color: #b1beb6; font-size: var(--text-body); margin: 24px auto 0; max-width: 740px; line-height: 1.6; }
 .landing-scroll-link { color: #b8c7be; font-size: 14px; background: none; border: 0; border-bottom: 1px solid #6d8074; padding: 8px 0; margin-top: 48px; }
 .landing-light { background: var(--paper); color: var(--ink); }
 .landing-contexts { border-radius: 48px 48px 0 0; padding: 100px max(24px, calc((100vw - 1200px) / 2)) 72px; scroll-margin-top: 24px; }
