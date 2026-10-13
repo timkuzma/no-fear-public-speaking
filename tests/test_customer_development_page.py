@@ -51,6 +51,34 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(blocks[0]['text'],'1. Интервьюер Расскажите о последнем выступлении и ставках.')
         self.assertEqual(blocks[1]['text'],'Респондент M001 Это была защита моей работы.')
 
+    def test_rewritten_conclusion_preserves_answers_and_sources(self):
+        answer = 'Респондент M001 В самой работе это не проверялось.'
+        doc = {'id':'M001', 'blocks':[
+            {'type':'h2','text':'Вопрос-ответ'}, {'type':'p','text':answer},
+            {'type':'h2','text':'Основные выводы'},
+            {'type':'h3','text':'Ограничения исследования'},
+            {'type':'p','text':'Это только одно интервью.'},
+            {'type':'h3','text':'Связанные материалы'}, {'type':'p','text':'Источник'},
+            {'type':'h2','text':'Расшифровка'}, {'type':'p','text':'Интервьюер: Что это значит?'}]}
+        findings = [{'heading':f'Вывод {i}', 'text':'Содержание вывода', 'evidence':['В самой работе']} for i in range(4)]
+        editorial = {'version':'test','documents':{'M001':{'findings':findings,'product':'Польза продукта'}}}
+        audit = builder.apply_conclusions([doc],editorial)
+        texts = [b['text'] for b in doc['blocks']]
+        self.assertIn(answer,texts)
+        self.assertIn('Источник',texts)
+        self.assertIn('Интервьюер: Что это значит?',texts)
+        self.assertNotIn('Это только одно интервью.',texts)
+        self.assertEqual(len(audit[0]['finding_evidence']),4)
+        findings[0]['evidence'] = ['Отсутствующее основание']
+        with self.assertRaisesRegex(ValueError,'Missing source anchor'):
+            builder.apply_conclusions([doc],editorial)
+
+    def test_editorial_notes_do_not_hide_factual_observations(self):
+        block = {'type':'p','text':'Текст изменили. Сигнал сильный: один респондент.'}
+        self.assertEqual(builder.clean_editorial_note(block)['text'],'Текст изменили.')
+        block = {'type':'p','text':'Курс и уровень обучения в разговоре не уточняли.'}
+        self.assertIsNone(builder.clean_editorial_note(block))
+
     def test_published_archive_inventory_and_removals(self):
         html = (ROOT/'public/customer-development.html').read_text()
         raw = re.search(r'<script type="application/json" id="research-data">(.*?)</script>', html, re.S)[1]
@@ -63,9 +91,18 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual({d['id'] for d in docs}, {f'R{i:03}' for i in range(1,20)} | {f'M{i:03}' for i in range(1,19)} | {'result-01','result-02'})
         for doc in docs:
             self.assertTrue(doc['blocks'])
+            entry = json.loads((ROOT/'docs/customer-development-conclusions.json').read_text())['documents'][doc['id']]
+            self.assertEqual(len(entry['findings']),4)
+            texts = [b['text'] for b in doc['blocks']]
+            self.assertEqual(texts.count('Основные выводы'),1)
+            self.assertIn(entry['product'],texts)
+            for finding in entry['findings']:
+                self.assertIn(finding['heading'],texts)
+                self.assertIn(finding['text'],texts)
             for block in doc['blocks']:
                 if block['type'].startswith('h'):
                     self.assertNotIn(block['text'],builder.ACTION_STARTS)
+                    self.assertNotIn(block['text'],('Ограничения исследования','Что пока нельзя утверждать'))
                 self.assertFalse(builder.INLINE_ACTION.match(block['text']))
             if doc['id'].startswith('M'):
                 self.assertEqual(len(doc['links']),1)

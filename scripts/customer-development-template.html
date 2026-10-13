@@ -125,7 +125,7 @@
           toc.push({id:++section,text:block.text.replace(/\.$/,'')});
           html += `<h2 tabindex="-1" id="section-${section}">${escape(toc.at(-1).text)}</h2>`;
         } else if (['h3','h4'].includes(block.type)) html += `<${block.type}>${escape(block.text.replace(/\.$/,''))}</${block.type}>`;
-        else html += `<p>${text.replace(/^((?:\d+\. )?(?:Интервьюер|Респондент(?: [RM]\d{3})?)(?::)?)(?=\s)/,'<strong class="speaker">$1</strong>')}</p>`;
+        else html += `<p>${text.replace(/^((?:\d+\. )?(?:Интервьюер|Респондент [RM]\d{3}|Респондент:)(?::)?)(?=\s)/,'<strong class="speaker">$1</strong>')}</p>`;
       }
       if (inList) html += '</ul>';
       if (doc.links.length) html += `<div class="source-links">${doc.links.map((url,i)=>`<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">${doc.links.length===1?'Связанный источник':`Связанный источник ${i+1}`}</a>`).join('<br>')}</div>`;
