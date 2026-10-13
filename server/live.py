@@ -4,6 +4,7 @@ import json
 import re
 import struct
 import wave
+from . import limits, monitoring
 
 
 def has_audio_activity(path):
@@ -22,6 +23,17 @@ def has_audio_activity(path):
 
 
 async def process_chunk(store, chunk):
+    try:
+        with limits.provider_scope(store, chunk['user_id'], chunk['id']):
+            async with asyncio.timeout(limits.setting('LIVE_JOB_TIMEOUT_SECONDS')):
+                await _process_chunk(store, chunk)
+    except TimeoutError:
+        error = {'code': 'LIVE_TRANSCRIPTION_TIMEOUT', 'message': 'Промежуточная расшифровка недоступна. Полная запись сохранится для разбора.'}
+        store.execute("UPDATE live_chunks SET status='failed',error=? WHERE id=?", (json.dumps(error, ensure_ascii=False), chunk['id']))
+        store.event('service_failure', chunk['user_id'], chunk['practice_id'], {'code': error['code']})
+
+
+async def _process_chunk(store, chunk):
     from . import ai
     path = store.media / chunk['filename']
     try:
@@ -56,6 +68,9 @@ async def process_chunk(store, chunk):
 async def run(store):
     store.recover_live_chunks()
     while True:
+        if monitoring.maintenance(store) is not None or not limits.enabled(store):
+            await asyncio.sleep(0.5)
+            continue
         chunk = store.claim_live_chunk()
         if chunk:
             await process_chunk(store, chunk)

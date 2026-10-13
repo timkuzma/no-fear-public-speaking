@@ -36,6 +36,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,practice_id TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,stage TEXT NOT NULL,created REAL NOT NULL,started REAL,finished REAL,result TEXT,error TEXT);
                 CREATE UNIQUE INDEX IF NOT EXISTS one_active_job ON jobs(practice_id) WHERE status IN ('pending','running');
                 CREATE TABLE IF NOT EXISTS usage(id TEXT PRIMARY KEY,job_id TEXT NOT NULL,user_id TEXT NOT NULL,created REAL NOT NULL,data TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS ai_attempts(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,job_id TEXT NOT NULL,operation TEXT NOT NULL,created REAL NOT NULL,audio_seconds REAL NOT NULL,input_chars INTEGER NOT NULL,output_tokens INTEGER NOT NULL,status INTEGER,latency_ms REAL);
+                CREATE INDEX IF NOT EXISTS ai_attempt_day ON ai_attempts(created,user_id);
+                CREATE TABLE IF NOT EXISTS operational_state(key TEXT PRIMARY KEY,value TEXT NOT NULL,updated REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS live_sessions(practice_id TEXT NOT NULL,session_id TEXT NOT NULL,created REAL NOT NULL,segment_id TEXT,status TEXT NOT NULL DEFAULT 'open',expected_chunks INTEGER,PRIMARY KEY(practice_id,session_id));
                 CREATE TABLE IF NOT EXISTS live_chunks(id TEXT PRIMARY KEY,practice_id TEXT NOT NULL,session_id TEXT NOT NULL,chunk_index INTEGER NOT NULL,offset_seconds REAL NOT NULL,duration REAL NOT NULL,filename TEXT NOT NULL,sha256 TEXT NOT NULL,status TEXT NOT NULL,transcript TEXT,error TEXT,created REAL NOT NULL,UNIQUE(practice_id,session_id,chunk_index));
                 CREATE INDEX IF NOT EXISTS live_queue ON live_chunks(status,created);

@@ -52,3 +52,9 @@ Each private chunk belongs to a practice and capture session; ordered indices, o
 The report assesses transcript content. It does not measure intonation, pauses, gestures, anxiety or psychological confidence. Average words per minute uses recognized words divided by actual segment duration including silence. Transcription and AI findings can be inaccurate; quotation checks establish provenance, not objective correctness of every recommendation.
 
 Health checks show process/storage/configuration readiness; provider configuration is not a provider health guarantee. Logs and metrics are stored separately from speech content. Offline backups include private content and must be protected like production data.
+
+## Production coordination
+
+The application instance lease prevents two workers sets from sharing one database. A shared runtime data lease excludes offline backups; invitation/reset CLI access uses the same shared lease. The Linux release controller adds a separate deployment-root lease, blocks business traffic and new provider claims during candidate validation, and promotes an immutable image/configuration only after readiness and a verified restore rehearsal. Pre-activation failures can restore the previous snapshot; activated/manual code rollback preserves current user writes.
+
+Durable `ai_attempts` reservations cover both workers, every HTTP retry, rolling global/account/request-rate budgets and conservative audio/character/output ceilings. Reservations remain independent of deletable practice/usage rows. A persistent AI switch prevents new claims/calls. The supervisor writes bounded worker heartbeats and prunes telemetry without removing recordings. Private status and local/external alert probes combine worker liveness, queue age, errors, storage and backup freshness. Encrypted snapshots and their exact restores are verified before retention is applied.

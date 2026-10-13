@@ -1,0 +1,18 @@
+# Install on a separate monitoring host, not on the application host.
+# Replace pilot.example.org with the public HTTPS origin.
+[Unit]
+Description=Independent external No Fear Stage readiness check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+WorkingDirectory=/opt/no-fear-stage
+ExecStart=/opt/no-fear-stage/.venv/bin/python scripts/monitor.py --root /srv/no-fear-stage-external-monitor --url https://pilot.example.org --public-only
+TimeoutStartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/no-fear-stage-external-monitor

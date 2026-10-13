@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
+from urllib.parse import urlsplit
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
@@ -30,6 +31,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from .store import Store, now, uid
 from .worker import run
+from . import limits, monitoring
+from .locking import data_lock, instance_lock
 
 ROOT = Path(__file__).resolve().parent.parent
 ph = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
@@ -107,8 +110,12 @@ def public_user(row):
 
 
 def provider_ready():
-    base = os.environ.get('LLM_BASE_URL', 'https://shared1.multitool.works:4000/v1')
-    return bool(os.environ.get('LLM_API_KEY') and base.startswith(('https://', 'http://')))
+    from .ai import _provider, ProviderError
+    try:
+        _provider()
+        return True
+    except ProviderError:
+        return False
 
 
 def job_json(row):
@@ -128,28 +135,39 @@ async def decoded_duration(path):
 
 
 def create_app(data_dir=None, start_worker=True):
+    limits.validate()
     production = os.environ.get('APP_ENV', 'development') == 'production'
     origin = os.environ.get('APP_ORIGIN', '').rstrip('/')
     if production and not origin.startswith('https://'):
         raise RuntimeError('Production requires HTTPS APP_ORIGIN')
+    if production:
+        parsed = urlsplit(origin)
+        if not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path:
+            raise RuntimeError('Production requires an exact HTTPS origin without credentials or path')
     if production and len(os.environ.get('OPERATOR_TOKEN', '')) < 24:
         raise RuntimeError('Production requires OPERATOR_TOKEN of at least 24 characters')
-    store = Store(data_dir or os.environ.get('DATA_DIR', ROOT / 'data'))
+    directory = data_dir or os.environ.get('DATA_DIR', ROOT / 'data')
+    with data_lock(directory, shared=True):
+        store = Store(directory)
 
     @asynccontextmanager
     async def lifespan(app):
-        task = asyncio.create_task(run(store)) if start_worker else None
-        from .live import run as run_live
-        live_task = asyncio.create_task(run_live(store)) if start_worker else None
-        app.state.worker_task = task
-        app.state.live_worker_task = live_task
-        yield
-        for running in (task, live_task):
-            if not running:
-                continue
-            running.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await running
+        with instance_lock(store.directory), data_lock(store.directory, shared=True):
+            task = asyncio.create_task(run(store)) if start_worker else None
+            from .live import run as run_live
+            live_task = asyncio.create_task(run_live(store)) if start_worker else None
+            app.state.worker_task = task
+            app.state.live_worker_task = live_task
+            supervisor = asyncio.create_task(monitoring.supervise(app, store))
+            try:
+                yield
+            finally:
+                for running in (supervisor, task, live_task):
+                    if not running:
+                        continue
+                    running.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await running
 
     app = FastAPI(title='Сцена без страха', lifespan=lifespan, docs_url=None if production else '/api/docs', redoc_url=None, openapi_url=None if production else '/api/openapi.json')
     app.state.store = store
@@ -168,6 +186,10 @@ def create_app(data_dir=None, start_worker=True):
     async def validation_error(request, exc):
         return JSONResponse({'error': {'code': 'VALIDATION_ERROR', 'message': 'Проверьте заполненные поля. Пароль должен содержать от 10 до 128 символов, тренировка — от 30 секунд до 10 минут.'}}, status_code=422)
 
+    @app.exception_handler(limits.LimitError)
+    async def capacity_error(request, exc):
+        return JSONResponse({'error': {'code': exc.code, 'message': exc.message}}, status_code=503)
+
     @app.middleware('http')
     async def request_metrics(request, call_next):
         began = time.monotonic()
@@ -179,7 +201,7 @@ def create_app(data_dir=None, start_worker=True):
             store.event('service_failure', data={'code': 'INTERNAL_ERROR', 'request_id': request_id})
             response = JSONResponse({'error': {'code': 'INTERNAL_ERROR', 'message': 'Сервис временно недоступен. Попробуйте ещё раз.'}}, status_code=500)
         elapsed = round((time.monotonic() - began) * 1000, 1)
-        if request.url.path.startswith('/api/'):
+        if request.url.path.startswith('/api/') and request.url.path not in ('/api/health', '/api/readiness') and not request.url.path.startswith('/api/operator/'):
             route = request.scope.get('route')
             template = getattr(route, 'path', 'unknown')
             store.event('request', data={'request_id': request_id, 'route': template, 'method': request.method, 'status': response.status_code, 'latency_ms': elapsed})
@@ -401,6 +423,8 @@ def create_app(data_dir=None, start_worker=True):
                     if existing['sha256'] != checksum or abs(existing['offset_seconds'] - offset_seconds) > 0.0001:
                         fail(409, 'LIVE_CHUNK_CONFLICT', 'Этот фрагмент уже сохранён с другим содержимым.')
                     return {'session_id': session_id, 'index': index, 'status': existing['status']}
+                limits.ensure_accepting(store)
+                limits.queue_capacity(db, 'live')
                 if current['status'] in ('processing', 'ready') or db.execute("SELECT id FROM segments WHERE practice_id=? AND kind='speech'", (practice_id,)).fetchone() or (session and session['status'] != 'open'):
                     fail(409, 'PRACTICE_LOCKED', 'Выступление уже сохранено или обрабатывается.')
                 chunks = db.execute('SELECT * FROM live_chunks WHERE practice_id=? AND session_id=? ORDER BY chunk_index', (practice_id, session_id)).fetchall()
@@ -551,8 +575,6 @@ def create_app(data_dir=None, start_worker=True):
             return job_json(completed)
         if practice['report']:
             fail(409, 'PRACTICE_COMPLETE', 'Тренировка уже завершена.')
-        if store.limited('job:' + user['id'], int(os.environ.get('DAILY_JOB_LIMIT', '20')), 86400):
-            fail(429, 'AI_QUOTA', 'Лимит анализа на сегодня достигнут. Продолжите завтра.')
         job_id = uid()
         try:
             with store.connect() as db:
@@ -560,6 +582,16 @@ def create_app(data_dir=None, start_worker=True):
                 current = db.execute('SELECT id FROM practices WHERE id=? AND user_id=?', (practice_id, user['id'])).fetchone()
                 if not current:
                     fail(404, 'NOT_FOUND', 'Тренировка не найдена.')
+                active = db.execute("SELECT * FROM jobs WHERE practice_id=? AND status IN ('pending','running')", (practice_id,)).fetchone()
+                if active:
+                    return job_json(dict(active))
+                limits.ensure_accepting(store)
+                limits.queue_capacity(db, 'jobs')
+                quota_key = 'job:' + user['id']
+                count = db.execute('SELECT COUNT(*) FROM rate_limits WHERE key=? AND created>?', (quota_key, now() - 86400)).fetchone()[0]
+                if count >= int(os.environ.get('DAILY_JOB_LIMIT', '20')):
+                    fail(429, 'AI_QUOTA', 'Лимит анализа на сегодня достигнут. Продолжите завтра.')
+                db.execute('INSERT INTO rate_limits VALUES(?,?)', (quota_key, now()))
                 db.execute('INSERT INTO jobs(id,practice_id,kind,status,stage,created) VALUES(?,?,?,?,?,?)', (job_id, practice_id, body.kind, 'pending', 'queued', now()))
                 db.execute("UPDATE practices SET status='processing' WHERE id=?", (practice_id,))
         except sqlite3.IntegrityError:
@@ -629,18 +661,15 @@ def create_app(data_dir=None, start_worker=True):
 
     @app.get('/api/readiness')
     async def readiness():
-        try:
-            store.one('SELECT 1')
-            disk_ok = os.access(store.media, os.W_OK)
-        except sqlite3.Error:
-            disk_ok = False
+        status = monitoring.snapshot(store, start_worker)
+        disk_ok = status['storage']['ready']
         task = app.state.worker_task
         worker_alive = bool(task and not task.done())
         live_task = app.state.live_worker_task
         live_worker_alive = bool(live_task and not live_task.done())
-        worker_ok = (worker_alive and live_worker_alive) or not start_worker
+        worker_ok = status['workers']['ready'] and ((worker_alive and live_worker_alive) or not start_worker)
         ready = disk_ok and provider_ready() and worker_ok
-        return JSONResponse({'ok': ready, 'storage_ready': disk_ok, 'provider_configured': provider_ready(), 'worker_enabled': start_worker, 'worker_alive': worker_alive, 'live_worker_alive': live_worker_alive}, status_code=200 if ready else 503)
+        return JSONResponse({'ok': ready, 'storage_ready': disk_ok, 'provider_configured': provider_ready(), 'worker_enabled': start_worker, 'worker_alive': worker_alive, 'live_worker_alive': live_worker_alive, 'maintenance': status['maintenance_age_seconds'] is not None, 'release': os.getenv('APP_RELEASE', 'local')}, status_code=200 if ready else 503)
 
     def operator(request):
         configured = os.environ.get('OPERATOR_TOKEN', '')
@@ -663,6 +692,21 @@ def create_app(data_dir=None, start_worker=True):
     async def metrics(request: Request):
         operator(request)
         return metrics_payload()
+
+    @app.get('/api/operator/status')
+    async def operational_status(request: Request):
+        operator(request)
+        return monitoring.snapshot(store, start_worker)
+
+    class AIControl(BaseModel):
+        enabled: bool
+
+    @app.post('/api/operator/ai')
+    async def ai_control(body: AIControl, request: Request):
+        operator(request)
+        check_origin(request)
+        store.execute("INSERT INTO operational_state VALUES('ai_enabled',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated=excluded.updated", (json.dumps(body.enabled), now()))
+        return {'enabled': limits.enabled(store)}
 
     @app.get('/api/operator/export')
     async def export(request: Request, format: str = 'json', kind: str = 'usage', limit: int = 10000):
@@ -701,6 +745,9 @@ def create_app(data_dir=None, start_worker=True):
             self.slots = asyncio.Semaphore(3)
 
         async def __call__(self, scope, receive, send):
+            if scope['type'] == 'http' and scope['path'].startswith('/api/') and scope['path'] not in ('/api/health', '/api/readiness') and not scope['path'].startswith('/api/operator/') and monitoring.maintenance(store) is not None:
+                response = JSONResponse({'error': {'code': 'MAINTENANCE', 'message': 'Сервис обновляется. Запись остаётся в браузере; повторите сохранение чуть позже.'}}, status_code=503, headers={'Cache-Control': 'no-store', 'Retry-After': '30'})
+                return await response(scope, receive, send)
             if scope['type'] != 'http' or scope['method'] not in ('POST', 'PATCH', 'DELETE') or not scope['path'].startswith('/api/'):
                 return await self.app(scope, receive, send)
             is_upload = bool(re.fullmatch(r'/api/practices/[^/]+/(segments|live-chunks)', scope['path']))
@@ -724,8 +771,10 @@ def create_app(data_dir=None, start_worker=True):
             try:
                 if scope['path'] in ('/api/auth/register', '/api/auth/login', '/api/auth/reset'):
                     check_origin(request)
-                else:
+                elif scope['path'] != '/api/operator/ai':
                     auth(request, True)
+                if is_upload and not monitoring.storage_health(store)['ready']:
+                    fail(503, 'STORAGE_CAPACITY', 'На сервере временно недостаточно места. Запись остаётся в браузере; повторите позже.')
                 maximum = 524288 + 16384 if is_live_upload else int(os.environ.get('MAX_UPLOAD_BYTES', 32 * 1024 * 1024)) + 16384 if is_upload else 65536
                 content_length = request.headers.get('content-length')
                 if content_length and int(content_length) > maximum:

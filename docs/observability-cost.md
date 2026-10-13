@@ -81,3 +81,9 @@ For the measured speech-plus-answers sample:
 | 5 practices/day | `5 × C_practice + retries` |
 
 The formula samples are shorter than a typical five-minute speech. Re-measure representative speech and answers before forecasting production spend: fixed prompts, transcript length, caching and answer duration make blind linear extrapolation unreliable. If the aggregator bills transcription differently, replace the audio-price term with its verified billing rule. Do not treat the observed zero audio meter as a permanent tariff.
+
+## Production guards and telemetry
+
+`/api/operator/status` exposes content-free queue/worker/storage health, recent failures, rolling 24-hour `ai_attempts` reservations, configured caps and backup/operation state. `scripts/monitor.py` confirms incidents over three checks, deduplicates changes and retries private HTTPS notification delivery; the external public-only probe runs independently of the application host. See `docs/operations.md` for alert codes, schedules and recovery.
+
+The ledger reserves one attempt, actual audio duration, input character volume and the requested output-token ceiling BEFORE each HTTP transmission, including retries. Failed/unknown outcomes remain counted; crashes can repeat upstream work. It is a conservative work guard and cannot assert a currency, monetary spend or provider billing completeness. `usage` continues to record provider-reported token counts separately. Attempts are retained 48 hours, events/usage 90 days, with hourly pruning; protected exports are required for longer accounting history. No new real provider calls or billing measurements are implied by infrastructure acceptance.

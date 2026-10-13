@@ -11,8 +11,10 @@ import tempfile
 import time
 import wave
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
+from . import limits
 
 
 MAX_DURATION = 600
@@ -43,6 +45,12 @@ def _provider():
     key = os.getenv("LLM_API_KEY", "")
     if not key or not base.startswith(("https://", "http://")):
         raise ProviderError("AI_NOT_CONFIGURED", "Сервис разбора ещё не подключён. Запись сохранена; попробуйте позже.")
+    try:
+        parsed = urlsplit(base)
+    except ValueError:
+        raise ProviderError('AI_NOT_CONFIGURED', 'Настройки сервиса разбора недоступны. Запись сохранена.') from None
+    if not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or (os.getenv('APP_ENV') == 'production' and parsed.scheme != 'https'):
+        raise ProviderError('AI_NOT_CONFIGURED', 'Настройки сервиса разбора недоступны. Запись сохранена.')
     return base, key
 
 
@@ -95,6 +103,13 @@ async def _request(endpoint, model, operation, *, payload=None, audio=None, audi
     timeout = _setting_number("LLM_TIMEOUT_SECONDS", 120, 5, 180)
     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=10), follow_redirects=False) as client:
         for number in range(retry_count):
+            try:
+                reservation = limits.reserve_attempt(operation, audio_seconds, sum(len(m.get('content', '')) for m in (payload or {}).get('messages', [])), (payload or {}).get('max_tokens', 0))
+            except limits.LimitError as exc:
+                error = ProviderError(exc.code, exc.message)
+                if attempts:
+                    error.usage = _usage(model, operation, attempts, audio_seconds)
+                raise error from None
             start = time.monotonic()
             status = None
             response = None
@@ -123,6 +138,7 @@ async def _request(endpoint, model, operation, *, payload=None, audio=None, audi
                 response = None
             attempt = {"status": status, "latency_ms": round((time.monotonic() - start) * 1000),
                        "input_tokens": None, "output_tokens": None}
+            limits.finish_attempt(reservation, status, attempt['latency_ms'])
             attempts.append(attempt)
             if response is not None and 200 <= status < 300:
                 if oversized:
@@ -275,7 +291,7 @@ def _input(config, text):
 async def _chat(operation, system, data):
     model = os.getenv("LLM_MODEL", "gigachat-3-pro")
     body, usage = await _request("/chat/completions", model, operation, payload={
-        "model": model, "temperature": 0.2, "max_tokens": 3000,
+        "model": model, "temperature": 0.2, "max_tokens": limits.setting('AI_MAX_OUTPUT_TOKENS'),
         "response_format": {"type": "json_object"},
         "messages": [{"role": "system", "content": system},
                      {"role": "user", "content": json.dumps(data, ensure_ascii=False)}],

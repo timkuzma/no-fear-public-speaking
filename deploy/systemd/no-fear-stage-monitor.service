@@ -1,0 +1,16 @@
+[Unit]
+Description=No Fear Stage operational alert check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+WorkingDirectory=/opt/no-fear-stage
+ExecStart=/opt/no-fear-stage/.venv/bin/python scripts/monitor.py --root /srv/no-fear-stage --url http://127.0.0.1:9080
+TimeoutStartSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/no-fear-stage

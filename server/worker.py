@@ -3,11 +3,25 @@ import asyncio
 import json
 import logging
 from .store import now
+from . import limits, monitoring
 
 log = logging.getLogger('pilot.jobs')
 
 
 async def process(store, job):
+    try:
+        with limits.provider_scope(store, job['user_id'], job['id']):
+            async with asyncio.timeout(limits.setting('JOB_TIMEOUT_SECONDS')):
+                await _process(store, job)
+    except TimeoutError:
+        error = {'code': 'PROCESSING_TIMEOUT', 'message': 'Разбор занял слишком много времени. Запись сохранена; попробуйте ещё раз.'}
+        with store.connect() as db:
+            db.execute("UPDATE jobs SET status='failed',error=?,finished=? WHERE id=?", (json.dumps(error, ensure_ascii=False), now(), job['id']))
+            db.execute("UPDATE practices SET status='failed' WHERE id=?", (job['practice_id'],))
+        store.event('service_failure', job['user_id'], job['practice_id'], {'code': error['code']})
+
+
+async def _process(store, job):
     from . import ai
     practice_id = job['practice_id']
     try:
@@ -72,6 +86,9 @@ async def process(store, job):
 async def run(store):
     store.recover_jobs()
     while True:
+        if monitoring.maintenance(store) is not None or not limits.enabled(store):
+            await asyncio.sleep(0.5)
+            continue
         job = store.claim_job()
         if job:
             await process(store, job)

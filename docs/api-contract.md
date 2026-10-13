@@ -102,3 +102,15 @@ Browser drafts use the existing IndexedDB `stage-guest-draft` store. Account key
 Drafts expire after 24 hours and are removed on the next applicable read. Only the authenticated owner's drafts are loaded into the account UI. No passwords, cookies or CSRF tokens are persisted with drafts. A guest import is bound to the authenticated account when its server practice is created; a different account cannot resume that bound draft. Local deletion after server acknowledgement checks the capture key so an older operation cannot clear a newer draft.
 
 After reauthentication, already-confirmed uploads resume with the same key; unconfirmed answers retain their review step. A saved server segment only retires a local draft when its capture key matches. Conflicting or missing server practices preserve a downloadable draft. Session continuation stores only owner/practice IDs in sessionStorage. The workspace lists recent unfinished practices and local drafts; direct practice routes and history restore the next valid recording, question, job or report state. Failed jobs require explicit retry.
+
+## Production capacity and operational API
+
+Admission is atomically limited by global pending/running final/live queues and per-account rolling quotas. Replays of active/completed jobs and existing chunks do not reserve another slot or quota. Queue/work-budget/operator-pause rejection returns 503 with `AI_QUEUE_FULL`, `AI_SERVICE_LIMIT` or `AI_PAUSED` and retains saved media. Whole-job deadline failures persist `PROCESSING_TIMEOUT`; users retry explicitly. Every upstream retry reserves work separately before transmission. Unknown outcomes retain reservations.
+
+During maintenance, business `/api/*` requests return 503 `MAINTENANCE` with `Retry-After: 30`; health, readiness and operator access remain available. Workers pause new claims. New uploads return 503 `STORAGE_CAPACITY` when storage is not writable or below its free-space threshold; the client must keep its Blob.
+
+- `GET /api/readiness`: public content-free storage/worker/provider-configuration checks, `release` and `maintenance`. Candidate readiness can be true during maintenance; public uptime probes must also inspect maintenance. No provider call is made.
+- `GET /api/operator/status`: bearer-only content-free storage, worker heartbeat, final/live queue counts/ages, recent errors, rolling work usage/caps, verified/encrypted backup/restore timestamps and last operation result.
+- `POST /api/operator/ai` `{enabled: boolean}`: bearer plus allowed-origin validation; durable operator pause independent of `AI_ENABLED=0`. Does not cancel a request already sent upstream. Return `{enabled: boolean}` is the effective state.
+
+Public proxy configuration denies all operator routes. Full settings, alert codes, retention and recovery boundaries are in `docs/operations.md`.

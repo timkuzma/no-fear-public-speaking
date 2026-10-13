@@ -1,0 +1,21 @@
+[Unit]
+Description=Recover the committed No Fear Stage release after host restart
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+ConditionPathExists=/srv/no-fear-stage/release.json
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+WorkingDirectory=/opt/no-fear-stage
+ExecStart=/opt/no-fear-stage/.venv/bin/python scripts/production.py resume --root /srv/no-fear-stage
+TimeoutStartSec=15m
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/no-fear-stage
+
+[Install]
+WantedBy=multi-user.target

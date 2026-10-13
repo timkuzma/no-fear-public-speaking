@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily No Fear Stage backup at 02:00 Moscow time
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 Europe/Moscow
+Persistent=true
+RandomizedDelaySec=5m
+Unit=no-fear-stage-backup.service
+
+[Install]
+WantedBy=timers.target
