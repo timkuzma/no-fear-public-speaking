@@ -7,7 +7,7 @@ This documents implemented **candidate** behavior, not a claim of improved live 
 `server.ai.build_context(operation, config, segments)` compiles a server-owned `speech-context-v2` envelope. The runtime uses one tool-free questions call and one tool-free report call, existing system/user JSON messages, JSON-object mode and the same durable provider reservation/retry/timeout boundaries. No runtime critic, independent production agent or new service is added.
 
 - `operation`: `questions` or `report`.
-- `prompt_version`: `questions-v2.0` or `speech-feedback-v2.0`; `rubric_version`: `contextual-text-v1`.
+- `prompt_version`: `questions-v2.1` or `speech-feedback-v2.2`; `rubric_version`: `contextual-text-v1`.
 - `transcript_revision`: SHA-256 of compact UTF-8 JSON of ordered `{index,kind,text}` segments. Individual segment revisions hash their exact UTF-8 text. Whitespace changes change the revision.
 - `context`: optional user topic/history metadata, scenario and explicitly supplied criteria. Optional API-validated `repeat_focus` stays separate from formal criteria. It represents a selected next-practice action, not a compulsory scorecard.
 - `segments`: one original `speech` and up to three saved, confirmed `answer` segments, measured durations and origin/revision metadata. Text is not silently retyped or normalized. `asr_model` is the actual current transcription call's model alias where available; cached/live sources remain null unless known. Never label a cached transcript with today's configured model. Known server/evaluation capture interruption (`capture_complete:false`) and ASR doubt (`asr_quality:uncertain`) are passed separately; unknown runtime metadata stays unknown. Neither field can upgrade lexical completeness. These are internal inputs, not new public client assertions.
@@ -17,7 +17,19 @@ This documents implemented **candidate** behavior, not a claim of improved live 
 
 Single-span IDs are `sN-qM`. Optional `sN-pM` spans encompass adjacent original statements when their exact contiguous range fits the 900-character quote cap. They preserve punctuation and intervening whitespace; disjoint snippets are never joined into a quotation. A version/hash is necessary because a short ID alone is not globally unique.
 
-Topic/scenario supply weak context only. Feedback reads actual speech and its tentative communicative purpose. A toast does not require a budget, a narrative does not require an opening thesis, and a short answer does not require an introduction. Unknown purpose permits local wording feedback without a forced genre diagnosis. Examples can rearrange known material but cannot manufacture numbers, achievements, events, listener identities or external facts. Attribution in a speech is not independent factual verification.
+Topic/scenario supply weak context only. Feedback reads actual speech and its tentative communicative purpose. A toast does not require a budget, a narrative does not require an opening thesis, and a short answer does not require an introduction. Unknown purpose permits local wording feedback without a forced genre diagnosis. Model output in every field must avoid manufacturing numbers, achievements, events, listener identities or external facts; fresh freeform examples are currently withheld as described below. Attribution in a speech is not independent factual verification.
+
+## Prompt revisions and rewrite containment
+
+Exploratory `v2.0`/`v2.1` outputs exposed quotation-scope errors, unsupported sincerity/listener-atmosphere claims and invented facts inside modal examples. The `v2.1` instructions required every clause about spoken content to be supported by the chosen excerpt, with a contiguous relational span or a narrower observation. They prohibited claiming sincerity, speaker feelings and actual listener reactions. Nevertheless, a later `v2.1` example still invented time savings and access to books after classes. Prompt wording alone did not establish fact preservation.
+
+The current report prompt `speech-feedback-v2.2` requests `example:null`. The compiler retains strict raw type/length validation, then withholds every freeform rewrite in **new** reports under `publisher_policy:withhold_unreviewed_rewrites-v1`. Public `example` is null, compatibility `text` contains observation/action only, and the primary insight remains the chosen action. Raw drafts are not persisted in public reports/jobs; scoped private evaluation capture can preserve them separately. Existing stored reports and their examples remain unchanged, and the UI retains legacy example support.
+
+This contains one risky field. It does not verify factual truth, entailment or utility of observation/action and does not prevent unsupported content in those fields. Raw model failure and compiled-report behavior must be scored separately: hiding an example is not evidence that the model stopped inventing facts. Semantic human acceptance and a subsequent versioned rewrite experiment remain necessary before enabling generated rewrites. No extra critic, regex truth gate, configuration switch or paid automatic repair is added.
+
+Complete application-owned JSON examples remain compiler-checked: a toast with a contiguous two-statement basis, sparse text/non-observable criteria, explicit negation under a selected criterion and an optional combining action with a null rewrite. They are protocol examples, not user requirements or semantic gold labels. Do not copy their facts/IDs into another speech.
+
+The question policy discourages asking for an already explicitly given fact and uses direct listener-to-speaker wording. Question revision `questions-v2.1` still needs its own live semantic check; a prior version's gateway success and mocked tests do not establish its quality.
 
 ## Closed provider drafts
 
@@ -36,7 +48,7 @@ Report:
 }
 ```
 
-`strengths` allows 0–2; `recommendations` allows 0–3. `primary_recommendation_index` is zero-based or null. Empty recommendations require null by index validation. A report may have recommendations but no selected main action. There is no model-authored top-level insight or score.
+The draft shape still validates `example` as null or a bounded nonempty string so malformed provider responses fail; the publisher always emits null for this field under the containment policy. `strengths` allows 0–2; `recommendations` allows 0–3. `primary_recommendation_index` is zero-based or null. Empty recommendations require null by index validation. A report may have recommendations but no selected main action. There is no model-authored top-level insight or score.
 
 Caps shared by prompts and validators in `server/feedback_prompts.py`: title 180, observation 1200, action 700, example 700, criterion reason 700, question 600, evidence span 900 characters. These are hard maxima, not target lengths. Prompt guidance asks for concise material, usually no more than 250–450 words overall and much less for sparse speech; no minimum word quota or mandatory number of findings is imposed. Provider output-token limits still apply and a truncated completion fails without publishing.
 
@@ -53,7 +65,7 @@ Neither absence elsewhere nor real-world lack of knowledge can be established fr
 
 ## Public report and private persistence
 
-New reports have `schema_version:2`, `primary_recommendation_index`, structured observation/action/example fields, server-substituted quote provenance and `transcript_segments`. Existing `text` is compiled for legacy consumers; `transcript` remains an ordered speech/answer concatenation for export. Public `insight` is derived **only** from the selected validated recommendation's `action`, otherwise null. It is not another independently generated model conclusion.
+New reports have `schema_version:2`, `primary_recommendation_index`, structured observation/action fields and a null example, server-substituted quote provenance and `transcript_segments`. Existing `text` is compiled for legacy consumers; `transcript` remains an ordered speech/answer concatenation for export. Public `insight` is derived **only** from the selected validated recommendation's `action`, otherwise null. It is not another independently generated model conclusion.
 
 Duration, recognized word count and descriptive words/minute remain locally calculated. Audience questions do not count as spoken words. WPM includes silence/ASR defects and does not measure articulation, voice, gestures, emotion or psychological confidence. There is no global grade/radar.
 

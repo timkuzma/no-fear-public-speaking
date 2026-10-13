@@ -24,11 +24,13 @@ Model listing alone does not establish support for either endpoint, JSON mode, t
 
 ## Questions and reports
 
-The candidate v2 context/draft/public contracts are documented in [ai-quality-contract.md](ai-quality-contract.md). Application-owned versioned prompts and shared caps live in `server/feedback_prompts.py`: question `questions-v2.0`, report `speech-feedback-v2.0`, context `speech-context-v2`, rubric `contextual-text-v1`. They remain tool-free calls under the existing reservation scope; no runtime critic is added.
+The candidate v2 context/draft/public contracts are documented in [ai-quality-contract.md](ai-quality-contract.md). Application-owned versioned prompts and shared caps live in `server/feedback_prompts.py`: question `questions-v2.1`, report `speech-feedback-v2.2`, context `speech-context-v2`, rubric `contextual-text-v1`. They remain tool-free calls under the existing reservation scope; no runtime critic is added.
 
 `generate_questions(config, transcript)` compiles speech-only exact contiguous evidence with content hashes and Unicode offsets. It requires three distinct question objects with one valid evidence ID and closed keys. Private question provenance is persisted separately; public questions remain strings. Answer processing binds the real saved question by index and rechecks its exact speech revision/ID/span where v2 provenance exists. Legacy saved questions without provenance remain usable with unknown origin metadata.
 
 `analyze(config, segments)` separately receives the original speech, saved question context and confirmed answer text. Topic/scenario are weak context; optional repeat focus is user-selected context, never automatically substituted into formal criteria. One-minute starters keep empty topic/criteria. The contextual prompt avoids imposed project-defense outlines, compulsory statistics and invented example facts. Prompt policy guides behavior but cannot guarantee semantic compliance.
+
+The report prompt now requests `example:null`. Under fixed publisher policy `withhold_unreviewed_rewrites-v1`, the compiler validates a raw example's type/length but withholds it from new public reports, compatibility text and derived fields. Old stored examples remain readable. An exploratory earlier prompt still invented causal benefits despite explicit fact-preserving instructions; the policy contains that field rather than proving semantic truth. Observation/action can still be unsupported, and raw-draft failures must remain separate from compiled-report metrics. No critic or automatic paid repair is added.
 
 Fresh report drafts use strict v2 IDs and closed fields. Strengths permit 0–2 and recommendations 0–3. Main focus is an index into checked recommendations or null; public `insight` is derived solely from that action. Empty findings do not force praise or a made-up coaching action. Old **stored** reports remain unchanged/readable; obsolete provider draft shapes are not accepted on new calls.
 

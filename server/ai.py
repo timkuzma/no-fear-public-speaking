@@ -513,8 +513,12 @@ def _findings(items, quotes, recommendation=False):
         finding['text'] = finding['observation']
         if recommendation:
             finding['action'] = _string(item['action'], feedback_prompts.CAPS['action'])
-            finding['example'] = None if item['example'] is None else _string(item['example'], feedback_prompts.CAPS['example'])
-            finding['text'] = ' '.join([finding['observation'], finding['action'], *([finding['example']] if finding['example'] else [])])
+            # Validate the raw draft before withholding it: malformed fields still fail.
+            # Quote provenance does not establish factual safety of a rewritten example.
+            if item['example'] is not None:
+                _string(item['example'], feedback_prompts.CAPS['example'])
+            finding['example'] = None
+            finding['text'] = ' '.join([finding['observation'], finding['action']])
         checked.append(finding)
     return checked
 
@@ -626,7 +630,8 @@ async def analyze(config: dict, segments: list):
                        'metrics': metrics, 'strengths': strengths, 'recommendations': recommendations,
                        'criteria': checked_criteria, 'transcript': full_text, 'transcript_segments': public_segments,
                        'transcript_revision': context['transcript_revision'],
-                       'provenance': {'context_schema_version': feedback_prompts.CONTEXT_VERSION,
+                       'provenance': {'publisher_policy': 'withhold_unreviewed_rewrites-v1',
+                                      'context_schema_version': feedback_prompts.CONTEXT_VERSION,
                                       'report_prompt_version': feedback_prompts.REPORT_VERSION,
                                       'rubric_version': feedback_prompts.RUBRIC_VERSION,
                                       'chat_model': usage.get('model'),
