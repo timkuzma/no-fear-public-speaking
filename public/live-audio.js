@@ -3,7 +3,7 @@ export class PCMChunker {
   constructor(
     inputRate,
     outputRate = 16000,
-    chunkSeconds = 15,
+    chunkSeconds = 5,
     emit = () => {},
   ) {
     if (!(inputRate > 0 && outputRate > 0 && chunkSeconds > 0))
@@ -106,7 +106,7 @@ export class LiveAudioCapture {
     if (!this.context.audioWorklet || typeof AudioWorkletNode === "undefined")
       throw new Error("AudioWorklet unavailable");
     await this.context.audioWorklet.addModule(
-      "/audio-capture-worklet.js?v=20261011-live",
+      "/audio-capture-worklet.js?v=20261013-asr-5s",
     );
     if (this.cancelled) return;
     this.source = this.context.createMediaStreamSource(this.stream);

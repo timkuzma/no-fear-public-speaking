@@ -1,9 +1,9 @@
-import { PCMChunker } from "./live-audio.js?v=20261011-live";
+import { PCMChunker } from "./live-audio.js?v=20261013-asr-5s";
 class SpeechPCMCapture extends AudioWorkletProcessor {
   constructor() {
     super();
     this.active = false;
-    this.chunker = new PCMChunker(sampleRate, 16000, 15, (samples, offset) => {
+    this.chunker = new PCMChunker(sampleRate, 16000, 5, (samples, offset) => {
       this.port.postMessage({ type: "chunk", samples, offset }, [
         samples.buffer,
       ]);

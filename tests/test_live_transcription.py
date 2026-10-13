@@ -266,3 +266,50 @@ def test_activity_gate_preserves_short_sustained_tail(live_app, monkeypatch, amp
     asyncio.run(process_chunk(store, store.claim_live_chunk()))
     assert transcriber.await_count == 1
     assert snapshot(store, pid, 'a' * 32)['transcript'] == 'Да.'
+
+
+def test_five_second_chunks_cover_ten_minutes_and_replay_without_extra_quota(live_app):
+    client = TestClient(live_app)
+    headers = account(client)
+    response = client.post('/api/practices', headers=headers, json={
+        'scenario': 'speech', 'topic': 'Длинное выступление', 'duration': 10,
+        'questions': True, 'criteria': '',
+    })
+    assert response.status_code == 200
+    pid = response.json()['id']
+    audio = wav_bytes(5)
+    for index in range(120):
+        response = send(client, headers, pid, index=index, offset=index * 5, audio=audio)
+        assert response.status_code == 200, (index, response.text)
+    store = live_app.state.store
+    assert send(client, headers, pid, index=119, offset=595, audio=audio).status_code == 200
+    assert len(store.all('SELECT * FROM live_chunks WHERE practice_id=?', (pid,))) == 120
+    assert store.one("SELECT COUNT(*) AS n FROM rate_limits WHERE key LIKE 'live:%'")['n'] == 120
+    assert send(client, headers, pid, index=128, offset=600, audio=audio).status_code == 422
+    assert bind(client, headers, pid, 600, chunk_count=120).status_code == 200
+    store.execute("UPDATE live_chunks SET status='succeeded',transcript='Слова выступления.' WHERE practice_id=?", (pid,))
+    segment = store.one('SELECT * FROM segments WHERE practice_id=?', (pid,))
+    assert completed_transcript(store, segment) == ' '.join(['Слова выступления.'] * 120)
+
+
+def test_five_second_transcript_and_tail_are_reused_without_full_asr(live_app, monkeypatch):
+    from server import ai
+    client = TestClient(live_app)
+    headers = account(client)
+    pid = practice(client, headers, questions=True)
+    transcriber = AsyncMock(side_effect=[
+        {'text': text, 'usage': {'operation': 'transcription', 'audio_seconds': seconds}}
+        for text, seconds in [('Начало речи.', 5), ('Продолжение мысли.', 5), ('Вывод.', 2)]
+    ])
+    monkeypatch.setattr(ai, 'transcribe', transcriber)
+    store = live_app.state.store
+    for index, seconds in enumerate([5, 5, 2]):
+        assert send(client, headers, pid, index=index, offset=index * 5, seconds=seconds).status_code == 200
+        asyncio.run(process_chunk(store, store.claim_live_chunk()))
+    assert bind(client, headers, pid, 12, chunk_count=3).status_code == 200
+    generator = AsyncMock(return_value={'questions': ['Как?', 'Почему?', 'Зачем?'], 'usage': {'operation': 'questions'}})
+    monkeypatch.setattr(ai, 'generate_questions', generator)
+    assert client.post(f'/api/practices/{pid}/jobs', headers=headers, json={'kind': 'questions'}).status_code == 200
+    asyncio.run(process(store, store.claim_job()))
+    assert transcriber.await_count == 3
+    assert generator.await_args.args[1] == 'Начало речи. Продолжение мысли. Вывод.'

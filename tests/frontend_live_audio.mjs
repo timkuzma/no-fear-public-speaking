@@ -78,16 +78,23 @@ for (const inputRate of [44100, 48000, 16000]) {
   processor.process([[new Float32Array(48000).fill(0.25)]]);
   assert.equal(messages.length, 0); // Device preparation does not upload pre-recording audio.
   processor.port.onmessage({ data: { type: "start" } });
-  processor.process([
-    [new Float32Array(48000).fill(0.25), new Float32Array(48000).fill(0.75)],
-  ]);
+  processor.process([[new Float32Array(48000 * 4).fill(0.25), new Float32Array(48000 * 4).fill(0.75)]]);
+  assert.equal(messages.length, 0, "No upload before five seconds");
+  processor.process([[new Float32Array(48000).fill(0.25), new Float32Array(48000).fill(0.75)]]);
+  assert.equal(messages.length, 1, "First full chunk arrives at five seconds");
+  processor.process([[new Float32Array(48000 * 5).fill(0.5)]]);
+  assert.equal(messages.length, 2);
+  processor.process([[new Float32Array(48000).fill(0.5)]]);
   processor.port.onmessage({ data: { type: "flush" } });
-  assert.equal(messages[0].samples.length, 16000);
+  assert.equal(messages[0].samples.length, 80000);
   assert.equal(messages[0].samples[0], 0.5);
   assert.equal(messages[0].offset, 0);
-  assert.equal(messages[1].type, "flushed");
+  assert.equal(messages[1].offset, 5);
+  assert.equal(messages[2].offset, 10);
+  assert.equal(messages[2].samples.length, 16000);
+  assert.equal(messages[3].type, "flushed");
   processor.process([[new Float32Array(48000)]]);
-  assert.equal(messages.length, 2);
+  assert.equal(messages.length, 4);
 }
 function fixture({ fail = false } = {}) {
   const uploaded = [],
@@ -113,7 +120,7 @@ function fixture({ fail = false } = {}) {
       postMessage(message) {
         messages.push(message);
         if (message.type === "flush") {
-          capture.enqueue(new Float32Array(3200), 15);
+          capture.enqueue(new Float32Array(3200), 5);
           capture.resolveFlush();
         }
       },
@@ -127,7 +134,7 @@ function fixture({ fail = false } = {}) {
 {
   const f = fixture();
   assert.equal(f.capture.start(), true);
-  f.capture.enqueue(new Float32Array(240000), 0);
+  f.capture.enqueue(new Float32Array(80000), 0);
   await f.capture.chain;
   await f.capture.poll();
   assert.equal(f.status.at(-1).recognized_words, 17);
@@ -138,7 +145,7 @@ function fixture({ fail = false } = {}) {
     f.uploaded.map((upload) => [upload.index, upload.offset]),
     [
       [0, 0],
-      [1, 15],
+      [1, 5],
     ],
   );
   assert.equal(f.capture.cancelled, true);
@@ -147,7 +154,7 @@ function fixture({ fail = false } = {}) {
 {
   const f = fixture({ fail: true });
   f.capture.start();
-  f.capture.enqueue(new Float32Array(240000), 0);
+  f.capture.enqueue(new Float32Array(80000), 0);
   await f.capture.chain;
   assert.equal(f.capture.failed, true);
   assert.equal(await f.capture.finish(), null);

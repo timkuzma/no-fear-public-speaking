@@ -36,6 +36,7 @@ from .locking import data_lock, instance_lock
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_PRACTICE_SECONDS = 780  # Ten-minute speech plus three one-minute answers.
+MAX_LIVE_CHUNKS = 128  # 120 five-second chunks plus a fractional final tail.
 ph = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
 DUMMY_HASH = ph.hash('This is not an account password.')
 log = logging.getLogger('pilot.requests')
@@ -423,7 +424,7 @@ def create_app(data_dir=None, start_worker=True):
         practice = owned(practice_id, user['id'])
         if not provider_ready():
             fail(503, 'AI_NOT_CONFIGURED', 'Расшифровка пока не подключена. Запись можно сохранить и обработать позже.')
-        if not re.fullmatch(r'[a-f0-9]{32}', session_id) or not 0 <= index < 64 or not math.isfinite(offset_seconds) or offset_seconds < 0:
+        if not re.fullmatch(r'[a-f0-9]{32}', session_id) or not 0 <= index < MAX_LIVE_CHUNKS or not math.isfinite(offset_seconds) or offset_seconds < 0:
             fail(422, 'LIVE_CHUNK_INVALID', 'Не удалось прочитать фрагмент выступления.')
         content = await file.read(524289)
         await file.close()
@@ -480,7 +481,7 @@ def create_app(data_dir=None, start_worker=True):
                 quota_key = 'live:' + user['id']
                 db.execute('DELETE FROM rate_limits WHERE created<?', (now() - 86400,))
                 count = db.execute('SELECT COUNT(*) FROM rate_limits WHERE key=?', (quota_key,)).fetchone()[0]
-                if count >= int(os.environ.get('DAILY_LIVE_CHUNK_LIMIT', '120')):
+                if count >= int(os.environ.get('DAILY_LIVE_CHUNK_LIMIT', '360')):
                     fail(429, 'LIVE_QUOTA', 'Лимит промежуточной расшифровки на сегодня достигнут. Выступление можно обработать целиком после записи.')
                 if not session:
                     obsolete = db.execute("SELECT c.filename,c.status FROM live_chunks c JOIN live_sessions s ON s.practice_id=c.practice_id AND s.session_id=c.session_id WHERE c.practice_id=? AND s.status='open'", (practice_id,)).fetchall()
@@ -579,7 +580,7 @@ def create_app(data_dir=None, start_worker=True):
                         db.execute('INSERT INTO segment_uploads VALUES(?,?,?,?)', (segment_id, practice_id, client_key, content_hash.hexdigest()))
                     if live_session_id:
                         session = db.execute("SELECT * FROM live_sessions WHERE practice_id=? AND session_id=? AND status='open'", (practice_id, live_session_id)).fetchone()
-                        if kind != 'speech' or not session or session['created'] < now() - 86400 or (live_chunk_count is not None and not 1 <= live_chunk_count <= 64):
+                        if kind != 'speech' or not session or session['created'] < now() - 86400 or (live_chunk_count is not None and not 1 <= live_chunk_count <= MAX_LIVE_CHUNKS):
                             fail(409, 'LIVE_SESSION_STALE', 'Промежуточная расшифровка относится к другой записи. Сохраните выступление без неё.')
                         db.execute("UPDATE live_sessions SET status='bound',segment_id=?,expected_chunks=? WHERE practice_id=? AND session_id=?", (segment_id, live_chunk_count, practice_id, live_session_id))
             except sqlite3.IntegrityError:

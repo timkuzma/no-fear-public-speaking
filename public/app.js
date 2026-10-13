@@ -1,7 +1,7 @@
 import { installTypography } from "./typography.js?v=20261013-type";
 import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-refine";
 import { api } from "./api.js?v=20261013-practice-settings";
-import { LiveAudioCapture } from "./live-audio.js?v=20261011-live";
+import { LiveAudioCapture } from "./live-audio.js?v=20261013-asr-5s";
 import {
   saveDraft,
   loadDraft,
