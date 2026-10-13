@@ -51,6 +51,8 @@ class Store:
                 CREATE INDEX IF NOT EXISTS practices_owner ON practices(user_id,created);
                 CREATE INDEX IF NOT EXISTS events_day ON events(created,kind);
             ''')
+            if 'question_provenance' not in [row[1] for row in db.execute('PRAGMA table_info(practices)')]:
+                db.execute('ALTER TABLE practices ADD COLUMN question_provenance TEXT')
             if 'expected_chunks' not in [row[1] for row in db.execute('PRAGMA table_info(live_sessions)')]:
                 db.execute('ALTER TABLE live_sessions ADD COLUMN expected_chunks INTEGER')
         os.chmod(self.path, 0o600)

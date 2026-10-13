@@ -24,11 +24,12 @@ USAGE = {'model': 'fixture', 'input_tokens': 10, 'output_tokens': 5,
 
 def response():
     return {
-        'insight': 'Назовите расходы на открытие библиотеки.',
-        'strengths': [{'title': 'Понятна аудитория', 'text': 'Названы ученики.',
+        'primary_recommendation_index': 0,
+        'strengths': [{'title': 'Понятна аудитория', 'observation': 'Названы ученики.',
                        'evidence_id': 's1-q0'}],
-        'recommendations': [{'title': 'Уточните расходы', 'text': 'Добавьте оценку затрат.',
-                             'evidence_id': 's0-q0'}],
+        'recommendations': [{'title': 'Уточните совместную подготовку', 'observation': 'Польза обозначена кратко.',
+                             'action': 'Поясните, как ученики будут готовиться вместе.', 'example': None,
+                             'evidence_id': 's1-q0'}],
         'criteria': [],
     }
 
@@ -74,8 +75,9 @@ def test_report_payload_keeps_questions_out_of_spoken_evidence_and_metrics(monke
     result = asyncio.run(ai.analyze({}, segments()))
 
     payload = provider.await_args.args[2]
-    assert payload['segments'][1]['question'] == QUESTIONS[0]
-    assert [quote['text'] for quote in payload['quotes']] == [SPEECH, ANSWER]
+    assert payload['saved_questions'][0]['text'] == QUESTIONS[0]
+    assert 'question' not in payload['segments'][1]
+    assert [quote['text'] for quote in payload['evidence']] == [SPEECH, ANSWER]
     assert result['report']['transcript'] == SPEECH + '\n\n' + ANSWER
     assert result['report']['strengths'][0]['evidence'] == ANSWER
     assert result['report']['metrics'][1]['text'] == '13 слов'

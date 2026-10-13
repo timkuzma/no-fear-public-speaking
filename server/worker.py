@@ -28,12 +28,15 @@ async def _process(store, job):
         segments = store.all('SELECT * FROM segments WHERE practice_id=? ORDER BY segment_index', (practice_id,))
         selected = [s for s in segments if s['kind'] == 'speech'] if job['kind'] == 'questions' else segments
         questions = []
+        question_provenance = None
         if job['kind'] == 'report':
-            practice = store.one('SELECT questions FROM practices WHERE id=?', (practice_id,))
+            practice = store.one('SELECT questions,question_provenance FROM practices WHERE id=?', (practice_id,))
             questions = json.loads(practice['questions'])
+            question_provenance = json.loads(practice['question_provenance']) if practice['question_provenance'] else None
         prepared = []
         for segment in selected:
             text = segment['transcript']
+            asr_model = None
             if text is None:
                 store.execute('UPDATE jobs SET stage=? WHERE id=?', ('transcription_' + str(segment['segment_index']), job['id']))
                 from .live import reusable_transcript
@@ -42,16 +45,30 @@ async def _process(store, job):
                 if text is None:
                     result = await ai.transcribe(store.media / segment['filename'])
                     text = result['text']
+                    asr_model = result['usage'].get('model')
                 with store.connect() as db:
                     db.execute('UPDATE segments SET transcript=? WHERE id=?', (text, segment['id']))
                     if result:
                         db.execute('INSERT INTO usage VALUES(?,?,?,?,?)', (__import__('uuid').uuid4().hex, job['id'], job['user_id'], now(), json.dumps(result['usage'])))
-            item = {'kind': segment['kind'], 'index': segment['segment_index'], 'text': text, 'duration_seconds': segment['duration']}
+            item = {'kind': segment['kind'], 'index': segment['segment_index'], 'text': text, 'duration_seconds': segment['duration'], 'asr_model': asr_model}
             if segment['kind'] == 'answer':
                 index = segment['segment_index']
                 if not isinstance(questions, list) or not 1 <= index <= len(questions):
                     raise ai.ProviderError('AI_INPUT_INVALID', 'Не удалось связать ответ с вопросом. Запись сохранена; повторите разбор.')
                 item['question'] = questions[index - 1]
+                if question_provenance is not None:
+                    if not isinstance(question_provenance, dict):
+                        raise ai.ProviderError('AI_INPUT_INVALID', 'Не удалось подтвердить источник вопросов. Запись сохранена; повторите обработку.')
+                    speech = next(s for s in segments if s['segment_index'] == 0)
+                    speech_text = prepared[0]['text'] if prepared else speech['transcript']
+                    provenance_items = question_provenance.get('items')
+                    if not isinstance(provenance_items, list) or len(provenance_items) != len(questions):
+                        raise ai.ProviderError('AI_INPUT_INVALID', 'Не удалось подтвердить источник вопросов. Запись сохранена; повторите обработку.')
+                    evidence = provenance_items[index - 1]
+                    valid = ai.question_provenance_matches(evidence, item['question'], speech_text)
+                    if not valid:
+                        raise ai.ProviderError('AI_INPUT_INVALID', 'Вопросы относятся к другой версии речи. Запись сохранена; повторите обработку.')
+                    item['question_provenance'] = evidence
             prepared.append(item)
         config = json.loads(job['config'])
         store.execute('UPDATE jobs SET stage=? WHERE id=?', (job['kind'], job['id']))
@@ -64,7 +81,9 @@ async def _process(store, job):
         with store.connect() as db:
             db.execute('INSERT INTO usage VALUES(?,?,?,?,?)', (__import__('uuid').uuid4().hex, job['id'], job['user_id'], now(), json.dumps(response['usage'])))
             if job['kind'] == 'questions':
-                db.execute("UPDATE practices SET questions=?,status='draft' WHERE id=?", (json.dumps(result['questions'], ensure_ascii=False), practice_id))
+                db.execute("UPDATE practices SET questions=?,question_provenance=?,status='draft' WHERE id=?",
+                           (json.dumps(result['questions'], ensure_ascii=False),
+                            json.dumps(response['provenance'], ensure_ascii=False) if response.get('provenance') else None, practice_id))
             else:
                 db.execute("UPDATE practices SET report=?,status='ready' WHERE id=?", (json.dumps(result, ensure_ascii=False), practice_id))
             db.execute("UPDATE jobs SET status='succeeded',stage='complete',result=?,finished=? WHERE id=?", (json.dumps(result, ensure_ascii=False), now(), job['id']))

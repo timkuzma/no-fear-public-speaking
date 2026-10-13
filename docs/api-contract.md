@@ -16,7 +16,9 @@ Development registration may omit an invite; production must fail closed without
 
 ## Practices, segments and jobs
 
-`POST /api/practices` body `{scenario: "speech"|"defense"|"free",topic:string,duration:number,questions:boolean,criteria:string}` -> full practice.
+`POST /api/practices` body `{scenario: "speech"|"defense"|"free",topic?:string,duration:number,questions:boolean,criteria?:string,repeat_source_id?:string,repeat_recommendation_index?:number|null}` -> full practice. Topic and criteria default to empty strings. Starting a practice requires an authenticated account.
+
+Repeat selection is optional: `repeat_source_id` names an account-owned ready practice. A non-null `repeat_recommendation_index` selects an actual saved recommendation; an index without a source is rejected. The server derives `config.repeat_focus` from that report (`source_practice_id`, `recommendation_index`, `title`, `action`, `transcript_revision`). Arbitrary client `repeat_focus` strings are not accepted as provenance. Original caller criteria remain separate. A null index allows an ordinary repeat without inventing a focus; unauthorized sources return 404, unavailable reports 409, invalid indexes 422. New starter practices still send empty topic/criteria, with no extra mandatory fields.
 
 `GET /api/practices?limit=30&offset=0` -> `{items:[practice],total:number}`.
 
@@ -63,16 +65,30 @@ Live chunks use a separate SQLite queue, with one serialized live ASR worker and
 
 ## Report shape shared by worker and UI
 
+New reports use `schema_version:2`; legacy stored reports remain readable/exportable and are not regenerated.
+
 ```
-{demo:false,insight:string,
+{schema_version:2,demo:false,insight:string|null,
+ primary_recommendation_index:number|null,
  metrics:[{title,text,label}],
- strengths:[{title,text,evidence:string,segment_index?:number}],
- recommendations:[{title,text,evidence:string,segment_index?:number}],
- criteria:[{criterion,status:"met"|"partial"|"not_met"|"unknown",evidence:string}],
- limitations:[string],transcript:string}
+ strengths:[{title,observation,text,evidence,evidence_id,segment_index,origin,
+             transcript_revision,start_char,end_char}],
+ recommendations:[{title,observation,action,example:string|null,text,evidence,evidence_id,
+                   segment_index,origin,transcript_revision,start_char,end_char}],
+ criteria:[{criterion,status:"met"|"partial"|"not_met"|"unknown",basis:"present"|"absent"|"unknown",
+            reason,evidence,evidence_id,segment_index,origin,transcript_revision,start_char,end_char}],
+ limitations:[string],transcript:string,transcript_revision:string,
+ transcript_segments:[{index,kind,origin,text,duration_seconds,transcript_revision,
+                       lexical_completeness:"unknown",asr_model:string|null,question?:string}],
+ provenance:{context_schema_version,report_prompt_version,rubric_version,chat_model,
+             asr_models,asr_model_unknown}}
 ```
 
-Transcript evidence must be verified against actual supplied segment text. No invented psychological, gesture or acoustic assessment. Derive words/minute only from word count and measured audio duration, identify pauses/silence limits. No invented timestamps. UI escapes all provider/user strings and labels public examples explicitly.
+Strengths contain zero to two items, recommendations zero to three. The selected main focus is a valid recommendation index or null; public `insight` is compiled from its validated action, never independently generated. Empty findings/focus are valid and display ordinary continuation rather than fabricated advice. Exact contiguous evidence and Unicode code-point offsets are server-owned and bound to the original segment's SHA-256 revision; an evidence ID proves source identity, not semantic correctness.
+
+Formal criteria come only from user-selected labels and occur exactly once. No criterion means an empty list. Available ASR does not establish reliable lexical completeness; attempted absence findings and unavailable modality criteria become `unknown`. Presence requires a valid span, but correctness of its interpretation still needs semantic assessment. No invented psychological, gesture or acoustic assessment. Recording duration/recognized words/average rate are local descriptive metrics, not speech scores. Questions are never part of spoken evidence or word counts. UI escapes all strings; no public example report exists.
+
+Detailed strict provider draft/context contracts, versioning and migration are in `docs/ai-quality-contract.md`. Private `practices.question_provenance` never appears in practice/job JSON; public questions remain strings. The worker verifies available saved question provenance against the speech revision and saved question before binding an answer. Legacy questions without metadata remain usable with unknown provenance.
 
 ## AI module contract (owned by AI agent)
 
@@ -80,11 +96,11 @@ Transcript evidence must be verified against actual supplied segment text. No in
 
 - `ProviderError(code: str, message: str)`; messages are safe and Russian, never contain key/provider response bodies.
 - `async transcribe(path: Path) -> dict`: `{text:string,duration_seconds:number,usage:Usage}`. Decode using environment `FFMPEG_BINARY` or imageio-ffmpeg binary fallback; enforce ten-minute media limit. Provider config from `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (default gigachat-3-pro), `TRANSCRIPTION_MODEL` (default whisper-large-v3), optional timeout settings. No secret files or logs.
-- `async generate_questions(config:dict, transcript:str) -> dict`: `{questions:[string,string,string],usage:Usage}`.
+- `async generate_questions(config:dict, transcript:str) -> dict`: `{questions:[string,string,string],usage:Usage,provenance:object}`. Only the strings cross the public question API; provenance persists privately.
 - `async analyze(config:dict, segments:list[dict]) -> dict`: `{report:Report,usage:Usage}`. Segments include `{kind,index,text,duration_seconds,question?}`. The worker binds each answer to its persisted question by index. Question text is untrusted context, excluded from transcript evidence and word counts. Module does not access DB or private ownership.
 - `Usage`: `{model:string,input_tokens:int,output_tokens:int,audio_seconds:number,latency_ms:number,operation:string}`. Real provider counts when available; unknown counts remain null rather than fake zero. Retries bounded, record attempts if possible.
 
-Backend worker stores transcripts and usage immediately after each successful stage. AI agent owns only `server/ai.py`, `tests/test_ai.py`, `docs/llm.md`; backend agent owns remaining `server/` and `tests/test_backend.py`. Frontend agent owns only `public/`. Root owns tooling, integration tests, dependencies, operations/docs and root agent instructions. No subagent commits or Git operations.
+Backend worker stores transcripts and usage immediately after each successful stage. Runtime model calls remain in `server/ai.py`; application-owned prompt artifacts are in `server/feedback_prompts.py`. The application controls persistence, validation, queues and authorization; no production autonomous-agent framework or paid critic is introduced.
 
 ## Recording before authentication
 

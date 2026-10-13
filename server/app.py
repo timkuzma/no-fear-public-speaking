@@ -94,6 +94,8 @@ class Practice(BaseModel):
     questions: bool = False
     criteria: str = Field(default='', max_length=5000)
     idempotency_key: str | None = Field(default=None, pattern=r'^[a-f0-9]{32}$')
+    repeat_source_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{32}$')
+    repeat_recommendation_index: int | None = Field(default=None, strict=True, ge=0, le=4)
 
 
 class JobRequest(BaseModel):
@@ -336,7 +338,28 @@ def create_app(data_dir=None, start_worker=True):
     @app.post('/api/practices')
     async def create_practice(body: Practice, request: Request):
         user = auth(request, True)
-        config = body.model_dump(exclude={'idempotency_key'})
+        config = body.model_dump(exclude={'idempotency_key', 'repeat_source_id', 'repeat_recommendation_index'})
+        if body.repeat_recommendation_index is not None and not body.repeat_source_id:
+            fail(422, 'REPEAT_SOURCE_REQUIRED', 'Для выбранного фокуса нужна исходная тренировка.')
+        if body.repeat_source_id:
+            source = owned(body.repeat_source_id, user['id'])
+            if not source['report'] or source['status'] != 'ready':
+                fail(409, 'REPEAT_REPORT_REQUIRED', 'Сначала дождитесь разбора исходной тренировки.')
+            report = json.loads(source['report'])
+            if body.repeat_recommendation_index is not None:
+                recommendations = report.get('recommendations') or []
+                selected = body.repeat_recommendation_index
+                if selected >= len(recommendations):
+                    fail(422, 'REPEAT_FOCUS_INVALID', 'Выберите рекомендацию из сохранённого разбора.')
+                item = recommendations[selected]
+                action = item.get('action') if report.get('schema_version') == 2 else item.get('text')
+                if not isinstance(action, str) or not action.strip() or len(action) > 3000:
+                    fail(422, 'REPEAT_FOCUS_INVALID', 'Эту рекомендацию нельзя перенести в новую попытку.')
+                config['repeat_focus'] = {
+                    'source_practice_id': source['id'], 'recommendation_index': selected,
+                    'title': str(item.get('title') or '')[:300], 'action': action,
+                    'transcript_revision': item.get('transcript_revision'),
+                }
         practice_id = digest(user['id'] + ':' + body.idempotency_key)[:32] if body.idempotency_key else uid()
         def existing():
             row = store.one('SELECT * FROM practices WHERE id=? AND user_id=?', (practice_id, user['id']))
