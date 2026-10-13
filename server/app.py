@@ -35,6 +35,7 @@ from . import limits, monitoring
 from .locking import data_lock, instance_lock
 
 ROOT = Path(__file__).resolve().parent.parent
+MAX_PRACTICE_SECONDS = 780  # Ten-minute speech plus three one-minute answers.
 ph = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
 DUMMY_HASH = ph.hash('This is not an account password.')
 log = logging.getLogger('pilot.requests')
@@ -186,7 +187,28 @@ def create_app(data_dir=None, start_worker=True):
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, exc):
-        return JSONResponse({'error': {'code': 'VALIDATION_ERROR', 'message': 'Проверьте заполненные поля. Пароль должен содержать от 10 до 128 символов, тренировка — от 30 секунд до 10 минут.'}}, status_code=422)
+        labels = {
+            'email': 'Введи электронную почту в формате name@example.com.',
+            'name': 'Введи имя длиной от 1 до 100 символов.',
+            'password': ('Введи пароль длиной от 1 до 128 символов.' if request.url.path.endswith('/login')
+                         else 'Пароль должен содержать от 10 до 128 символов.'),
+            'duration': 'Выбери время выступления от 30 секунд до 10 минут.',
+            'topic': 'Сократи тему выступления до 1000 символов.',
+            'criteria': 'Сократи пожелания к разбору до 5000 символов.',
+            'scenario': 'Выбери сценарий выступления.',
+            'invite_code': 'Проверь код приглашения.',
+            'token': 'Открой действующую ссылку для восстановления пароля.',
+            'rating': 'Выбери оценку от 1 до 5.',
+            'text': 'Сократи отзыв до 2000 символов.',
+        }
+        fields = {}
+        for item in exc.errors():
+            field = item.get('loc', ())[-1] if item.get('loc') else None
+            if field in labels:
+                fields[field] = labels[field]
+        message = ' '.join(fields.values()) or 'Проверь заполненные поля и попробуй ещё раз.'
+        return JSONResponse({'error': {'code': 'VALIDATION_ERROR', 'message': message,
+                                      'fields': [{'field': field, 'message': text} for field, text in fields.items()]}}, status_code=422)
 
     @app.exception_handler(limits.LimitError)
     async def capacity_error(request, exc):
@@ -550,8 +572,8 @@ def create_app(data_dir=None, start_worker=True):
                     if not current or current['status'] in ('processing', 'ready'):
                         fail(409, 'PRACTICE_LOCKED', 'Состояние тренировки изменилось. Обновите страницу.')
                     total = db.execute('SELECT COALESCE(SUM(duration),0) FROM segments WHERE practice_id=?', (practice_id,)).fetchone()[0]
-                    if total + duration > 600:
-                        fail(413, 'MEDIA_TOO_LONG', 'Общая длительность тренировки — не больше 10 минут.')
+                    if total + duration > MAX_PRACTICE_SECONDS:
+                        fail(413, 'MEDIA_TOO_LONG', 'Выступление и ответы вместе должны длиться не больше 13 минут.')
                     db.execute('INSERT INTO segments VALUES(?,?,?,?,?,?,?,?)', (segment_id, practice_id, kind, index, filename, duration, None, now()))
                     if client_key:
                         db.execute('INSERT INTO segment_uploads VALUES(?,?,?,?)', (segment_id, practice_id, client_key, content_hash.hexdigest()))

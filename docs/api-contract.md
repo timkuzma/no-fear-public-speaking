@@ -1,8 +1,10 @@
 # Pilot integration contract
 
-All JSON endpoints use same-origin `/api`. JSON success bodies are flat; errors are `{error:{code,message}}` with Russian user-facing messages and appropriate HTTP status. All media and user data require server-side ownership checks. No frontend credentials, session tokens or passwords in localStorage.
+All JSON endpoints use same-origin `/api`. JSON success bodies are flat; errors are `{error:{code,message,fields?:[{field,message}]}}` with Russian user-facing messages and appropriate HTTP status. All media and user data require server-side ownership checks. No frontend credentials, session tokens or passwords in localStorage.
 
 ## Authentication
+
+Validation errors include only failing field labels and safe localized messages, never raw submitted values. Registration errors do not mention practice duration; login password validation keeps its own one-character minimum.
 
 - `GET /api/auth/me` -> `{user:null|{id,email,name,role,onboarding_completed},csrf_token:null|string,provider_ready:boolean,registration_requires_invite:boolean}`. Return 200 when anonymous.
 - Registration does not have a consent step. The historical `consent` database flag is not an access gate. New requests omit the flag and store `false`; an explicitly supplied legacy value remains accepted for compatibility. No hidden client acceptance is sent.
@@ -16,9 +18,9 @@ Development registration may omit an invite; production must fail closed without
 
 ## Practices, segments and jobs
 
-`POST /api/practices` body `{scenario: "speech"|"defense"|"free",topic?:string,duration:number,questions:boolean,criteria?:string,repeat_source_id?:string,repeat_recommendation_index?:number|null}` -> full practice. Topic and criteria default to empty strings. Starting a practice requires an authenticated account.
+`POST /api/practices` body `{scenario: "speech"|"defense"|"free",topic?:string,duration:number,questions:boolean,criteria?:string,repeat_source_id?:string,repeat_recommendation_index?:number|null}` -> full practice. Topic and criteria default to empty strings. Duration is any finite numeric value from 0.5 to 10 minutes, including fractional values. Topic is user-supplied weak context passed to both questions and report calls; it never becomes an imposed criterion. Starting a practice requires an authenticated account.
 
-Repeat selection is optional: `repeat_source_id` names an account-owned ready practice. A non-null `repeat_recommendation_index` selects an actual saved recommendation; an index without a source is rejected. The server derives `config.repeat_focus` from that report (`source_practice_id`, `recommendation_index`, `title`, `action`, `transcript_revision`). Arbitrary client `repeat_focus` strings are not accepted as provenance. Original caller criteria remain separate. A null index allows an ordinary repeat without inventing a focus; unauthorized sources return 404, unavailable reports 409, invalid indexes 422. New starter practices still send empty topic/criteria, with no extra mandatory fields.
+Repeat selection is optional: `repeat_source_id` names an account-owned ready practice. A non-null `repeat_recommendation_index` selects an actual saved recommendation; an index without a source is rejected. The server derives `config.repeat_focus` from that report (`source_practice_id`, `recommendation_index`, `title`, `action`, `transcript_revision`). Arbitrary client `repeat_focus` strings are not accepted as provenance. Original caller criteria remain separate. A null index allows an ordinary repeat without inventing a focus; unauthorized sources return 404, unavailable reports 409, invalid indexes 422. The visible setup allows an optional topic and arbitrary bounded duration for new and returning users; no topic or criteria is required.
 
 `GET /api/practices?limit=30&offset=0` -> `{items:[practice],total:number}`.
 
@@ -45,7 +47,7 @@ Repeat selection is optional: `repeat_source_id` names an account-owned ready pr
 
 `GET /api/operator/metrics` and `/api/operator/export?format=json|csv`: operator bearer credential, no credentials in URL, no raw speech in general logs.
 
-Export also accepts `kind=usage|events` and `limit` capped at 10000. JSON is `{items:[row]}`; metrics is a separate aggregate. Media download uses `?download=true`, a validated container extension and MIME. Browser streaming WebM is losslessly finalized before persistence for finite duration and seeking, preserving required audio and optional video. Video is available for private playback; the analysis pipeline uses only audio and transcript. Total audio across all segments is capped at 600 seconds.
+Export also accepts `kind=usage|events` and `limit` capped at 10000. JSON is `{items:[row]}`; metrics is a separate aggregate. Media download uses `?download=true`, a validated container extension and MIME. Browser streaming WebM is losslessly finalized before persistence for finite duration and seeking, preserving required audio and optional video. Video is available for private playback; the analysis pipeline uses only audio and transcript. A single recorded segment stays capped at 600 seconds. Total audio across all segments is capped at 780 seconds to allow a full ten-minute speech followed by three one-minute answers. Existing provider work caps still apply.
 
 ## Incremental speech transcription
 

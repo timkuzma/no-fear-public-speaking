@@ -17,7 +17,7 @@ try {
   await assert.rejects(api.register({ email: "synthetic@example.test" }), (error) =>
     error.status === 0 && /аккаунт мог уже создаться/.test(error.message));
   assert.equal(timeoutValues.shift(), 15000);
-  await assert.rejects(api.me(), /Сервер не успел ответить/);
+  await assert.rejects(api.me(), /Ответ не пришёл вовремя/);
   assert.equal(timeoutValues.shift(), 10000);
 
   let opening;
@@ -81,7 +81,7 @@ const context = vm.createContext({
 vm.runInContext(source + `
   frame = content => events.push(content);
   closeMedia = () => {};
-  globalThis.flow = { state, submitForm, startLink, navigate, action };
+  globalThis.flow = { state, submitForm, startLink, navigate, action, setupForm, errorText };
 `, context);
 await context.flow.submitForm({ target: form, preventDefault() {} });
 assert.equal(context.location.hash, "/app");
@@ -92,9 +92,9 @@ assert.match(events[0], /Аккаунт создан/);
 
 context.flow.state.user = null;
 context.location.hash = "#/register";
-mockedApi.register = async () => { throw new Error("Нет связи с сервером"); };
+mockedApi.register = async () => { throw new Error("Не удалось подключиться"); };
 await context.flow.submitForm({ target: form, preventDefault() {} });
-assert.equal(error.textContent, "Нет связи с сервером");
+assert.equal(error.textContent, "Не удалось подключиться");
 assert.equal(submit.disabled, false);
 assert.equal(submit.textContent, "Регистрация");
 assert.equal(values.email, " synthetic@example.test ", "Failed registration must retain form values");
@@ -115,12 +115,18 @@ assert.equal(context.location.hash, "/practice/neutral-practice");
 assert.deepEqual(createdConfigs[0], { scenario: "speech", topic: "", duration: 1, questions: true, criteria: "" });
 assert.equal(starter.disabled, false);
 form.id = "setup-form";
-Object.assign(values, { scenario: "free", topic: "", duration: "3", questions: "on", criteria: "" });
+Object.assign(values, { scenario: "free", topic: "", duration: "4.25", questions: "on", criteria: "" });
 await context.flow.submitForm({ target: form, preventDefault() {} });
 assert.equal(createdConfigs.length, 2, "Custom practice may start without a topic or criteria");
-assert.deepEqual(createdConfigs[1], { scenario: "free", topic: "", duration: 3, questions: true, criteria: "" });
+assert.deepEqual(createdConfigs[1], { scenario: "free", topic: "", duration: 4.25, questions: true, criteria: "" });
 Object.assign(values, { topic: "Моя история", criteria: "Понятен ли рассказ" });
 await context.flow.submitForm({ target: form, preventDefault() {} });
 assert.equal(createdConfigs[2].topic, "Моя история");
 assert.equal(createdConfigs[2].criteria, "Понятен ли рассказ", "Explicit user criteria must remain available");
+const visibleForm = context.flow.setupForm(false);
+assert.ok(visibleForm.indexOf('name="topic"') < visibleForm.indexOf('<details'));
+assert.ok(visibleForm.indexOf('name="duration"') < visibleForm.indexOf('<details'));
+assert.match(visibleForm, /type="number" name="duration" min="0.5" max="10" step="any"/);
+assert.doesNotMatch(context.flow.errorText({code:"STORAGE_CAPACITY",message:"На сервере недостаточно места"}), /сервер/);
+assert.doesNotMatch(context.flow.errorText({message:"Не удалось прочитать идентификатор записи"}), /идентификатор/);
 console.log("Auth completion, timeout recovery, storage bounds and anonymous entry checks passed");

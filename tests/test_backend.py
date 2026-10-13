@@ -48,6 +48,64 @@ def upload(client, headers, pid, data=None, kind='speech', index=0):
     return client.post(f'/api/practices/{pid}/segments', headers=headers, data={'kind': kind, 'index': index}, files={'file': ('sample.wav', wav_bytes() if data is None else data, 'audio/wav')})
 
 
+@pytest.mark.parametrize('field,value,expected', [
+    ('password', 'short', 'Пароль'),
+    ('email', 'not-an-email', 'электронную почту'),
+    ('name', ' ', 'имя'),
+])
+def test_registration_errors_only_describe_the_invalid_field(app, field, value, expected):
+    client = TestClient(app)
+    body = {'email': 'person@example.org', 'name': 'Имя', 'password': 'LongEnoughPassword123'}
+    body[field] = value
+    response = client.post('/api/auth/register', json=body)
+    assert response.status_code == 422
+    error = response.json()['error']
+    assert expected in error['message']
+    assert 'трениров' not in error['message'].lower()
+    assert 'минут' not in error['message']
+    assert [item['field'] for item in error['fields']] == [field]
+    assert not app.state.store.one('SELECT id FROM users')
+
+
+@pytest.mark.parametrize('duration', [0.5, 1, 3, 4.25, 5, 10])
+def test_user_chosen_speech_time_and_topic_are_saved(app, duration):
+    client = TestClient(app)
+    headers = account(client)
+    response = client.post('/api/practices', headers=headers, json={
+        'scenario': 'speech', 'topic': 'Открытие новой библиотеки',
+        'duration': duration, 'questions': True, 'criteria': '',
+    })
+    assert response.status_code == 200
+    assert response.json()['config']['duration'] == duration
+    assert response.json()['config']['topic'] == 'Открытие новой библиотеки'
+    assert response.json()['config']['criteria'] == ''
+
+
+def test_ten_minute_speech_reserves_time_for_all_three_answers(app, monkeypatch):
+    client = TestClient(app)
+    headers = account(client)
+    response = client.post('/api/practices', headers=headers, json={
+        'scenario': 'speech', 'duration': 10, 'questions': True,
+    })
+    pid = response.json()['id']
+    # Decoding itself has real-media tests; exercise measured durations here.
+    probe = AsyncMock(return_value={'duration_seconds': 600, 'extension': '.wav', 'mime_type': 'audio/wav'})
+    monkeypatch.setattr('server.app.decoded_duration', probe)
+    assert upload(client, headers, pid).status_code == 200
+    app.state.store.execute('UPDATE practices SET questions=? WHERE id=?',
+                            (json.dumps(['Первый вопрос?', 'Второй вопрос?', 'Третий вопрос?']), pid))
+    probe.return_value['duration_seconds'] = 60
+    for index in (1, 2):
+        assert upload(client, headers, pid, kind='answer', index=index).status_code == 200
+    probe.return_value['duration_seconds'] = 61
+    assert upload(client, headers, pid, kind='answer', index=3).status_code == 413
+    probe.return_value['duration_seconds'] = 60
+    assert upload(client, headers, pid, kind='answer', index=3).status_code == 200
+    saved = client.get('/api/practices/' + pid).json()['segments']
+    assert len(saved) == 4
+    assert sum(item['duration_seconds'] for item in saved) == 780
+
+
 def test_auth_csrf_and_isolation(app):
     one, two = TestClient(app), TestClient(app)
     assert one.get('/api/auth/me').json()['user'] is None

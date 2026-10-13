@@ -1,6 +1,6 @@
 import { installTypography } from "./typography.js?v=20261013-type";
 import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-refine";
-import { api } from "./api.js?v=20261013-auth-gate";
+import { api } from "./api.js?v=20261013-practice-settings";
 import { LiveAudioCapture } from "./live-audio.js?v=20261011-live";
 import {
   saveDraft,
@@ -9,7 +9,7 @@ import {
   saveRecordingDraft,
   loadRecordingDrafts,
   clearRecordingDraft,
-} from "./guest-draft.js?v=20261013-auth-gate";
+} from "./guest-draft.js?v=20261013-practice-settings";
 const app = document.querySelector("#app");
 let landingCleanup = () => {};
 const state = {
@@ -87,7 +87,30 @@ function notify(text) {
   notify.timer = setTimeout(() => el.classList.remove("visible"), 4500);
 }
 function errorText(error) {
-  return error?.message || "Не удалось выполнить действие. Попробуй ещё раз.";
+  const messages = {
+    STORAGE_CAPACITY: "Не получилось сохранить запись. Не закрывай страницу и повтори сохранение позже.",
+    MAINTENANCE: "Тренировка временно недоступна. Не закрывай страницу, если запись ещё не сохранена, и попробуй позже.",
+    UPLOAD_KEY_CONFLICT: "На этом этапе уже есть другая запись. Твоя запись не потерялась.",
+    SEGMENT_EXISTS: "На этом этапе уже есть сохранённая запись.",
+    PRACTICE_LOCKED: "Эта тренировка уже завершена или для неё готовится разбор.",
+    PRACTICE_BUSY: "Сначала дождись готового разбора, затем можно удалить тренировку.",
+    STORAGE_NOT_READY: "Не получилось сохранить запись. Не закрывай страницу и попробуй ещё раз.",
+    AI_NOT_CONFIGURED: "Разбор пока недоступен. Запись сохранена; попробуй позже.",
+    MEDIA_NOT_CONFIGURED: "Запись пока недоступна. Попробуй позже.",
+    AI_QUEUE_FULL: "Сейчас готовится много разборов. Запись сохранена; попробуй чуть позже.",
+    AI_USER_LIMIT: "На сегодня доступные разборы закончились. Запись сохранена; продолжи завтра.",
+    AI_SERVICE_LIMIT: "Разбор временно недоступен. Запись сохранена; попробуй позже.",
+    AI_QUOTA: "На сегодня доступные разборы закончились. Запись сохранена; продолжи завтра.",
+    AI_RATE_LIMIT: "Разбор пока занят. Запись сохранена; попробуй чуть позже.",
+    AI_INVALID_RESPONSE: "Не получилось подготовить вопросы или разбор. Запись сохранена; попробуй ещё раз.",
+    MEDIA_INVALID: "Не удалось прослушать запись. Проверь микрофон и запиши речь ещё раз.",
+    REQUEST_INVALID: "Проверь заполненные поля и попробуй ещё раз.",
+  };
+  if (messages[error?.code]) return messages[error.code];
+  const message = error?.message || "";
+  if (!/[а-яё]/iu.test(message) || /сервер|браузер|расшифров|обработк|идентификатор|сесси|черновик|\b(?:API|ASR|JSON|LLM|HTTP|SQL|Blob)\b/iu.test(message))
+    return "Не удалось выполнить действие. Попробуй ещё раз.";
+  return message;
 }
 function errorBox(text) {
   return `<div class="notice error" role="alert">${escape(text)}</div>`;
@@ -122,7 +145,7 @@ function landing() {
         <h1 id="landing-title" data-enter>Отрепетируй речь до встречи с аудиторией</h1>
         <p class="landing-lead" data-enter>Запиши выступление, ответь на вопросы по сказанному и выбери, что улучшить в следующей попытке.</p>
         <p class="landing-start-note" data-enter>${state.user ? "Твоя следующая попытка останется в истории тренировок." : `Зарегистрируйся или войди, чтобы записать выступление и получить разбор.${state.inviteRequired ? " Для регистрации нужен код приглашения от организатора." : ""}`}</p>
-        <div class="landing-hero-actions" data-enter>${startLink("Начать с минуты речи", "primary landing-cta")}</div>
+        <div class="landing-hero-actions" data-enter>${startLink("Начать тренировку", "primary landing-cta")}</div>
       </div>
     </section>
     <section class="landing-contexts landing-light" id="landing-contexts" aria-labelledby="contexts-title">
@@ -134,11 +157,11 @@ function landing() {
           ["free", "Свободная речь", "Тема, которую хочется обсудить"],
         ].map(([key, title, copy], index) => `<button class="landing-context-card" type="button" data-action="landing-context" data-context="${key}" aria-pressed="${index === 0}" aria-controls="landing-context-panel"><span class="landing-context-mark" aria-hidden="true">${landingContextIcon(key)}</span><strong>${title}</strong><span>${copy}</span><span class="context-selected" aria-hidden="true">Выбрано</span></button>`).join("")}
       </div>
-      <div class="landing-context-panel" id="landing-context-panel"><div class="landing-context-copy" id="landing-context-copy" aria-live="polite">${["speech", "defense", "free"].map((key) => `<div data-context-copy="${key}" aria-hidden="${key !== "speech"}">${landingContextCopy(key)}</div>`).join("")}</div>${startLink("Начать с минуты речи", "secondary")}</div>
+      <div class="landing-context-panel" id="landing-context-panel"><div class="landing-context-copy" id="landing-context-copy" aria-live="polite">${["speech", "defense", "free"].map((key) => `<div data-context-copy="${key}" aria-hidden="${key !== "speech"}">${landingContextCopy(key)}</div>`).join("")}</div>${startLink("Начать тренировку", "secondary")}</div>
     </section>
     <section class="landing-meeting landing-light" aria-labelledby="meeting-title">
       <figure class="landing-meeting-visual" data-reveal><div class="landing-meeting-frame"><div class="landing-meeting-caption"><span>Пространство для репетиции</span><span>Твоё выступление</span></div><img src="/audience-meeting-v1.png" width="1536" height="1024" alt="Иллюстрация виртуальной аудитории в переговорной" loading="lazy"><div class="landing-meeting-tools" aria-hidden="true">${deviceIcon("mic")}${deviceIcon("camera")}</div></div></figure>
-      <div class="landing-feature-copy" data-reveal><p class="landing-kicker">Знакомая обстановка</p><h2 id="meeting-title">Говори так, как будешь говорить на встрече</h2><p>Микрофон, камера по желанию и слушатели перед тобой. После выступления вопросы появляются в чате этой же встречи.</p><ul class="landing-feature-list"><li><strong>Запись сохраняется</strong><span>После завершения выступления можно вернуться к своей попытке.</span></li><li><strong>Вопросы по твоим словам</strong><span>Их основа — подтверждённая расшифровка сохранённой речи.</span></li><li><strong>Один фокус для повторения</strong><span>В разборе выбираешь рекомендацию для следующей тренировки.</span></li></ul></div>
+      <div class="landing-feature-copy" data-reveal><p class="landing-kicker">Знакомая обстановка</p><h2 id="meeting-title">Говори так, как будешь говорить на встрече</h2><p>Микрофон, камера по желанию и слушатели перед тобой. После выступления вопросы появляются в чате этой же встречи.</p><ul class="landing-feature-list"><li><strong>Запись сохраняется</strong><span>После завершения выступления можно вернуться к своей попытке.</span></li><li><strong>Вопросы по твоим словам</strong><span>Вопросы относятся к тому, что ты рассказал.</span></li><li><strong>Один фокус для повторения</strong><span>В разборе выбираешь рекомендацию для следующей тренировки.</span></li></ul></div>
     </section>
     <section class="landing-method" aria-labelledby="method-title">
       <div class="landing-section-heading" data-reveal><p class="landing-kicker">Путь тренировки</p><h2 id="method-title">От первой минуты к следующей попытке</h2></div>
@@ -154,10 +177,10 @@ function landing() {
       <div class="landing-faq-list" data-reveal>
         <details><summary>До выступления мало времени. С чего начать?</summary><div><p>Начни с короткой репетиции любого фрагмента своего выступления. После вопросов и разбора выбери одну рекомендацию для следующей попытки — например, уточнить вывод. Так у тебя будет понятная задача для оставшегося времени вместо попытки переделать всё выступление сразу.</p></div></details>
         <details><summary>Я знаю тему, но говорю сумбурно. Как это исправить?</summary><div><p>Запиши объяснение своими словами. При желании укажи, на что обратить внимание в разборе. Разбор даст замечания по содержанию и рекомендации с фрагментами твоей речи. Их можно использовать, чтобы перестроить объяснение, добавить недостающий пример и попробовать рассказать ещё раз.</p></div></details>
-        <details><summary>Боюсь растеряться на вопросах. Как их отрепетировать?</summary><div><p>После выступления нейросеть задаст три вопроса по тому, что ты рассказал. Ты сможешь проговорить ответы и получить разбор вместе с основной речью. Это возможность заранее потренироваться объяснять свою мысль и подкреплять её аргументами. Вопросы реальной аудитории могут отличаться.</p></div></details>
+        <details><summary>Боюсь растеряться на вопросах. Как их отрепетировать?</summary><div><p>После выступления появятся три вопроса по тому, что ты рассказал. Ты сможешь проговорить ответы и получить разбор вместе с основной речью. Это возможность заранее потренироваться объяснять свою мысль и подкреплять её аргументами. Вопросы реальной аудитории могут отличаться.</p></div></details>
         <details><summary>Что я пойму о своей речи после первой попытки?</summary><div><p>Увидишь, что в объяснении уже получается и что стоит изменить в следующей попытке. Например, рекомендация может касаться общего аргумента, которому не хватает примера. Замечания сопровождаются фрагментами твоей речи, поэтому их можно сопоставить с записью и решить, что именно доработать.</p></div></details>
         <details><summary>Чем это полезнее репетиции перед зеркалом?</summary><div><p>Перед зеркалом можно проговорить текст и посмотреть на себя. Здесь ты ещё получишь вопросы по своей речи и рекомендации по её содержанию. Это дополнительная обратная связь для проверки объяснения, когда ты уже привык к собственному тексту и не знаешь, что в нём изменить.</p></div></details>
-        <details><summary>Я стесняюсь выступать. Здесь меня кто-то слушает?</summary><div><p>К тренировке не подключаются живые слушатели: перед тобой виртуальная аудитория, а вопросы задаёт нейросеть. Можно начать только с микрофоном и включить камеру по желанию. Ты можешь пробовать разные формулировки до того, как произнесёшь их на защите или встрече.</p></div></details>
+        <details><summary>Я стесняюсь выступать. Здесь меня кто-то слушает?</summary><div><p>К тренировке не подключаются живые слушатели: перед тобой виртуальная аудитория. Вопросы и разбор создаются автоматически. Можно начать только с микрофоном и включить камеру по желанию. Ты можешь пробовать разные формулировки до того, как произнесёшь их на защите или встрече.</p></div></details>
         <details><summary>Как понять, что следующая попытка стала лучше?</summary><div><p>Выбери одну рекомендацию и проверь конкретное изменение. Если решишь добавить пример, сравни, легче ли теперь понять твой аргумент. Если уточнишь вывод, проверь, ясно ли, какую мысль должен запомнить слушатель. Записи и разборы сохраняются в истории, чтобы ты мог вернуться к предыдущей попытке.</p></div></details>
       </div>
     </section>
@@ -183,7 +206,7 @@ function authScreen(mode) {
   const register = mode === "register",
     reset = mode === "reset";
   frame(
-    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : state.guest?.blob && !reset ? "Получи разбор своего выступления" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? (state.guest?.blob ? "Твоя запись уже готова. После регистрации перенесём её в аккаунт и подготовим разбор. Повторять выступление не нужно." : "После регистрации начни с короткого упражнения: запиши минуту речи и получи первый разбор.") : state.guest?.blob ? "Войди, чтобы получить разбор уже записанного выступления. Запись перейдёт в твой аккаунт." : state.authReturn ? "После входа вернёмся к незавершённой тренировке. Сохранённые записи повторять не нужно." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Регистрация" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Регистрация" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Регистрация</a> · <a href="#/reset">Восстановить доступ</a>'}</p></section></div>`,
+    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : state.guest?.blob && !reset ? "Получи разбор своего выступления" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? (state.guest?.blob ? "Твоя запись уже готова. После регистрации перенесём её в аккаунт и подготовим разбор. Повторять выступление не нужно." : "После регистрации выбери тему и время выступления, запиши речь и получи разбор.") : state.guest?.blob ? "Войди, чтобы получить разбор уже записанного выступления. Запись перейдёт в твой аккаунт." : state.authReturn ? "После входа вернёмся к незавершённой тренировке. Сохранённые записи повторять не нужно." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Регистрация" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Регистрация" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Регистрация</a> · <a href="#/reset">Восстановить доступ</a>'}</p></section></div>`,
   );
 }
 async function persistGuest() {
@@ -347,7 +370,7 @@ function sessionExpired() {
   clearTimeout(state.poll);
   if (state.recording) {
     notify(
-      "Сессия завершилась. Закончи запись — сохраним её в браузере и предложим войти.",
+      "Нужно войти снова. Закончи запись — она останется доступна после входа.",
     );
     return;
   }
@@ -365,7 +388,7 @@ function guestResult(message = "") {
   state.guestNotice = message;
   if (p.config.questions) return meetingPage(p, true);
   frame(
-    `<div class="page-heading"><p class="eyebrow">Твоя первая попытка</p><h1>Запись готова к разбору</h1><p class="page-description">${state.user ? "Перенесём выступление в твой аккаунт и подготовим разбор нейросети." : "Создай аккаунт, чтобы получить полный разбор этого выступления. Запись уже готова, повторять её не нужно."}</p></div><div class="guest-result-layout"><section class="guest-recording"><p class="eyebrow">Тема выступления</p><h2>${heading(p.config.topic || "Твоя речь")}</h2><p class="caption">Записано ${time(Math.round(p.durationSeconds || 0))}</p>${playback(p.segments[0].media_url, p.blob.type.startsWith("video/"))}<a class="quiet-link" href="${escape(p.segments[0].media_url)}" download="моя-запись">Скачать копию записи</a><p class="field-hint">${state.guestPersisted ? "Запись сохранена в этом браузере. В течение суток можно продолжить даже после обновления страницы." : "Браузер не разрешил сохранить черновик. Не обновляй и не закрывай вкладку до получения разбора."}</p></section><section class="guest-unlock"><h2>Что будет в полном разборе</h2><ul><li>Главная мысль и структура выступления</li><li>Что уже получается — с цитатами из твоей речи</li><li>Конкретная рекомендация для повторной попытки</li></ul><p>${p.config.questions ? "После входа в чате появятся три вопроса по выступлению. Запиши ответы, чтобы получить полный разбор речи и ответов." : "Разбор опирается на расшифровку твоей записи."} Затем можно повторить тренировку с выбранным фокусом.</p>${message ? errorBox(message) : ""}<div class="actions">${button(state.user ? "Получить разбор" : "Регистрация", "guest-analyze")}${!state.user ? '<a class="quiet-link" href="#/login">Уже есть аккаунт? Войти</a>' : ""}${button("Записать заново", "guest-again", "secondary")}</div></section></div>`,
+    `<div class="page-heading"><p class="eyebrow">Твоя первая попытка</p><h1>Запись готова к разбору</h1><p class="page-description">${state.user ? "Перенесём выступление в твой аккаунт и подготовим разбор." : "Создай аккаунт, чтобы получить полный разбор этого выступления. Запись уже готова, повторять её не нужно."}</p></div><div class="guest-result-layout"><section class="guest-recording"><p class="eyebrow">Тема выступления</p><h2>${heading(p.config.topic || "Твоя речь")}</h2><p class="caption">Записано ${time(Math.round(p.durationSeconds || 0))}</p>${playback(p.segments[0].media_url, p.blob.type.startsWith("video/"))}<a class="quiet-link" href="${escape(p.segments[0].media_url)}" download="моя-запись">Скачать копию записи</a><p class="field-hint">${state.guestPersisted ? "Запись сохранена. В течение суток можно вернуться и продолжить тренировку." : "Не удалось сохранить запись. Не закрывай страницу до завершения тренировки."}</p></section><section class="guest-unlock"><h2>Что будет в полном разборе</h2><ul><li>Главная мысль и структура выступления</li><li>Что уже получается — с цитатами из твоей речи</li><li>Конкретная рекомендация для повторной попытки</li></ul><p>${p.config.questions ? "После входа в чате появятся три вопроса по выступлению. Запиши ответы, чтобы получить полный разбор речи и ответов." : "Разбор опирается на твою речь."} Затем можно повторить тренировку с выбранным фокусом.</p>${message ? errorBox(message) : ""}<div class="actions">${button(state.user ? "Получить разбор" : "Регистрация", "guest-analyze")}${!state.user ? '<a class="quiet-link" href="#/login">Уже есть аккаунт? Войти</a>' : ""}${button("Записать заново", "guest-again", "secondary")}</div></section></div>`,
   );
 }
 async function importGuest() {
@@ -373,7 +396,7 @@ async function importGuest() {
   if (!draft?.blob || state.uploading) return;
   state.uploading = true;
   frame(
-    '<div class="processing"><p class="eyebrow">Продолжаем твою тренировку</p><h1>Сохраняем выступление в аккаунт</h1><p role="status">Запись уже готова. Не закрывай страницу во время загрузки.</p></div>',
+    '<div class="processing"><p class="eyebrow">Продолжаем твою тренировку</p><h1>Сохраняем выступление в аккаунт</h1><p role="status">Запись уже готова. Дождись сохранения записи.</p></div>',
   );
   try {
     let p = await api.createPractice({
@@ -424,7 +447,7 @@ async function importGuest() {
       )
     )
       throw new Error(
-        "В тренировке уже есть другая запись. Скачай исходный черновик перед продолжением.",
+        "В тренировке уже есть другая запись. Скачай исходную запись перед продолжением.",
       );
     await clearRecordingDraft({ ...draft, practiceId: p.id, index: 0 }).catch(
       () => {},
@@ -442,7 +465,7 @@ async function importGuest() {
     else await continueAfterSave(p);
   } catch (error) {
     guestResult(
-      `Аккаунт готов, но продолжить пока не удалось. ${errorText(error)} Исходная запись остаётся в браузере. Попробуй продолжить тренировку ещё раз.`,
+      `Аккаунт готов, но продолжить пока не удалось. ${errorText(error)} Исходная запись не потерялась. Попробуй продолжить тренировку ещё раз.`,
     );
   } finally {
     state.uploading = false;
@@ -456,7 +479,7 @@ function savedTopic() {
   }
 }
 function setupForm(guest) {
-  return `<form id="setup-form" data-guest="${guest}" class="setup-form"><h2>${guest ? "Твоя пробная запись" : "Настроить тренировку"}</h2><fieldset><legend>Сценарий</legend><div class="scenario-options"><label><input type="radio" name="scenario" value="speech" checked><span><strong>Выступление</strong><small>Речь для аудитории</small></span></label><label><input type="radio" name="scenario" value="defense"><span><strong>Защита проекта</strong><small>Идея и аргументы</small></span></label><label><input type="radio" name="scenario" value="free"><span><strong>Свободная речь</strong><small>Тема на твой выбор</small></span></label></div></fieldset><label><span class="label-title">Тема выступления <span class="optional">необязательно</span></span><input name="topic" maxlength="300" placeholder="Название для истории тренировок" value="${escape(savedTopic())}"></label><label>Продолжительность<select name="duration"><option value="1">1 минута</option><option value="3">3 минуты</option><option value="5" selected>5 минут</option><option value="10">10 минут</option></select></label><div class="field-group"><label class="check"><input type="checkbox" name="questions" checked aria-describedby="questions-hint"><span>После выступления ответить на три вопроса аудитории</span></label><p class="field-hint" id="questions-hint">До 10 минут аудио на тренировку. С вопросами: выступление до 7 минут и три ответа до минуты каждый.</p></div><label><span class="label-title">На что обратить внимание <span class="optional">необязательно</span></span><textarea name="criteria" maxlength="2000" rows="3" placeholder="Например, понятны ли аргументы и вывод"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button primary">Перейти к записи</button></form>`;
+  return `<form id="setup-form" data-guest="${guest}" class="setup-form"><h2>Новая тренировка</h2><div class="field-group"><label><span class="label-title">Тема выступления <span class="optional">необязательно</span></span><input name="topic" maxlength="300" placeholder="О чём будешь говорить?" value="${escape(savedTopic())}" aria-describedby="topic-hint"></label><p class="field-hint" id="topic-hint">Тема поможет учесть замысел твоего выступления в разборе.</p></div><div class="field-group"><label>Время выступления, минут<input type="number" name="duration" min="0.5" max="10" step="any" value="3" inputmode="decimal" required aria-describedby="duration-hint"></label><p class="field-hint" id="duration-hint">От 30 секунд до 10 минут. Можно закончить раньше.</p></div><details class="custom-setup"><summary>Дополнительные настройки</summary><div class="practice-options"><fieldset><legend>Сценарий</legend><div class="scenario-options"><label><input type="radio" name="scenario" value="speech" checked><span><strong>Выступление</strong><small>Речь для аудитории</small></span></label><label><input type="radio" name="scenario" value="defense"><span><strong>Защита проекта</strong><small>Идея и аргументы</small></span></label><label><input type="radio" name="scenario" value="free"><span><strong>Свободная речь</strong><small>Тема на твой выбор</small></span></label></div></fieldset><div class="field-group"><label class="check"><input type="checkbox" name="questions" checked aria-describedby="questions-hint"><span>Ответить на вопросы после выступления</span></label><p class="field-hint" id="questions-hint">Три вопроса, до минуты на каждый ответ. Это время не входит в выступление.</p></div><label><span class="label-title">На что обратить внимание <span class="optional">необязательно</span></span><textarea name="criteria" maxlength="2000" rows="3" placeholder="Например, понятны ли аргументы и вывод"></textarea></label></div></details><div class="form-error" role="alert"></div><button type="submit" class="button primary">Перейти к записи</button></form>`;
 }
 async function setup(guest = false) {
   const version = state.routeVersion;
@@ -481,7 +504,7 @@ async function setup(guest = false) {
           .slice(0, 3)
           .map(
             (p) =>
-              `<article class="history-item"><div><h3>${heading(p.config.topic || "Тренировка")}</h3><p class="caption">${drafts.some((d) => d.practiceId === p.id) ? "В браузере есть запись для сохранения" : p.status === "processing" ? "Обработка продолжается" : p.status === "failed" ? "Запись сохранена. Обработку можно повторить" : "Можно вернуться к следующему этапу"}</p></div><a class="button secondary" href="#/practice/${encodeURIComponent(p.id)}">Продолжить</a></article>`,
+              `<article class="history-item"><div><h3>${heading(p.config.topic || "Тренировка")}</h3><p class="caption">${drafts.some((d) => d.practiceId === p.id) ? "Есть запись, которую нужно сохранить" : p.status === "processing" ? "Готовим разбор" : p.status === "failed" ? "Запись сохранена. Попробуй получить разбор ещё раз" : "Можно вернуться к следующему этапу"}</p></div><a class="button secondary" href="#/practice/${encodeURIComponent(p.id)}">Продолжить</a></article>`,
           )
           .join(
             "",
@@ -491,9 +514,8 @@ async function setup(guest = false) {
       continuation = `<div class="notice">Не удалось проверить незавершённые тренировки. <a href="#/history">Открыть историю</a></div>`;
     }
   }
-  const first = guest || !state.user.onboarding_completed;
   frame(
-    `<div class="page-heading"><p class="eyebrow">${guest ? "Тренировка без регистрации" : first ? "Первая тренировка" : "Рабочее пространство"}</p><h1>${first ? "Начни с короткого выступления" : "Что будем репетировать?"}</h1>${first ? '<p class="page-description">Запиши речь на любую тему, ответь на вопросы в чате и получи разбор по сказанному.</p>' : ""}</div>${guest ? `<div class="notice">${state.user ? "Сначала запиши выступление. Затем перенесём запись в твой аккаунт и продолжим тренировку с вопросами и разбором." : "Сначала запиши выступление. После записи создай аккаунт, чтобы получить полный разбор этой попытки. Записывать заново не понадобится."}</div>` : !state.providerReady ? '<div class="notice">Сервис нейросети ещё не настроен. Можно сохранить запись; разбор станет доступен после подключения сервиса.</div>' : ""}${continuation}<div class="setup-layout">${first ? `<aside class="starter"><span class="tag">Речь до 1 минуты</span><h2>Запиши свою речь</h2><p>Тему и содержание выбираешь ты. Разбор будет опираться на то, что ты скажешь.</p>${button("Записать первую минуту", guest ? "guest-starter" : "starter")}<p class="caption">После речи в чате появятся три вопроса. Запиши ответы, чтобы получить полный разбор.</p></aside><section class="first-guide"><h2>Как пройти первую тренировку</h2><ol><li><strong>Запиши речь</strong><p>Говори на свою тему. Можно закончить раньше минуты.</p></li><li><strong>Ответь на вопросы и получи разбор</strong><p>${guest ? "После записи создай аккаунт. Сохраним выступление, зададим три вопроса по его содержанию и разберём речь вместе с ответами." : "После сохранения выступления в чате появятся три вопроса. Запиши ответы, и нейросеть подготовит разбор."}</p></li><li><strong>Повтори с одной рекомендацией</strong><p>Выбери в разборе, что хочешь улучшить. Тема и выбранный фокус перейдут в новую попытку.</p></li></ol><details class="custom-setup"><summary>Настроить свою тренировку</summary>${setupForm(guest)}</details></section>` : `<aside class="starter"><p class="eyebrow">Один фокус на попытку</p><h2>Отрепетируй свою речь</h2><p>${guest ? "Запиши выступление на свою тему и прослушай его." : "Запиши выступление и получи обратную связь по своей речи. После разбора можно выбрать рекомендацию для следующей попытки."}</p></aside>${setupForm(guest)}`}</div>`,
+    `<div class="page-heading"><p class="eyebrow">${guest || !state.user.onboarding_completed ? "Первая тренировка" : "Твоя тренировка"}</p><h1>Подготовь выступление</h1><p class="page-description">Выбери тему и время, запиши речь и получи разбор по сказанному.</p></div>${!state.providerReady ? '<div class="notice">Разбор пока недоступен. Ты можешь записать выступление и вернуться к нему позже.</div>' : ""}${continuation}<div class="setup-layout practice-setup-layout">${setupForm(guest)}<section class="first-guide"><h2>Как проходит тренировка</h2><ol><li><strong>Выступи</strong><p>Говори на свою тему. Запись завершится в выбранное время; можно закончить раньше.</p></li><li><strong>Ответь на вопросы</strong><p>Вопросы появятся по одному, а ответы сохранятся автоматически.</p></li><li><strong>Посмотри разбор</strong><p>Узнай, что уже получается и что можно попробовать в следующей попытке. Здесь же можно прослушать и скачать записи.</p></li></ol></section></div>`,
   );
 }
 function practiceProgress(p, stage) {
@@ -527,18 +549,18 @@ function repeatPanel(p) {
   const recommendations = repeatChoices(p.report);
   if (!recommendations.length) return "";
   const chosen = recommendations.findIndex((item) => item.recommendationIndex === (p.report.recommendations || []).indexOf(primaryRecommendation(p.report)));
-  return `<details class="next-attempt"><summary>Выбрать фокус повторной попытки</summary><p>Выбери одну рекомендацию. Тема, настройки и твои критерии сохранятся; выбранный фокус добавим отдельно.</p><fieldset><legend>Фокус следующей попытки</legend><div class="focus-options">${recommendations.map((item, index) => `<label class="focus-option"><input type="radio" name="repeat-focus" value="${index}"${index === chosen ? " checked" : ""}><span><strong>${heading(item.title)}</strong><span class="focus-description">${escape(item.text)}</span></span></label>`).join("")}</div></fieldset><div class="actions">${button("Повторить с выбранным фокусом", "repeat-selected", "secondary")}</div></details>`;
+  return `<details class="next-attempt"><summary>Выбрать фокус повторной попытки</summary><p>Выбери рекомендацию, которую хочешь попробовать в следующем выступлении.</p><fieldset><legend>Фокус следующей попытки</legend><div class="focus-options">${recommendations.map((item, index) => `<label class="focus-option"><input type="radio" name="repeat-focus" value="${index}"${index === chosen ? " checked" : ""}><span><strong>${heading(item.title)}</strong><span class="focus-description">${escape(item.text)}</span></span></label>`).join("")}</div></fieldset><div class="actions">${button("Повторить с выбранным фокусом", "repeat-selected", "secondary")}</div></details>`;
 }
 async function history(offset = 0) {
   frame(
-    '<p class="eyebrow">Твои тренировки</p><h1>История</h1><div class="loading" role="status">Загружаем записи…</div>',
+    '<p class="eyebrow">Твои тренировки</p><h1>История</h1><div class="loading" role="status">Открываем историю…</div>',
   );
   const version = state.routeVersion;
   try {
     const data = await api.practices(offset);
     if (version !== state.routeVersion) return;
     frame(
-      `<div class="page-heading row"><div><p class="eyebrow">Твои тренировки</p><h1>История</h1></div><a class="button primary" href="#/app">Новая тренировка</a></div>${data.items.length ? `<div class="history-list">${data.items.map((p) => `<article class="history-item"><div><p class="caption">${escape(date(p.created_at))}</p><h2><a href="#/practice/${encodeURIComponent(p.id)}">${heading(p.config?.topic || "Тренировка")}</a></h2><span class="tag ${p.status === "ready" ? "green" : ""}">${{ draft: "Запись и подготовка", processing: "Обрабатывается", ready: "Разбор готов", failed: "Нужна повторная обработка" }[p.status] || escape(p.status)}</span></div><div class="actions"><a class="button secondary" href="#/practice/${encodeURIComponent(p.id)}">${p.status === "ready" ? "Посмотреть разбор" : "Продолжить"}</a>${button("Удалить", "delete", "text", `data-id="${escape(p.id)}"`)}</div></article>`).join("")}</div>${`<div class="actions">${offset > 0 ? button("Предыдущие", "history-page", "secondary", `data-offset="${Math.max(0, offset - 30)}"`) : ""}${offset + data.items.length < data.total ? button("Следующие", "history-page", "secondary", `data-offset="${offset + 30}"`) : ""}</div>`}` : `<div class="empty"><h2>Здесь появится твоя первая попытка</h2><p>Запиши выступление. Сохранённая запись и разбор останутся в истории.</p><a class="button primary" href="#/app">Начать тренировку</a></div>`}`,
+      `<div class="page-heading row"><div><p class="eyebrow">Твои тренировки</p><h1>История</h1></div><a class="button primary" href="#/app">Новая тренировка</a></div>${data.items.length ? `<div class="history-list">${data.items.map((p) => `<article class="history-item"><div><p class="caption">${escape(date(p.created_at))}</p><h2><a href="#/practice/${encodeURIComponent(p.id)}">${heading(p.config?.topic || "Тренировка")}</a></h2><span class="tag ${p.status === "ready" ? "green" : ""}">${{ draft: "Запись и подготовка", processing: "Готовим разбор", ready: "Разбор готов", failed: "Попробуй получить разбор ещё раз" }[p.status] || escape(p.status)}</span></div><div class="actions"><a class="button secondary" href="#/practice/${encodeURIComponent(p.id)}">${p.status === "ready" ? "Посмотреть разбор" : "Продолжить"}</a>${button("Удалить", "delete", "text", `data-id="${escape(p.id)}"`)}</div></article>`).join("")}</div>${`<div class="actions">${offset > 0 ? button("Предыдущие", "history-page", "secondary", `data-offset="${Math.max(0, offset - 30)}"`) : ""}${offset + data.items.length < data.total ? button("Следующие", "history-page", "secondary", `data-offset="${offset + 30}"`) : ""}</div>`}` : `<div class="empty"><h2>Здесь появится твоя первая попытка</h2><p>Запиши выступление. Сохранённая запись и разбор останутся в истории.</p><a class="button primary" href="#/app">Начать тренировку</a></div>`}`,
     );
   } catch (error) {
     if (version === state.routeVersion)
@@ -564,7 +586,7 @@ function findingMarkup(item, actionFirst = false) {
   return `${actionFirst ? action : ""}${observation ? `<p>${escape(observation)}</p>` : ""}${explanation ? `<p>${escape(explanation)}</p>` : ""}${evidenceMarkup(item)}${actionFirst ? "" : action}${item.example ? `<div class="report-example"><strong>Возможная формулировка</strong><p>${escape(item.example)}</p></div>` : ""}`;
 }
 function criterionStatus(status, basis) {
-  return { met: "Есть в записи", partial: "Частично", not_met: basis === "present" ? "Есть несоответствие критерию" : "Не найдено в расшифровке", unknown: "По этой записи нельзя оценить" }[status] || "По этой записи нельзя оценить";
+  return { met: "Есть в записи", partial: "Частично", not_met: basis === "present" ? "Есть несоответствие критерию" : "Не найдено в тексте речи", unknown: "По этой записи нельзя оценить" }[status] || "По этой записи нельзя оценить";
 }
 function transcriptMarkup(report) {
   if (report.transcript_segments?.length)
@@ -580,8 +602,30 @@ function reportMarkup(report) {
   const observations = [...(report.strengths || []).map((item) => reportItem(item, "strength")), ...(report.recommendations || []).filter((item) => item !== primary).map((item) => reportItem(item, "recommendation"))].join("");
   return `<section class="report-insight">${main}<div class="actions">${button(primary ? "Записать повторную попытку" : "Записать ещё одну попытку", "repeat")}</div></section>${observations ? `<section class="report-observations"><h2>Наблюдения по твоей речи</h2>${observations}</section>` : ""}${report.criteria?.length ? `<section class="report-section"><h2>Твои критерии</h2>${report.criteria.map((c) => `<article class="criterion"><h3>${heading(c.criterion)}</h3><p class="criterion-status">${criterionStatus(c.status, c.basis)}</p>${c.reason || c.text ? `<p>${escape(c.reason || c.text)}</p>` : ""}${evidenceMarkup(c)}</article>`).join("")}</section>` : ""}`;
 }
+function readableReport(report) {
+  // Translate application-owned labels from saved reports; speech and findings
+  // retain their original words, including technical topics chosen by the user.
+  const labels = {
+    "Объём расшифровки": "Слова в тексте речи",
+    "Распознанный текст": "Текст речи",
+    "По распознанному тексту": "Текст речи",
+    "Речь и ответы без ожидания обработки": "Время выступления и ответов",
+    "Слова / длительность записи; включает молчание": "С учётом времени молчания",
+    "Расшифровка может содержать ошибки.": "Текст речи может отличаться от записи.",
+    "По текстовой расшифровке нельзя оценить этот критерий.": "Этот критерий нельзя оценить по содержанию речи.",
+    "В доступной расшифровке нет достаточного основания: возможен пропуск при распознавании.": "В тексте речи могут быть неточности. Для этого вывода недостаточно основания.",
+  };
+  return {
+    ...report,
+    metrics: (report.metrics || []).map((m) => ({
+      ...m, title: labels[m.title] || m.title, label: labels[m.label] || m.label,
+    })),
+    limitations: (report.limitations || []).map((l) => labels[l] || l),
+    criteria: (report.criteria || []).map((c) => ({ ...c, reason: labels[c.reason] || c.reason })),
+  };
+}
 function reportText(p) {
-  const report = p.report;
+  const report = readableReport(p.report);
   const primary = primaryRecommendation(report);
   const sections = ["Сцена без страха", p.config.topic || "Твоя тренировка", date(p.created_at)];
   const findingLines = (item) => [item.title, item.observation || item.text || "", item.evidence ? `${evidenceOrigin(item)}: «${item.evidence}»` : "", item.action ? `Что попробовать: ${item.action}` : "", item.example ? `Возможная формулировка: ${item.example}` : ""];
@@ -601,7 +645,7 @@ function reportText(p) {
     sections.push("", "О записи");
     for (const item of report.metrics) sections.push(item.label || "", item.title, item.text);
   }
-  sections.push("", "Как читать разбор", "Разбор относится к тексту расшифровки. Голос, жесты и эмоции здесь не оцениваются.", ...(report.limitations || []), "", "Расшифровка");
+  sections.push("", "Как читать разбор", "Разбор помогает оценить содержание речи. Голос, жесты и эмоции здесь не оцениваются.", ...(report.limitations || []), "", "Текст речи");
   if (report.transcript_segments?.length) {
     for (const segment of report.transcript_segments) sections.push(segment.kind === "speech" ? "Выступление" : `Ответ на вопрос ${segment.index}`, segment.question ? `Вопрос: ${segment.question}` : "", segment.text);
   } else sections.push(report.transcript || "");
@@ -620,8 +664,8 @@ function reportItem(item, cls) {
 }
 function reportPage(p) {
   if (!state.user) { go("/login"); return; }
-  const report = p.report;
-  frame(`<div class="report-reading">${practiceProgress(p, "report")}<div class="page-heading"><p class="eyebrow">Разбор · ${escape(date(p.created_at))}</p><h1>${heading(p.config.topic || "Твоя тренировка")}</h1></div><p class="page-description">Обратная связь по расшифровке твоей речи и сохранённых ответов.</p>${reportMarkup(report)}${repeatPanel(p)}<details class="report-detail transcript"><summary>Расшифровка и записи</summary>${transcriptMarkup(report)}<h3>Твои записи</h3>${mediaMarkup(p)}</details><details class="report-detail"><summary>О записи и границах разбора</summary>${report.metrics?.length ? `<div class="report-metrics">${report.metrics.map((m) => `<article><span class="eyebrow">${escape(m.label)}</span><h3>${heading(m.title)}</h3><p>${escape(m.text)}</p></article>`).join("")}</div>` : ""}<p>Разбор относится к тексту расшифровки. Голос, жесты и эмоции здесь не оцениваются.</p>${report.limitations?.length ? `<ul>${report.limitations.map((l) => `<li>${escape(l)}</li>`).join("")}</ul>` : ""}</details><div class="actions report-actions">${button("Скачать разбор", "download-report", "secondary")}${button("Выбрать другую тему", "new-topic", "text")}</div><details class="report-detail"><summary>Оставить отзыв о разборе</summary><form id="feedback-form" class="feedback-form"><h2>Был ли разбор полезен?</h2><fieldset><legend>Оценка от 1 до 5</legend><div class="ratings">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join("")}</div></fieldset><label><span class="label-title">Что стоит улучшить? <span class="optional">необязательно</span></span><textarea name="text" rows="3" maxlength="2000"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button secondary">Отправить отзыв</button></form></details></div>`);
+  const report = readableReport(p.report);
+  frame(`<div class="report-reading">${practiceProgress(p, "report")}<div class="page-heading"><p class="eyebrow">Разбор · ${escape(date(p.created_at))}</p><h1>${heading(p.config.topic || "Твоя тренировка")}</h1></div><p class="page-description">Обратная связь по твоему выступлению и ответам на вопросы.</p>${reportMarkup(report)}${repeatPanel(p)}<details class="report-detail transcript"><summary>Текст речи и записи</summary>${transcriptMarkup(report)}<h3>Твои записи</h3>${mediaMarkup(p)}</details><details class="report-detail"><summary>Как читать разбор</summary>${report.metrics?.length ? `<div class="report-metrics">${report.metrics.map((m) => `<article><span class="eyebrow">${escape(m.label)}</span><h3>${heading(m.title)}</h3><p>${escape(m.text)}</p></article>`).join("")}</div>` : ""}<p>Разбор помогает оценить содержание речи. Голос, жесты и эмоции здесь не оцениваются.</p>${report.limitations?.length ? `<ul>${report.limitations.map((l) => `<li>${escape(l)}</li>`).join("")}</ul>` : ""}</details><div class="actions report-actions">${button("Скачать разбор", "download-report", "secondary")}${button("Выбрать другую тему", "new-topic", "text")}</div><details class="report-detail"><summary>Оставить отзыв о разборе</summary><form id="feedback-form" class="feedback-form"><h2>Был ли разбор полезен?</h2><fieldset><legend>Оценка от 1 до 5</legend><div class="ratings">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join("")}</div></fieldset><label><span class="label-title">Что стоит улучшить? <span class="optional">необязательно</span></span><textarea name="text" rows="3" maxlength="2000"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button secondary">Отправить отзыв</button></form></details></div>`);
 }
 function playback(url, video = false) {
   const tag = video ? "video" : "audio";
@@ -650,7 +694,7 @@ function nextSegment(p) {
 function recordingLimit(p, segment) {
   const remaining = Math.max(
     0,
-    600 -
+    780 -
       (p.segments || []).reduce(
         (sum, s) => sum + Number(s.duration_seconds || 0),
         0,
@@ -658,7 +702,7 @@ function recordingLimit(p, segment) {
   );
   return segment.kind === "answer"
     ? Math.min(60, Math.floor(remaining))
-    : Math.min(Number(p.config.duration) * 60, p.config.questions ? 420 : 600);
+    : Math.min(Number(p.config.duration) * 60, 600);
 }
 function deviceIcon(kind) {
   const path =
@@ -693,9 +737,9 @@ function questionChat(p, segment, job) {
     return `<aside class="meeting-chat" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header>${messages ? `<ol class="chat-messages" aria-label="Чат встречи">${messages}</ol>` : ""}<div class="chat-next"><p role="status">${state.uploading ? (pending.kind === "answer" ? "Сохраняем ответ…" : "Сохраняем выступление…") : pending.interrupted ? "Запись прервалась. Восстановили сохранённый фрагмент — прослушай его перед продолжением." : `${savedText}. Осталось сохранить запись.`}</p>${!state.uploading ? `<p>${pendingPersistenceText()}</p>${pending.interrupted ? playback(pending.url, pending.blob.type.startsWith("video/")) : ""}${!state.user && pending.ownerId ? button("Войти и продолжить", "reauth") : `${button(pending.interrupted ? "Сохранить фрагмент и продолжить" : "Повторить сохранение", "save-record")}${button("Перезаписать", "discard-record", "secondary")}`}` : ""}</div></aside>`;
   }
   if (p.id === "guest" && p.blob) {
-    return `<aside class="meeting-chat" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><div class="chat-next"><p role="status">${p.interrupted ? "Запись прервалась. Восстановили сохранённый фрагмент." : `Выступление сохранено${state.guestPersisted ? " в браузере" : " в этой вкладке"}.`}</p>${p.interrupted ? playback(p.segments[0].media_url, p.blob.type.startsWith("video/")) : ""}<p>${state.user ? "Продолжи в своём аккаунте, чтобы получить вопросы и полный разбор." : "Создай аккаунт, чтобы получить вопросы по этой речи и полный разбор. Записывать заново не нужно."}</p>${state.guestNotice ? errorBox(state.guestNotice) : ""}${button(state.user ? "Продолжить тренировку" : "Регистрация", "guest-analyze")}${!state.user ? '<a href="#/login">Уже есть аккаунт? Войти</a>' : ""}${button("Перезаписать", "guest-again", "secondary")}<a href="${escape(p.segments[0].media_url)}" download="моя-запись">Скачать копию записи</a>${!state.guestPersisted ? "<p>Не закрывай и не обновляй вкладку: браузер не разрешил сохранить черновик.</p>" : ""}</div></aside>`;
+    return `<aside class="meeting-chat" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><div class="chat-next"><p role="status">${p.interrupted ? "Запись прервалась. Восстановили сохранённый фрагмент." : `Выступление записано.`}</p>${p.interrupted ? playback(p.segments[0].media_url, p.blob.type.startsWith("video/")) : ""}<p>${state.user ? "Продолжи в своём аккаунте, чтобы получить вопросы и полный разбор." : "Создай аккаунт, чтобы получить вопросы по этой речи и полный разбор. Записывать заново не нужно."}</p>${state.guestNotice ? errorBox(state.guestNotice) : ""}${button(state.user ? "Продолжить тренировку" : "Регистрация", "guest-analyze")}${!state.user ? '<a href="#/login">Уже есть аккаунт? Войти</a>' : ""}${button("Перезаписать", "guest-again", "secondary")}<a href="${escape(p.segments[0].media_url)}" download="моя-запись">Скачать копию записи</a>${!state.guestPersisted ? "<p>Не удалось сохранить запись. Не закрывай страницу до сохранения.</p>" : ""}</div></aside>`;
   }
-  return `<aside class="meeting-chat${arrival ? " chat-arrival" : ""}" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><ol class="chat-messages" role="log" aria-label="Чат встречи" aria-live="polite" aria-relevant="additions">${messages}</ol><div class="chat-next">${job ? `<p id="job-status" role="status">${jobStage(job.stage)}</p><p class="caption">Вопросы появятся здесь, когда будут готовы.</p><div id="poll-error" role="alert"></div>` : !p.questions?.length ? `<p>${state.providerReady ? "Выступление сохранено. Осталось подготовить вопросы." : "Сервис нейросети недоступен. Выступление сохранено."}</p>${failed ? errorBox(p.latest_job?.error?.message || "Не удалось подготовить вопросы. Можно попробовать ещё раз.") : ""}${button("Подготовить вопросы", "questions", "primary", state.providerReady ? "" : "disabled")}` : `<p>Вопрос ${segment?.index || currentIndex} из ${p.questions.length}</p>`}</div></aside>`;
+  return `<aside class="meeting-chat${arrival ? " chat-arrival" : ""}" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><ol class="chat-messages" role="log" aria-label="Чат встречи" aria-live="polite" aria-relevant="additions">${messages}</ol><div class="chat-next">${job ? `<p id="job-status" role="status">${jobStage(job.stage, job.kind)}</p><p class="caption">Вопросы появятся здесь, когда будут готовы.</p><div id="poll-error" role="alert"></div>` : !p.questions?.length ? `<p>${state.providerReady ? "Выступление сохранено. Осталось подготовить вопросы." : "Вопросы пока недоступны. Выступление сохранено."}</p>${failed ? errorBox(errorText(p.latest_job?.error)) : ""}${button("Подготовить вопросы", "questions", "primary", state.providerReady ? "" : "disabled")}` : `<p>Вопрос ${segment?.index || currentIndex} из ${p.questions.length}</p>`}</div></aside>`;
 }
 function meetingPage(p, guest = false, job = null) {
   const pendingRecording = state.pending?.practiceId === p.id;
@@ -759,23 +803,11 @@ function practicePage(p, guest = false) {
     return;
   }
   frame(
-    `${practiceProgress(p, "report")}<section class="empty"><h1>Записи сохранены</h1><p>Всё готово для разбора выступления.</p>${active?.status === "failed" ? errorBox(active.error?.message || "Не удалось подготовить разбор. Попробуй ещё раз.") : ""}${button("Получить разбор", "report", "primary", state.providerReady ? "" : "disabled")}${!state.providerReady ? '<p class="caption">Сервис нейросети ещё не настроен. Записи сохранены в истории.</p>' : ""}</section>`,
+    `${practiceProgress(p, "report")}<section class="empty"><h1>Записи сохранены</h1><p>Всё готово для разбора выступления.</p>${active?.status === "failed" ? errorBox(errorText(active.error)) : ""}${button("Получить разбор", "report", "primary", state.providerReady ? "" : "disabled")}${!state.providerReady ? '<p class="caption">Разбор пока недоступен. Записи сохранены в истории.</p>' : ""}</section>`,
   );
 }
-const stageLabels = {
-  pending: "Ожидаем свободное место",
-  transcribing: "Расшифровываем запись",
-  transcription: "Расшифровываем запись",
-  questions: "Готовим вопросы",
-  analyzing: "Разбираем выступление",
-  analysis: "Разбираем выступление",
-  report: "Составляем разбор",
-  running: "Обрабатываем запись",
-};
-function jobStage(stage) {
-  return stage?.startsWith("transcription_")
-    ? "Расшифровываем запись"
-    : stageLabels[stage] || "Обрабатываем запись";
+function jobStage(_stage, kind = "report") {
+  return kind === "questions" ? "Готовим вопросы по твоей речи" : "Готовим разбор выступления";
 }
 function processingPage(p, job) {
   if (job.kind === "questions") {
@@ -785,7 +817,7 @@ function processingPage(p, job) {
   }
   closeMedia();
   frame(
-    `${practiceProgress(p, job.kind)}<div class="processing"><span class="spinner" aria-hidden="true"></span><p class="eyebrow">Записи сохранены</p><h1>${job.kind === "questions" ? "Готовим вопросы по твоей речи" : "Собираем разбор выступления"}</h1><p id="job-status" role="status">${jobStage(job.stage)}</p><p class="caption">Можно оставить эту страницу или вернуться позже через историю. Обработка продолжится на сервере.</p><a href="#/history" class="button secondary">Открыть историю</a><div id="poll-error" role="alert"></div></div>`,
+    `${practiceProgress(p, job.kind)}<div class="processing"><span class="spinner" aria-hidden="true"></span><p class="eyebrow">Записи сохранены</p><h1>${job.kind === "questions" ? "Готовим вопросы по твоей речи" : "Готовим разбор выступления"}</h1><p id="job-status" role="status">${jobStage(job.stage, job.kind)}</p><p class="caption">Можно закрыть страницу. Готовый разбор появится в истории тренировок.</p><a href="#/history" class="button secondary">Открыть историю</a><div id="poll-error" role="alert"></div></div>`,
   );
   pollJob(p.id, job.id);
 }
@@ -805,7 +837,7 @@ function pollJob(practiceId, jobId) {
         return;
       }
       const status = document.querySelector("#job-status");
-      if (status) status.textContent = jobStage(job.stage);
+      if (status) status.textContent = jobStage(job.stage, job.kind);
       document.querySelector("#poll-error").textContent = "";
       state.poll = setTimeout(tick, 1800);
     } catch (error) {
@@ -837,7 +869,7 @@ async function checkMic() {
   try {
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder)
       throw new Error(
-        "Этот браузер не поддерживает запись. Открой сайт в актуальном Chrome, Safari или Firefox.",
+        "Запись не открылась. Попробуй открыть сайт в Chrome, Safari или Firefox.",
       );
     closeMedia({ keepCamera: true });
     updateMicUI();
@@ -1011,7 +1043,7 @@ async function toggleCamera() {
   updateCameraUI();
   try {
     if (!navigator.mediaDevices?.getUserMedia)
-      throw new Error("Камера недоступна в этом браузере.");
+      throw new Error("Не удалось подключить камеру. Можно продолжить со звуком.");
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
         width: { ideal: 640 },
@@ -1162,7 +1194,7 @@ function startRecording() {
     closeMedia();
     document.querySelector("#record-error").innerHTML =
       errorBox(
-        "Лимит аудио для этой тренировки исчерпан. Можно получить разбор сохранённых записей.",
+        "Время тренировки закончилось. Можно получить разбор сохранённых записей.",
       ) + button("Получить разбор", "report", "secondary");
     return;
   }
@@ -1217,7 +1249,7 @@ function startRecording() {
         ).then((saved) => {
           if (!saved && state.recording)
             document.querySelector("#record-error").innerHTML = errorBox(
-              "Браузер не разрешил сохранить черновик. Не закрывай вкладку до сохранения записи.",
+              "Не удалось сохранить запись. Не закрывай страницу, пока она не сохранится.",
             );
         });
       }
@@ -1334,13 +1366,13 @@ function showPending() {
   if (!pending) return;
   if (pending.missing) {
     frame(
-      `<section class="narrow record-review"><h1>Тренировка больше недоступна</h1><p>Локальная запись сохранилась в браузере. Скачай её перед удалением черновика.</p>${playback(pending.url, pending.blob.type.startsWith("video/"))}<a class="button secondary" href="${escape(pending.url)}" download="моя-запись">Скачать черновик</a>${button("Удалить локальный черновик", "delete-local-draft", "text")}<a href="#/app">К тренировкам</a></section>`,
+      `<section class="narrow record-review"><h1>Тренировка больше недоступна</h1><p>Твоя запись не потерялась. Скачай её, если хочешь сохранить копию.</p>${playback(pending.url, pending.blob.type.startsWith("video/"))}<a class="button secondary" href="${escape(pending.url)}" download="моя-запись">Скачать запись</a>${button("Удалить эту запись", "delete-local-draft", "text")}<a href="#/app">К тренировкам</a></section>`,
     );
     return;
   }
   if (pending.conflict) {
     frame(
-      `<section class="narrow record-review"><h1>На этом этапе уже есть сохранённая запись</h1><p>Локальный черновик отличается от записи на сервере. Его можно прослушать и скачать перед продолжением.</p>${playback(pending.url, pending.blob.type.startsWith("video/"))}<a class="button secondary" href="${escape(pending.url)}" download="моя-запись">Скачать черновик</a>${button("Продолжить с записью на сервере", "use-server-recording")}</section>`,
+      `<section class="narrow record-review"><h1>На этом этапе уже есть сохранённая запись</h1><p>Здесь сохранились две разные записи. Прослушай эту запись и при необходимости скачай её перед продолжением.</p>${playback(pending.url, pending.blob.type.startsWith("video/"))}<a class="button secondary" href="${escape(pending.url)}" download="моя-запись">Скачать запись</a>${button("Продолжить с сохранённой записью", "use-server-recording")}</section>`,
     );
     return;
   }
@@ -1357,8 +1389,8 @@ function discardPending() {
 }
 function pendingPersistenceText() {
   return state.pendingPersisted
-    ? "Запись сохранена в этом браузере на сутки. Можно вернуться и продолжить тренировку."
-    : "Запись остаётся в этой вкладке. Не закрывай её до сохранения на сервере.";
+    ? "Запись сохранена на этом устройстве на сутки. Можно вернуться и продолжить тренировку."
+    : "Запись ещё не сохранена. Не закрывай страницу и повтори сохранение.";
 }
 async function saveRecording() {
   if (!state.pending || state.uploading) return;
@@ -1509,7 +1541,7 @@ async function navigate() {
       );
     if (!state.online) {
       frame(
-        `<h1>Нет связи с сервером</h1>${errorBox("Авторизация и сохранение недоступны. Повтори подключение, чтобы войти в аккаунт.")} ${button("Повторить подключение", "reconnect", "secondary")}`,
+        `<h1>Не удалось подключиться</h1>${errorBox("Вход и сохранение пока недоступны. Попробуй подключиться ещё раз.")} ${button("Повторить подключение", "reconnect", "secondary")}`,
       );
       return;
     }
@@ -1520,7 +1552,7 @@ async function navigate() {
   if (path === "/history") return history();
   const match = path.match(/^\/practice\/([^/]+)$/);
   if (match) {
-    frame('<div class="loading" role="status">Загружаем тренировку…</div>');
+    frame('<div class="loading" role="status">Открываем тренировку…</div>');
     try {
       const p = await api.practice(decodeURIComponent(match[1]));
       if (version !== state.routeVersion) return;
@@ -1785,7 +1817,7 @@ async function action(event) {
       case "use-server-recording": {
         if (
           !confirm(
-            "Удалить локальный черновик и продолжить с записью на сервере?",
+            "Удалить эту запись и продолжить с ранее сохранённой?",
           )
         )
           return;
@@ -1798,7 +1830,7 @@ async function action(event) {
       case "delete-local-draft":
         if (
           !confirm(
-            "Удалить локальный черновик? Сначала скачай запись, если она нужна.",
+            "Удалить эту запись? Сначала скачай её, если хочешь оставить копию.",
           )
         )
           return;

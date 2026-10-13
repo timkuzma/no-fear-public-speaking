@@ -138,7 +138,7 @@ function fixture({
       `
     meetingPage = p => events.push({type:'meeting', id:p.id, uploading:state.uploading});
     frame = content => events.push({type:'frame', content});
-    globalThis.flow = {state, beginMeeting, scheduleAnswer, cancelAnswerCountdown, closeMedia, practicePage, toggleMic, startRecording, stopRecording, saveRecording, questionChat, restorePending, sessionExpired, resumeAfterLogin, navigate, continueAfterSave, showPending, action};
+    globalThis.flow = {state, beginMeeting, scheduleAnswer, cancelAnswerCountdown, closeMedia, practicePage, toggleMic, startRecording, stopRecording, saveRecording, questionChat, restorePending, sessionExpired, resumeAfterLogin, navigate, continueAfterSave, showPending, action, recordingLimit};
   `,
     context,
   );
@@ -368,7 +368,7 @@ console.log("5 recording lifecycle cases passed");
   await restored.flow.restorePending(restored.flow.state.practice);
   assert.equal(restored.flow.state.pending.conflict, true);
   restored.flow.showPending();
-  assert.match(restored.events.at(-1).content, /Скачать черновик/);
+  assert.match(restored.events.at(-1).content, /Скачать запись/);
   assert.equal(f.accountDrafts.size, 1);
 }
 {
@@ -560,3 +560,15 @@ console.log("Continuous meeting, device reuse, automatic answers and cancellatio
   assert.doesNotMatch(recovery, /download/);
 }
 console.log("Recorder errors retain the original fragment for explicit recovery");
+{
+  const f = fixture();
+  const p = f.flow.state.practice;
+  p.config.duration = 10;
+  assert.equal(f.flow.recordingLimit(p, {kind: "speech", index: 0}), 600);
+  p.segments = [
+    {kind: "speech", index: 0, duration_seconds: 599},
+    {kind: "answer", index: 1, duration_seconds: 60},
+    {kind: "answer", index: 2, duration_seconds: 60},
+  ];
+  assert.equal(f.flow.recordingLimit(p, {kind: "answer", index: 3}), 60);
+}

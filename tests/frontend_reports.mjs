@@ -46,7 +46,7 @@ assert.match(context.markup, /value="1" checked/);
 assert.equal((context.markup.match(/legacy fallback duplicate/g) || []).length, 0);
 assert.equal((context.markup.match(/button primary/g) || []).length, 1, "Only one primary action in the report");
 assert.match(context.markup, /<details class="report-detail transcript">/);
-assert.ok(context.markup.indexOf("Цена пока неизвестна") < context.markup.indexOf("Расшифровка и записи"));
+assert.ok(context.markup.indexOf("Цена пока неизвестна") < context.markup.indexOf("Текст речи и записи"));
 assert.ok(context.markup.indexOf("Объясни следующий шаг расчёта") < context.markup.indexOf("Цена пока неизвестна"), "Main action precedes its rationale on narrow viewports");
 assert.ok(context.markup.indexOf("Объясни следующий шаг расчёта") < context.markup.indexOf("Стоимость пока не рассчитана"), "Main action precedes its canonical quote without shortening it");
 const firstReading = context.markup.slice(context.markup.indexOf('<section class="report-insight">'), context.markup.indexOf('<section class="report-observations">'));
@@ -89,7 +89,7 @@ const legacyText = ui.reportText({ ...practice, report: legacy });
 for (const expected of ["Старый главный вывод", "Старая цитата", "Старый текст", "Сохранённый совет", "Частично"]) assert.ok(legacyText.includes(expected), expected);
 assert.match(ui.reportMarkup({ ...legacy, recommendations: [{ ...legacy.recommendations[0], segment_index: null }] }), /Фрагмент записи/);
 const legacyMissing = { ...legacy, criteria: [{ criterion: "Бюджет", status: "not_met", evidence: "Старая цитата" }] };
-assert.match(ui.reportMarkup(legacyMissing), /Не найдено в расшифровке/, "Legacy absence status keeps its meaning");
+assert.match(ui.reportMarkup(legacyMissing), /Не найдено в тексте речи/, "Legacy absence status keeps its meaning");
 const observedContradiction = { ...report, criteria: [{ criterion: "Назвать цену", status: "not_met", basis: "present", reason: "Стоимость ещё не рассчитана", evidence: "Стоимость пока не рассчитана", origin: "answer", segment_index: 2 }] };
 assert.match(ui.reportMarkup(observedContradiction), /Есть несоответствие критерию/);
 // Provider-supplied markup must remain escaped in every report path, including examples and questions.

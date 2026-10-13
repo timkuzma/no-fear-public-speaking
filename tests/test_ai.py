@@ -115,6 +115,27 @@ class AIContractTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ai.ProviderError):
                 await ai.analyze({}, SEGMENTS)
 
+    async def test_user_topic_reaches_questions_and_report_without_imposed_criteria(self):
+        captured = []
+        topic = 'Открытие новой библиотеки'
+        config = {'scenario': 'speech', 'topic': topic, 'criteria': ''}
+        def handler(request):
+            captured.append(json.loads(request.content))
+            draft = (question_response(['Почему выбрано это место?', 'Как будет устроена библиотека?',
+                                        'Кто сможет пользоваться библиотекой?'])
+                     if len(captured) == 1 else report_response())
+            return httpx.Response(200, json=completion(draft))
+        with self.provider(handler):
+            await ai.generate_questions(config, TEXT)
+            report = (await ai.analyze(config, SEGMENTS))['report']
+        assert report['criteria'] == []
+        assert len(captured) == 2
+        for request in captured:
+            context = json.loads(request['messages'][1]['content'])
+            assert context['context']['topic'] == topic
+            assert context['requested_criteria'] == []
+            assert 'Тема и сценарий — только слабый контекст' in request['messages'][0]['content']
+
     async def test_criteria_ids_labels_unknown_and_unsupported_modality(self):
         response = report_response()
         response['criteria'] = [

@@ -543,6 +543,18 @@ legend {
   margin-top: 45px;
   align-items: start;
 }
+.practice-setup-layout {
+  grid-template-columns: minmax(0, 1fr) 370px;
+  gap: 72px;
+}
+.practice-options {
+  display: grid;
+  gap: 24px;
+  margin-top: 24px;
+}
+.setup-form > .custom-setup {
+  margin-top: 0;
+}
 .page-description {
   font-size: 17px;
   line-height: 1.6;
@@ -1719,6 +1731,10 @@ video.recording-playback {
     gap: 55px;
     grid-template-columns: 330px 1fr;
   }
+  .practice-setup-layout {
+    grid-template-columns: minmax(0, 1fr) 330px;
+    gap: 48px;
+  }
   .record-stage {
     gap: 45px;
     grid-template-columns: 1fr 400px;
@@ -1771,6 +1787,10 @@ video.recording-playback {
   .setup-layout {
     grid-template-columns: 280px 1fr;
     gap: 30px;
+  }
+  .practice-setup-layout {
+    grid-template-columns: 1fr;
+    gap: 40px;
   }
   .starter {
     padding: 25px;

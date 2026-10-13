@@ -42,7 +42,7 @@ async function transact(mode, operation) {
         try { transaction.abort(); } catch {}
       }, mode === "readonly" ? 5000 : 30000);
       transaction.oncomplete = () => finish();
-      transaction.onerror = () => finish(transaction.error || new Error("Не удалось сохранить запись в браузере."));
+      transaction.onerror = () => finish(transaction.error || new Error("Не удалось сохранить запись."));
       transaction.onabort = () => finish(transaction.error || new Error("Сохранение записи прервано."));
     });
   } finally {
