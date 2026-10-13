@@ -479,7 +479,7 @@ function savedTopic() {
   }
 }
 function setupForm(guest) {
-  return `<form id="setup-form" data-guest="${guest}" class="setup-form"><h2>Новая тренировка</h2><div class="field-group"><label><span class="label-title">Тема выступления <span class="optional">необязательно</span></span><input name="topic" maxlength="300" placeholder="О чём будешь говорить?" value="${escape(savedTopic())}" aria-describedby="topic-hint"></label><p class="field-hint" id="topic-hint">Тема поможет учесть замысел твоего выступления в разборе.</p></div><div class="field-group"><label>Время выступления, минут<input type="number" name="duration" min="0.5" max="10" step="any" value="3" inputmode="decimal" required aria-describedby="duration-hint"></label><p class="field-hint" id="duration-hint">От 30 секунд до 10 минут. Можно закончить раньше.</p></div><details class="custom-setup"><summary>Дополнительные настройки</summary><div class="practice-options"><fieldset><legend>Сценарий</legend><div class="scenario-options"><label><input type="radio" name="scenario" value="speech" checked><span><strong>Выступление</strong><small>Речь для аудитории</small></span></label><label><input type="radio" name="scenario" value="defense"><span><strong>Защита проекта</strong><small>Идея и аргументы</small></span></label><label><input type="radio" name="scenario" value="free"><span><strong>Свободная речь</strong><small>Тема на твой выбор</small></span></label></div></fieldset><div class="field-group"><label class="check"><input type="checkbox" name="questions" checked aria-describedby="questions-hint"><span>Ответить на вопросы после выступления</span></label><p class="field-hint" id="questions-hint">Три вопроса, до минуты на каждый ответ. Это время не входит в выступление.</p></div><label><span class="label-title">На что обратить внимание <span class="optional">необязательно</span></span><textarea name="criteria" maxlength="2000" rows="3" placeholder="Например, понятны ли аргументы и вывод"></textarea></label></div></details><div class="form-error" role="alert"></div><button type="submit" class="button primary">Перейти к записи</button></form>`;
+  return `<form id="setup-form" data-guest="${guest}" class="setup-form"><h2>Новая тренировка</h2><div class="field-group"><label><span class="label-title">Тема выступления <span class="optional">необязательно</span></span><input name="topic" maxlength="300" placeholder="О чём будешь говорить?" value="${escape(savedTopic())}" aria-describedby="topic-hint"></label><p class="field-hint" id="topic-hint">Тема поможет учесть замысел твоего выступления в разборе.</p></div><fieldset class="field-group"><legend>Время выступления</legend><div class="duration-fields"><label>Минуты<input type="number" name="minutes" min="0" max="10" step="1" value="3" inputmode="numeric" required aria-describedby="duration-hint"></label><label>Секунды<input type="number" name="seconds" min="0" max="59" step="1" value="0" inputmode="numeric" required aria-describedby="duration-hint"></label></div><p class="field-hint" id="duration-hint">От 30 секунд до 10 минут. Можно закончить раньше.</p></fieldset><details class="custom-setup"><summary>Дополнительные настройки</summary><div class="practice-options"><fieldset><legend>Сценарий</legend><div class="scenario-options"><label><input type="radio" name="scenario" value="speech" checked><span><strong>Выступление</strong><small>Речь для аудитории</small></span></label><label><input type="radio" name="scenario" value="defense"><span><strong>Защита проекта</strong><small>Идея и аргументы</small></span></label><label><input type="radio" name="scenario" value="free"><span><strong>Свободная речь</strong><small>Тема на твой выбор</small></span></label></div></fieldset><div class="field-group"><label class="check"><input type="checkbox" name="questions" checked aria-describedby="questions-hint"><span>Ответить на вопросы после выступления</span></label><p class="field-hint" id="questions-hint">Три вопроса, до минуты на каждый ответ. Это время не входит в выступление.</p></div><label><span class="label-title">На что обратить внимание <span class="optional">необязательно</span></span><textarea name="criteria" maxlength="2000" rows="3" placeholder="Например, понятны ли аргументы и вывод"></textarea></label></div></details><div class="form-error" role="alert"></div><button type="submit" class="button primary">Перейти к записи</button></form>`;
 }
 async function setup(guest = false) {
   const version = state.routeVersion;
@@ -702,7 +702,7 @@ function recordingLimit(p, segment) {
   );
   return segment.kind === "answer"
     ? Math.min(60, Math.floor(remaining))
-    : Math.min(Number(p.config.duration) * 60, 600);
+    : Math.min(Math.round(Number(p.config.duration) * 60), 600);
 }
 function deviceIcon(kind) {
   const path =
@@ -1659,10 +1659,19 @@ async function submitForm(event) {
       frame(`<div class="loading" role="status">${mode === "register" ? "Аккаунт создан. Открываем тренировку…" : "Вход выполнен. Открываем тренировку…"}</div>`);
       await resumeAfterLogin();
     } else if (form.id === "setup-form") {
+      const minutes = Number(body.minutes);
+      const seconds = Number(body.seconds);
+      if (!body.minutes?.trim() || !body.seconds?.trim() ||
+          !Number.isInteger(minutes) || !Number.isInteger(seconds) ||
+          minutes < 0 || minutes > 10 || seconds < 0 || seconds > 59)
+        throw new Error("Укажи минуты от 0 до 10 и секунды от 0 до 59 целыми числами");
+      const totalSeconds = minutes * 60 + seconds;
+      if (totalSeconds < 30 || totalSeconds > 600)
+        throw new Error("Укажи время от 30 секунд до 10 минут");
       const config = {
         scenario: body.scenario,
         topic: body.topic.trim(),
-        duration: Number(body.duration),
+        duration: totalSeconds / 60,
         questions: body.questions === "on",
         criteria: body.criteria?.trim() || "",
       };

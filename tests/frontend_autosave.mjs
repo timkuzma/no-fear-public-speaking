@@ -563,6 +563,10 @@ console.log("Recorder errors retain the original fragment for explicit recovery"
 {
   const f = fixture();
   const p = f.flow.state.practice;
+  for (const seconds of [30, 61, 121, 200, 599, 600]) {
+    p.config.duration = seconds / 60;
+    assert.equal(f.flow.recordingLimit(p, {kind: "speech", index: 0}), seconds);
+  }
   p.config.duration = 10;
   assert.equal(f.flow.recordingLimit(p, {kind: "speech", index: 0}), 600);
   p.segments = [

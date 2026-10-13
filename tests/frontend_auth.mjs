@@ -115,18 +115,35 @@ assert.equal(context.location.hash, "/practice/neutral-practice");
 assert.deepEqual(createdConfigs[0], { scenario: "speech", topic: "", duration: 1, questions: true, criteria: "" });
 assert.equal(starter.disabled, false);
 form.id = "setup-form";
-Object.assign(values, { scenario: "free", topic: "", duration: "4.25", questions: "on", criteria: "" });
+Object.assign(values, { scenario: "free", topic: "", minutes: "3", seconds: "20", questions: "on", criteria: "" });
 await context.flow.submitForm({ target: form, preventDefault() {} });
 assert.equal(createdConfigs.length, 2, "Custom practice may start without a topic or criteria");
-assert.deepEqual(createdConfigs[1], { scenario: "free", topic: "", duration: 4.25, questions: true, criteria: "" });
+assert.deepEqual(createdConfigs[1], { scenario: "free", topic: "", duration: 200 / 60, questions: true, criteria: "" });
 Object.assign(values, { topic: "Моя история", criteria: "Понятен ли рассказ" });
 await context.flow.submitForm({ target: form, preventDefault() {} });
 assert.equal(createdConfigs[2].topic, "Моя история");
 assert.equal(createdConfigs[2].criteria, "Понятен ли рассказ", "Explicit user criteria must remain available");
 const visibleForm = context.flow.setupForm(false);
 assert.ok(visibleForm.indexOf('name="topic"') < visibleForm.indexOf('<details'));
-assert.ok(visibleForm.indexOf('name="duration"') < visibleForm.indexOf('<details'));
-assert.match(visibleForm, /type="number" name="duration" min="0.5" max="10" step="any"/);
+assert.ok(visibleForm.indexOf('name="minutes"') < visibleForm.indexOf('<details'));
+assert.ok(visibleForm.indexOf('name="seconds"') < visibleForm.indexOf('<details'));
+assert.match(visibleForm, /type="number" name="minutes" min="0" max="10" step="1"/);
+assert.match(visibleForm, /type="number" name="seconds" min="0" max="59" step="1"/);
+for (const [minutes, seconds, totalSeconds] of [["0", "30", 30], ["10", "0", 600], ["1", "1", 61]]) {
+  Object.assign(values, { minutes, seconds });
+  await context.flow.submitForm({ target: form, preventDefault() {} });
+  assert.equal(createdConfigs.at(-1).duration, totalSeconds / 60);
+}
+for (const [minutes, seconds] of [["0", "29"], ["10", "1"], ["3", "60"], ["1.5", "0"], ["3", "0.5"], ["", "30"], ["0", ""], ["-1", "30"], ["11", "0"]]) {
+  const count = createdConfigs.length;
+  Object.assign(values, { minutes, seconds });
+  await context.flow.submitForm({ target: form, preventDefault() {} });
+  assert.equal(createdConfigs.length, count, "Invalid combined time must not create a practice");
+  assert.match(error.textContent, /Укажи/);
+  assert.equal(values.minutes, minutes);
+  assert.equal(values.seconds, seconds);
+  assert.equal(submit.disabled, false);
+}
 assert.doesNotMatch(context.flow.errorText({code:"STORAGE_CAPACITY",message:"На сервере недостаточно места"}), /сервер/);
 assert.doesNotMatch(context.flow.errorText({message:"Не удалось прочитать идентификатор записи"}), /идентификатор/);
 console.log("Auth completion, timeout recovery, storage bounds and anonymous entry checks passed");
