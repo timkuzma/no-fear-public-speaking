@@ -14,6 +14,10 @@ This document governs the feedback-v2 candidate, not an external release approva
 
 Absent real model outputs, reviewers or participants, maintain a local candidate with explicit uncompleted quality gates. Successful synthetic/structural tests do not justify a claim of improved live-model quality or a production promotion.
 
+## Recorded user-directed pilot exception
+
+On 13 October 2026 the user explicitly requested deploying the new report and elected to check its usefulness personally. The controlled invitation-based pilot was released on that instruction, with the rewrite-withholding policy and existing ownership/work limits intact. This is a recorded exception to the proposed pre-release human/holdout gates, not evidence that they passed. See `docs/ai-quality-validation.md` for the actual image, backup/readiness and pending acceptance. Future ordinary promotion decisions should still use measured gates; never rewrite a direct pilot instruction as a scientific validation result.
+
 ## Additive storage and code rollback
 
 Private question provenance is additive metadata; public questions remain strings and old stored reports remain readable. The exact migration and compatibility checks are described in `docs/ai-quality-contract.md`. Keep family `1` only after verifying old code opens the migrated database and preserves rows; an incompatible change needs a new family and its own recovery procedure.

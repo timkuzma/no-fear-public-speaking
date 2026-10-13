@@ -1,8 +1,8 @@
 # Feedback candidate implementation and validation
 
-Date: 13 October 2026. Branch: `frentend`. This is a local engineering candidate, **not** completed semantic acceptance or a production promotion. The user confirmed that independent reviewers and participants are currently unavailable; prepare their materials and leave acceptance incomplete.
+Date: 13 October 2026. Branch: `frentend`. The local engineering validation below preceded the user-directed production pilot recorded in the final section. Independent reviewers/participants are currently unavailable, so semantic acceptance remains incomplete despite the authorized pilot release.
 
-## Implemented work
+## Local implementation before the user-directed pilot
 
 Three implementation agents owned backend/context/prompts, corpus/evaluation and report presentation. The coordinator froze the original source before contract changes, integrated account-owned repeat selection, reviewed diffs, ran combined checks and controlled the limited provider experiment. Cross-review found and corrected blind-packet schema leakage, rating/offset type weaknesses, incomplete-pair denominators, duplicate exported text, missing source labels and the main action appearing below a long quote.
 
@@ -72,3 +72,13 @@ Private raw/provider/request/rating artifacts are excluded from Git under `outpu
 At the end of the experiment, the external container still reported release `e14bfca4d31a9ed8958dee9730214a1d87f3aee02b28d4debb011d3ddef1314d` (the previous own-speech release). Evaluation temporary files/connections were removed after private local archival. This work does not certify current offsite protection or broader operational state. No push or external deployment was performed.
 
 Implementation commits: baseline `d73fa50`; backend/repeat contracts `f4c9617`; conservative publisher/prompt changes `ea10f0a`; report UI `8216162`; corpus/harness `0ea3b28`. Subsequent documentation records this verification without changing production.
+
+## User-directed production pilot, 13 October 2026
+
+After the preceding local acceptance, the user explicitly requested production deployment and chose to assess usefulness by completing a personal training. This authorizes a controlled pilot exception to the proposed pre-release human/holdout gates; it does **not** turn them into passed measurements. No locked acceptance cases were opened, no independent reviewer ratings were fabricated, and the rewrite-withholding policy remains active.
+
+Source `58653301b9bb3659e8bc02c5eacb5faaebd1b800` is deployed at `https://no-fear-stage.157.22.172.204.nip.io/`, image `sha256:3d2f7b94085135fea2409c3b0aedb1c2f95bdfc538e61eb97d265d802612aac7`. Public assets and server modules were copied together into the verified previous image; dependencies and schema-family label remain compatible. The controller returned success with a verified pre-activation backup/restore. The previous image `sha256:e14bfca4d31a9ed8958dee9730214a1d87f3aee02b28d4debb011d3ddef1314d` is retained for code rollback preserving current data.
+
+External HTTPS readiness returned 200, both final/live workers were alive, storage/provider configuration was ready and maintenance was false. Public HTML, app.js and CSS hashes matched committed source; AI/prompt file hashes in the built image also matched. A readonly check inside the active container confirmed the additive private question-provenance column and prompt versions `speech-feedback-v2.2` / `questions-v2.1`. Practice/segment counts were unchanged across activation. Existing authentication and invitation requirements remain; browser entry/login rendered without console errors.
+
+The operator did not create, upload, regenerate or delete a participant recording for this deployment. No additional provider calls or automated full speech acceptance occurred in this release turn: the user will perform that practical check. Semantic usefulness, independent human calibration, physical-device validation and held-out acceptance remain pending. No Git push was performed.
