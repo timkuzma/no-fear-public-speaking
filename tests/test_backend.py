@@ -382,3 +382,53 @@ def test_practice_import_can_resume_after_upload_and_quota(app, monkeypatch):
     assert len(replay.json()['segments']) == 1
     assert client.get('/api/practices').json()['total'] == 1
     assert client.post('/api/practices', headers=headers, json={**body, 'idempotency_key': 'not-a-key'}).status_code == 422
+
+
+def test_upload_key_replays_after_restart_and_processing_without_quota(app, monkeypatch):
+    monkeypatch.setattr('server.app.decoded_duration', AsyncMock(return_value={'duration_seconds': 1, 'extension': '.wav', 'mime_type': 'audio/wav'}))
+    client = TestClient(app)
+    headers = account(client)
+    pid = practice(client, headers)
+    key = 'a' * 32
+    def send(target=client, content=None):
+        return target.post(f'/api/practices/{pid}/segments', headers=headers,
+            data={'kind': 'speech', 'index': 0, 'client_key': key},
+            files={'file': ('sample.wav', wav_bytes() if content is None else content, 'audio/wav')})
+    first = send()
+    assert first.status_code == 200
+    segment = first.json()
+    assert segment['client_key'] == key
+    assert client.get('/api/practices/' + pid).json()['segments'][0]['client_key'] == key
+    app.state.store.execute("UPDATE practices SET status='processing' WHERE id=?", (pid,))
+    recreated = create_app(app.state.store.directory, start_worker=False)
+    restarted = TestClient(recreated)
+    restarted.cookies.update(client.cookies)
+    replay = send(restarted)
+    assert replay.status_code == 200 and replay.json()['id'] == segment['id']
+    assert recreated.state.store.one("SELECT COUNT(*) AS n FROM rate_limits WHERE key LIKE 'upload:%'")['n'] == 1
+    assert len(list(recreated.state.store.media.iterdir())) == 1
+    conflict = send(restarted, b'different bytes')
+    assert conflict.status_code == 409
+    assert conflict.json()['error']['code'] == 'UPLOAD_KEY_CONFLICT'
+    app.state.store.execute("UPDATE practices SET status='draft' WHERE id=?", (pid,))
+    assert restarted.delete('/api/practices/' + pid, headers=headers).status_code == 200
+    assert not recreated.state.store.all('SELECT * FROM segment_uploads')
+
+
+def test_upload_key_cannot_reuse_another_stage_or_account(app, monkeypatch):
+    monkeypatch.setattr('server.app.decoded_duration', AsyncMock(return_value={'duration_seconds': 1, 'extension': '.wav', 'mime_type': 'audio/wav'}))
+    one, two = TestClient(app), TestClient(app)
+    h1, h2 = account(one), account(two, 'second@example.org')
+    pid = practice(one, h1, questions=True)
+    key = 'b' * 32
+    def send(client, headers, kind='speech', index=0, client_key=key):
+        return client.post(f'/api/practices/{pid}/segments', headers=headers,
+            data={'kind': kind, 'index': index, 'client_key': client_key},
+            files={'file': ('sample.wav', wav_bytes(), 'audio/wav')})
+    assert send(one, h1).status_code == 200
+    assert send(two, h2).status_code == 404
+    assert send(one, h1, client_key='c' * 32).json()['error']['code'] == 'SEGMENT_EXISTS'
+    app.state.store.execute('UPDATE practices SET questions=? WHERE id=?', (json.dumps(['Вопрос?']), pid))
+    assert send(one, h1, 'answer', 1).json()['error']['code'] == 'UPLOAD_KEY_CONFLICT'
+    assert send(one, h1, 'answer', 1, 'invalid-key').status_code == 422
+    assert len(app.state.store.all('SELECT * FROM segments')) == 1

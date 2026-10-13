@@ -44,7 +44,7 @@ async function request(
       );
     }
     if (
-      response.status === 401 &&
+      (response.status === 401 || data.error?.code === "CSRF_INVALID") &&
       !["/auth/me", "/auth/login", "/auth/register", "/auth/reset"].includes(
         path,
       )
@@ -109,7 +109,7 @@ export const api = {
       `/practices/${encodeURIComponent(id)}/live-transcript?session_id=${encodeURIComponent(sessionId)}`,
       { timeout: 10000, signal },
     ),
-  upload: (id, file, kind, index, liveSessionId, liveChunkCount) => {
+  upload: (id, file, kind, index, liveSessionId, liveChunkCount, clientKey) => {
     const body = new FormData();
     body.append(
       "file",
@@ -122,6 +122,7 @@ export const api = {
     }
     body.append("kind", kind);
     body.append("index", String(index));
+    if (clientKey) body.append("client_key", clientKey);
     return request(`/practices/${encodeURIComponent(id)}/segments`, {
       method: "POST",
       body,

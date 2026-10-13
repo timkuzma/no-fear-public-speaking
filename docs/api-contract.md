@@ -20,6 +20,7 @@ Development registration may omit an invite; production must fail closed without
 `GET /api/practices?limit=30&offset=0` -> `{items:[practice],total:number}`.
 
 `GET /api/practices/{id}` -> full practice:
+
 ```
 {id,config,created_at,status:"draft"|"processing"|"ready"|"failed",
  questions:[],report:null|Report,segments:[],active_job:null|Job}
@@ -89,3 +90,15 @@ Backend worker stores transcripts and usage immediately after each successful st
 Guest drafts remain client-side until registration/login and consent. No anonymous API exposes private media or report data. The browser resumes the same configuration and uploads the same audio after authentication.
 
 `POST /api/practices` accepts an optional `idempotency_key` of 32 lowercase hexadecimal characters. Replaying the same configuration/key for the same account returns the existing practice, including any uploaded segments. A changed configuration returns `409 PRACTICE_KEY_CONFLICT`. The key is scoped to the authenticated account and omitted from stored/returned configuration. Existing authentication, origin and CSRF checks still apply. This supports recovery from an ambiguous creation/upload response without creating another practice.
+
+## Recording upload recovery
+
+`POST /api/practices/{id}/segments` accepts an optional multipart `client_key` (32 lowercase hexadecimal characters). The browser generates one key per capture and persists it with the original Blob. The server stores the key and SHA-256 of the original upload in `segment_uploads`, committed together with the segment. Segment responses and practice details expose `client_key` (null for legacy uploads).
+
+Replaying the same owner/practice/stage/key/bytes returns the existing segment, including while the practice is processing or ready, without consuming another upload quota or saving another file. A different key at an occupied stage returns `409 SEGMENT_EXISTS`; changed bytes or reuse of a key at another stage returns `409 UPLOAD_KEY_CONFLICT`. Ownership, consent, origin, CSRF and upload-body limits still apply. Deleting a practice removes its upload manifests. Schema initialization adds the manifest table without changing existing segments.
+
+Browser drafts use the existing IndexedDB `stage-guest-draft` store. Account keys include owner, practice and stage; guest storage remains backward compatible. Completed media is persisted before upload/review. MediaRecorder checkpoints concatenate all container chunks from capture start; they are never submitted as independent timeslice files. Checkpoints are marked interrupted and require review; there is no guarantee that an unfinished container from every browser will decode, or that unsaved trailing seconds survive browser termination.
+
+Drafts expire after 24 hours and are removed on the next applicable read. Only the authenticated owner's drafts are loaded into the account UI. No passwords, cookies or CSRF tokens are persisted with drafts. A guest import is bound to the authenticated account when its server practice is created; a different account cannot resume that bound draft. Local deletion after server acknowledgement checks the capture key so an older operation cannot clear a newer draft.
+
+After reauthentication, already-confirmed uploads resume with the same key; unconfirmed answers retain their review step. A saved server segment only retires a local draft when its capture key matches. Conflicting or missing server practices preserve a downloadable draft. Session continuation stores only owner/practice IDs in sessionStorage. The workspace lists recent unfinished practices and local drafts; direct practice routes and history restore the next valid recording, question, job or report state. Failed jobs require explicit retry.

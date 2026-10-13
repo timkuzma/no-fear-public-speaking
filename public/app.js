@@ -1,10 +1,13 @@
-import { api, demoResult } from "./api.js?v=20261011-live";
+import { api, demoResult } from "./api.js?v=20261013-recovery";
 import { LiveAudioCapture } from "./live-audio.js?v=20261011-live";
 import {
   saveDraft,
   loadDraft,
   clearDraft,
-} from "./guest-draft.js?v=20261011-guest";
+  saveRecordingDraft,
+  loadRecordingDrafts,
+  clearRecordingDraft,
+} from "./guest-draft.js?v=20261013-recovery";
 const app = document.querySelector("#app");
 const state = {
   user: null,
@@ -25,6 +28,10 @@ const state = {
   recording: false,
   recordingWithVideo: false,
   pending: null,
+  pendingPersisted: false,
+  draftWrites: Promise.resolve(),
+  recordingOwnerId: null,
+  authReturn: null,
   recordingError: "",
   timer: null,
   raf: null,
@@ -109,11 +116,11 @@ function authScreen(mode) {
   const register = mode === "register",
     reset = mode === "reset";
   frame(
-    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : state.guest?.blob && !reset ? "Получи разбор своего выступления" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Для пилота организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? (state.guest?.blob ? "Твоя запись уже готова. После регистрации перенесём её в аккаунт и подготовим разбор. Повторять выступление не нужно." : "После регистрации начни с короткого упражнения: запиши минуту речи и получи первый разбор.") : state.guest?.blob ? "Войди, чтобы получить разбор уже записанного выступления. Запись перейдёт в твой аккаунт." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Создай аккаунт" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}<div class="field-group"><label class="check"><input type="checkbox" name="consent" required><span>Соглашаюсь на хранение записи и передачу аудио и текста сервисам нейросети для разбора.</span></label><details class="consent-details"><summary>Условия обработки данных</summary><div class="consent-text">${privacyContent(3)}</div></details></div>` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Создать аккаунт" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Создать аккаунт</a> · <a href="#/reset">Восстановить доступ</a>'}</p>${register ? `<a class="quiet-link" href="#/guest">${state.guest?.blob ? "Вернуться к своей записи" : "Начать без регистрации"}</a>` : ""}</section></div>`,
+    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : state.guest?.blob && !reset ? "Получи разбор своего выступления" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Для пилота организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? (state.guest?.blob ? "Твоя запись уже готова. После регистрации перенесём её в аккаунт и подготовим разбор. Повторять выступление не нужно." : "После регистрации начни с короткого упражнения: запиши минуту речи и получи первый разбор.") : state.guest?.blob ? "Войди, чтобы получить разбор уже записанного выступления. Запись перейдёт в твой аккаунт." : state.authReturn ? "После входа вернёмся к незавершённой тренировке. Сохранённые записи повторять не нужно." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Создай аккаунт" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}<div class="field-group"><label class="check"><input type="checkbox" name="consent" required><span>Соглашаюсь на хранение записи и передачу аудио и текста сервисам нейросети для разбора.</span></label><details class="consent-details"><summary>Условия обработки данных</summary><div class="consent-text">${privacyContent(3)}</div></details></div>` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Создать аккаунт" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Создать аккаунт</a> · <a href="#/reset">Восстановить доступ</a>'}</p>${register ? `<a class="quiet-link" href="#/guest">${state.guest?.blob ? "Вернуться к своей записи" : "Начать без регистрации"}</a>` : ""}</section></div>`,
   );
 }
 function privacyContent(level = 2) {
-  return `<h${level}>Что сохраняется</h${level}><p>Имя, электронная почта, настройки тренировок, записи, расшифровки и разборы. Для входа сервер хранит хеш пароля. Другие пользователи не получают доступ к твоим тренировкам.</p><h${level}>Как появляется разбор</h${level}><p>Во время выступления в аккаунте аудио передаётся внешнему сервису расшифровки фрагментами примерно по 15 секунд. Если распознавание во время записи недоступно, расшифровываем полную запись после завершения. Текст речи и выбранные критерии передаются нейросети для вопросов и разбора. Разбор основан на содержании текста и может содержать ошибки. Гостевая запись не передаётся внешним сервисам до входа или регистрации.</p><h${level}>Как удалить запись</h${level}><p>Открой историю и удали тренировку. Вместе с ней сервер удалит запись, расшифровку и разбор. Удаление не отменяет обработку, уже выполненную внешним сервисом, и не удаляет данные из ранее созданных резервных копий.</p><h${level}>Гостевой режим</h${level}><p>До регистрации запись хранится только в этом браузере. Черновик доступен сутки; просроченный черновик удаляется при следующем открытии сайта. Если включена камера, запись содержит и видео. Для разбора внешнему сервису передаётся только звуковая дорожка. После регистрации или входа запись передаётся в твой аккаунт для разбора и удаляется из локального черновика. Если браузер не разрешает локальное сохранение, не закрывай вкладку до завершения регистрации.</p><h${level}>Обратная связь</h${level}><p>Оценку разбора и комментарий можно отправить с его страницы. Не добавляй в комментарий пароли или данные других людей.</p>`;
+  return `<h${level}>Что сохраняется</h${level}><p>Имя, электронная почта, настройки тренировок, записи, расшифровки и разборы. Для входа сервер хранит хеш пароля. Другие пользователи не получают доступ к твоим тренировкам.</p><h${level}>Как появляется разбор</h${level}><p>Во время выступления в аккаунте аудио передаётся внешнему сервису расшифровки фрагментами примерно по 15 секунд. Если распознавание во время записи недоступно, расшифровываем полную запись после завершения. Текст речи и выбранные критерии передаются нейросети для вопросов и разбора. Разбор основан на содержании текста и может содержать ошибки. Гостевая запись не передаётся внешним сервисам до входа или регистрации.</p><h${level}>Как удалить запись</h${level}><p>Открой историю и удали тренировку. Вместе с ней сервер удалит запись, расшифровку и разбор. Удаление не отменяет обработку, уже выполненную внешним сервисом, и не удаляет данные из ранее созданных резервных копий.</p><h${level}>Черновики в браузере</h${level}><p>Завершённые записи и промежуточные фрагменты сохраняются в этом браузере на сутки, чтобы продолжить после сбоя или повторного входа. Черновики аккаунта доступны в интерфейсе только после входа в тот же аккаунт. Они удаляются после подтверждённого сохранения на сервере или по твоему действию; просроченные — при следующем обращении к черновикам. Очистка данных сайта может удалить локальные записи.</p><h${level}>Гостевой режим</h${level}><p>До регистрации запись хранится только в этом браузере. Черновик доступен сутки; просроченный черновик удаляется при следующем открытии сайта. Если включена камера, запись содержит и видео. Для разбора внешнему сервису передаётся только звуковая дорожка. После регистрации или входа запись передаётся в твой аккаунт для разбора и удаляется из локального черновика. Если браузер не разрешает локальное сохранение, не закрывай вкладку до завершения регистрации.</p><h${level}>Обратная связь</h${level}><p>Оценку разбора и комментарий можно отправить с его страницы. Не добавляй в комментарий пароли или данные других людей.</p>`;
 }
 function privacy() {
   frame(
@@ -121,7 +128,8 @@ function privacy() {
   );
 }
 async function persistGuest() {
-  const { blob, config, createdAt, clientKey, serverPracticeId } = state.guest;
+  const { blob, config, createdAt, clientKey, serverPracticeId, ownerId } =
+    state.guest;
   try {
     await saveDraft({
       blob,
@@ -129,12 +137,166 @@ async function persistGuest() {
       createdAt,
       clientKey,
       serverPracticeId,
+      ownerId,
       durationSeconds: state.guest.durationSeconds,
+      interrupted: state.guest.interrupted || false,
     });
     state.guestPersisted = true;
   } catch {
     state.guestPersisted = false;
   }
+}
+
+function rememberReturn(practiceId, ownerId = state.user?.id) {
+  state.authReturn = { practiceId, ownerId };
+  try {
+    sessionStorage.setItem("practice-return", JSON.stringify(state.authReturn));
+  } catch {}
+}
+
+function forgetReturn() {
+  state.authReturn = null;
+  try {
+    sessionStorage.removeItem("practice-return");
+  } catch {}
+}
+
+function writeRecordingDraft(pending, config) {
+  const draft = {
+    blob: pending.blob,
+    ownerId: pending.ownerId,
+    practiceId: pending.practiceId,
+    kind: pending.kind,
+    index: pending.index,
+    createdAt: pending.createdAt,
+    clientKey: pending.clientKey,
+    durationSeconds: pending.durationSeconds,
+    interrupted: pending.interrupted || false,
+    autoSave: pending.autoSave || false,
+    config,
+  };
+  const write = state.draftWrites.then(() =>
+    pending.practiceId === "guest"
+      ? saveDraft(draft)
+      : saveRecordingDraft(draft),
+  );
+  state.draftWrites = write.catch(() => {});
+  return write.then(
+    () => true,
+    () => false,
+  );
+}
+
+async function persistPending(pending = state.pending) {
+  if (!pending) return false;
+  const saved = await writeRecordingDraft(pending, state.practice.config);
+  if (state.pending === pending) state.pendingPersisted = saved;
+  return saved;
+}
+
+async function clearAcceptedDraft(pending) {
+  await clearRecordingDraft(pending).catch(() => {});
+  await clearDraft(pending.clientKey).catch(() => {});
+  if (state.guest?.clientKey === pending.clientKey) {
+    state.guest.segments.forEach((s) => URL.revokeObjectURL(s.media_url));
+    state.guest = null;
+    state.guestPersisted = false;
+  }
+}
+
+async function restorePending(p) {
+  if (!state.user) return;
+  const ownerId = state.user.id;
+  if (
+    state.pending?.ownerId !== state.user.id ||
+    state.pending?.practiceId !== p.id
+  ) {
+    discardPending();
+    const drafts = await loadRecordingDrafts(ownerId).catch(() => []);
+    if (state.user?.id !== ownerId || state.practice?.id !== p.id) return;
+    const boundGuest = state.guest;
+    const accountDraft = drafts.find((d) => d.practiceId === p.id);
+    const draft =
+      accountDraft ||
+      (boundGuest?.ownerId === ownerId && boundGuest.serverPracticeId === p.id
+        ? {
+            ...boundGuest,
+            practiceId: p.id,
+            kind: "speech",
+            index: 0,
+            interrupted: false,
+            autoSave: true,
+          }
+        : null);
+    if (draft) {
+      state.pending = { ...draft, url: URL.createObjectURL(draft.blob) };
+      state.pendingPersisted = !!accountDraft || state.guestPersisted;
+    }
+  }
+  const pending = state.pending;
+  if (!pending) return;
+  const saved = p.segments.find(
+    (s) => s.kind === pending.kind && Number(s.index) === pending.index,
+  );
+  if (saved?.client_key === pending.clientKey) {
+    await clearAcceptedDraft(pending);
+    discardPending();
+    return true;
+  } else if (saved || p.report || p.active_job) {
+    pending.conflict = true;
+  }
+}
+
+async function resumeAfterLogin() {
+  // A local account recording must never be imported into a different account.
+  const ownerId = state.user.id;
+  if (!state.guest) {
+    const guestDraft = await loadDraft().catch(() => null);
+    if (guestDraft && (!guestDraft.ownerId || guestDraft.ownerId === ownerId))
+      state.guest = guestFromDraft(guestDraft);
+  }
+  if (state.pending && state.pending.ownerId !== ownerId) discardPending();
+  if (state.guest?.ownerId && state.guest.ownerId !== ownerId) {
+    state.guest.segments.forEach((s) => URL.revokeObjectURL(s.media_url));
+    state.guest = null;
+    state.guestPersisted = false;
+  }
+  const target = state.authReturn;
+  if (target && (!target.ownerId || target.ownerId === ownerId)) {
+    go(`/practice/${encodeURIComponent(target.practiceId)}`);
+    return;
+  }
+  forgetReturn();
+  if (
+    state.guest?.blob &&
+    (!state.guest.ownerId || state.guest.ownerId === ownerId)
+  )
+    await importGuest();
+  else go("/app");
+}
+
+function sessionExpired() {
+  const ownerId =
+    state.user?.id || state.pending?.ownerId || state.recordingOwnerId;
+  if (state.practice?.id && state.practice.id !== "guest")
+    rememberReturn(state.practice.id, ownerId);
+  state.user = null;
+  state.liveCapture?.cancel();
+  state.liveCapture = null;
+  clearTimeout(state.poll);
+  if (state.recording) {
+    notify(
+      "Сессия завершилась. Закончи запись — сохраним её в браузере и предложим войти.",
+    );
+    return;
+  }
+  if (state.pending || state.uploading) {
+    const currentHeader = document.querySelector(".header");
+    if (currentHeader) currentHeader.outerHTML = header();
+    if (!state.uploading) showPending();
+    return;
+  }
+  go("/login");
 }
 function guestResult(message = "") {
   const p = state.guest;
@@ -158,20 +320,55 @@ async function importGuest() {
       idempotency_key: draft.clientKey,
     });
     draft.serverPracticeId = p.id;
+    draft.ownerId = state.user.id;
     await persistGuest();
+    await writeRecordingDraft(
+      {
+        ...draft,
+        practiceId: p.id,
+        kind: "speech",
+        index: 0,
+        interrupted: false,
+        autoSave: true,
+      },
+      p.config,
+    );
     if (!p.segments.some((s) => s.kind === "speech")) {
       try {
-        await api.upload(p.id, draft.blob, "speech", 0);
+        await api.upload(
+          p.id,
+          draft.blob,
+          "speech",
+          0,
+          undefined,
+          undefined,
+          draft.clientKey,
+        );
       } catch (error) {
         if (error.status !== 409) throw error;
       }
       p = await api.practice(p.id);
-      if (!p.segments.some((s) => s.kind === "speech"))
+      if (
+        !p.segments.some(
+          (s) => s.kind === "speech" && s.client_key === draft.clientKey,
+        )
+      )
         throw new Error(
           "Запись ещё не загружена. Попробуй продолжить ещё раз.",
         );
     }
-    await clearDraft().catch(() => {});
+    if (
+      !p.segments.some(
+        (s) => s.kind === "speech" && s.client_key === draft.clientKey,
+      )
+    )
+      throw new Error(
+        "В тренировке уже есть другая запись. Скачай исходный черновик перед продолжением.",
+      );
+    await clearRecordingDraft({ ...draft, practiceId: p.id, index: 0 }).catch(
+      () => {},
+    );
+    await clearDraft(draft.clientKey).catch(() => {});
     draft.segments.forEach((s) => URL.revokeObjectURL(s.media_url));
     state.guest = null;
     state.guestPersisted = false;
@@ -200,10 +397,42 @@ function savedTopic() {
 function setupForm(guest) {
   return `<form id="setup-form" data-guest="${guest}" class="setup-form"><h2>${guest ? "Твоя пробная запись" : "Настроить тренировку"}</h2><fieldset><legend>Сценарий</legend><div class="scenario-options"><label><input type="radio" name="scenario" value="speech" checked><span><strong>Выступление</strong><small>Речь для аудитории</small></span></label><label><input type="radio" name="scenario" value="defense"><span><strong>Защита проекта</strong><small>Идея и аргументы</small></span></label><label><input type="radio" name="scenario" value="free"><span><strong>Свободная речь</strong><small>Тема на твой выбор</small></span></label></div></fieldset><label>Тема выступления<input name="topic" maxlength="300" placeholder="Например, идея моего проекта" required value="${escape(savedTopic())}"></label><label>Продолжительность<select name="duration"><option value="1">1 минута</option><option value="3">3 минуты</option><option value="5" selected>5 минут</option><option value="10">10 минут</option></select></label><div class="field-group"><label class="check"><input type="checkbox" name="questions" checked aria-describedby="questions-hint"><span>После выступления ответить на три вопроса аудитории</span></label><p class="field-hint" id="questions-hint">До 10 минут аудио на тренировку. С вопросами: выступление до 7 минут и три ответа до минуты каждый.</p></div><label><span class="label-title">На что обратить внимание <span class="optional">необязательно</span></span><textarea name="criteria" maxlength="2000" rows="3" placeholder="Например, понятны ли аргументы и вывод"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button primary">Перейти к записи</button></form>`;
 }
-function setup(guest = false) {
+async function setup(guest = false) {
+  const version = state.routeVersion;
+  let continuation = "";
+  if (!guest) {
+    try {
+      const [history, drafts] = await Promise.all([
+        api.practices(),
+        loadRecordingDrafts(state.user.id).catch(() => []),
+      ]);
+      if (version !== state.routeVersion || !state.user) return;
+      const unfinished = history.items.filter((p) => !p.report);
+      const local = drafts.filter(
+        (d) => !history.items.some((p) => p.id === d.practiceId),
+      );
+      const items = [
+        ...local.map((d) => ({ id: d.practiceId, config: d.config })),
+        ...unfinished,
+      ];
+      if (items.length)
+        continuation = `<section class="narrow"><h2>Продолжи незавершённую тренировку</h2><div class="history-list">${items
+          .slice(0, 3)
+          .map(
+            (p) =>
+              `<article class="history-item"><div><h3>${heading(p.config.topic || "Тренировка")}</h3><p class="caption">${drafts.some((d) => d.practiceId === p.id) ? "В браузере есть запись для сохранения" : p.status === "processing" ? "Обработка продолжается" : p.status === "failed" ? "Запись сохранена. Обработку можно повторить" : "Можно вернуться к следующему этапу"}</p></div><a class="button secondary" href="#/practice/${encodeURIComponent(p.id)}">Продолжить</a></article>`,
+          )
+          .join(
+            "",
+          )}</div><a class="quiet-link" href="#/history">Все тренировки</a></section>`;
+    } catch {
+      if (version !== state.routeVersion || !state.user) return;
+      continuation = `<div class="notice">Не удалось проверить незавершённые тренировки. <a href="#/history">Открыть историю</a></div>`;
+    }
+  }
   const first = guest || !state.user.onboarding_completed;
   frame(
-    `<div class="page-heading"><p class="eyebrow">${guest ? "Тренировка без регистрации" : first ? "Первая тренировка" : "Рабочее пространство"}</p><h1>${first ? "Начни с короткого выступления" : "Что будем репетировать?"}</h1>${first ? '<p class="page-description">Для первой попытки тема и время уже выбраны. Запиши речь до минуты, ответь на вопросы в чате и получи разбор. Затем повтори попытку с одной рекомендацией.</p>' : ""}</div>${guest ? `<div class="notice">${state.user ? "Сначала запиши выступление. Затем перенесём запись в твой аккаунт и продолжим тренировку с вопросами и разбором." : "Сначала запиши выступление. После записи создай аккаунт, чтобы получить полный разбор этой попытки. Записывать заново не понадобится."}</div>` : !state.providerReady ? '<div class="notice">Сервис нейросети ещё не настроен. Можно сохранить запись; разбор станет доступен после подключения сервиса.</div>' : ""}<div class="setup-layout">${first ? `<aside class="starter"><span class="tag">Речь до 1 минуты</span><h2>Объясни идею своего проекта</h2><p>Какую проблему он решает? Кому поможет? Назови один пример применения.</p>${button("Записать первую минуту", guest ? "guest-starter" : "starter")}<p class="caption">После речи в чате появятся три вопроса. Запиши ответы, чтобы получить полный разбор.</p></aside><section class="first-guide"><h2>Как пройти первую тренировку</h2><ol><li><strong>Запиши речь</strong><p>Расскажи о проблеме и решении своими словами. Можно закончить раньше минуты.</p></li><li><strong>Ответь на вопросы и получи разбор</strong><p>${guest ? "После записи создай аккаунт. Сохраним выступление, зададим три вопроса по его содержанию и разберём речь вместе с ответами." : "После сохранения выступления в чате появятся три вопроса. Запиши ответы, и нейросеть подготовит разбор."}</p></li><li><strong>Повтори с одной рекомендацией</strong><p>Выбери в разборе, что хочешь улучшить. Тема и выбранный фокус перейдут в новую попытку.</p></li></ol><details class="custom-setup"><summary>Настроить свою тренировку</summary>${setupForm(guest)}</details></section>` : `<aside class="starter"><p class="eyebrow">Один фокус на попытку</p><h2>Подкрепи главную мысль примером</h2><p>${guest ? "Выбери тему, запиши выступление и прослушай его. Попробуй объяснить одну мысль конкретным примером." : "Выбери тему, которую предстоит объяснить аудитории. После разбора повтори выступление с одной рекомендацией."}</p></aside>${setupForm(guest)}`}</div>`,
+    `<div class="page-heading"><p class="eyebrow">${guest ? "Тренировка без регистрации" : first ? "Первая тренировка" : "Рабочее пространство"}</p><h1>${first ? "Начни с короткого выступления" : "Что будем репетировать?"}</h1>${first ? '<p class="page-description">Для первой попытки тема и время уже выбраны. Запиши речь до минуты, ответь на вопросы в чате и получи разбор. Затем повтори попытку с одной рекомендацией.</p>' : ""}</div>${guest ? `<div class="notice">${state.user ? "Сначала запиши выступление. Затем перенесём запись в твой аккаунт и продолжим тренировку с вопросами и разбором." : "Сначала запиши выступление. После записи создай аккаунт, чтобы получить полный разбор этой попытки. Записывать заново не понадобится."}</div>` : !state.providerReady ? '<div class="notice">Сервис нейросети ещё не настроен. Можно сохранить запись; разбор станет доступен после подключения сервиса.</div>' : ""}${continuation}<div class="setup-layout">${first ? `<aside class="starter"><span class="tag">Речь до 1 минуты</span><h2>Объясни идею своего проекта</h2><p>Какую проблему он решает? Кому поможет? Назови один пример применения.</p>${button("Записать первую минуту", guest ? "guest-starter" : "starter")}<p class="caption">После речи в чате появятся три вопроса. Запиши ответы, чтобы получить полный разбор.</p></aside><section class="first-guide"><h2>Как пройти первую тренировку</h2><ol><li><strong>Запиши речь</strong><p>Расскажи о проблеме и решении своими словами. Можно закончить раньше минуты.</p></li><li><strong>Ответь на вопросы и получи разбор</strong><p>${guest ? "После записи создай аккаунт. Сохраним выступление, зададим три вопроса по его содержанию и разберём речь вместе с ответами." : "После сохранения выступления в чате появятся три вопроса. Запиши ответы, и нейросеть подготовит разбор."}</p></li><li><strong>Повтори с одной рекомендацией</strong><p>Выбери в разборе, что хочешь улучшить. Тема и выбранный фокус перейдут в новую попытку.</p></li></ol><details class="custom-setup"><summary>Настроить свою тренировку</summary>${setupForm(guest)}</details></section>` : `<aside class="starter"><p class="eyebrow">Один фокус на попытку</p><h2>Подкрепи главную мысль примером</h2><p>${guest ? "Выбери тему, запиши выступление и прослушай его. Попробуй объяснить одну мысль конкретным примером." : "Выбери тему, которую предстоит объяснить аудитории. После разбора повтори выступление с одной рекомендацией."}</p></aside>${setupForm(guest)}`}</div>`,
   );
 }
 function practiceProgress(p, stage) {
@@ -368,10 +597,11 @@ function questionChat(p, segment, job) {
     (p.latest_job?.status === "failed" || p.status === "failed") &&
     !p.questions?.length;
   if (state.pending?.kind === "speech" && state.pending.practiceId === p.id) {
-    return `<aside class="meeting-chat" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><div class="chat-next"><p role="status">${state.uploading ? "Сохраняем выступление…" : "Запись остаётся в этой вкладке. Повтори сохранение, чтобы продолжить тренировку."}</p>${!state.uploading ? `${button("Повторить сохранение", "save-record")}${button("Перезаписать", "discard-record", "secondary")}<a href="${escape(state.pending.url)}" download="моя-запись">Скачать копию записи</a>` : ""}</div></aside>`;
+    const pending = state.pending;
+    return `<aside class="meeting-chat" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><div class="chat-next"><p role="status">${state.uploading ? "Сохраняем выступление…" : pending.interrupted ? "Запись прервалась. Восстановили сохранённый фрагмент — прослушай его перед продолжением." : "Выступление записано. Осталось сохранить его в аккаунт."}</p>${!state.uploading ? `<p>${pendingPersistenceText()}</p>${pending.interrupted ? playback(pending.url, pending.blob.type.startsWith("video/")) : ""}${!state.user && pending.ownerId ? button("Войти и продолжить", "reauth") : `${button(pending.interrupted ? "Сохранить фрагмент и продолжить" : "Повторить сохранение", "save-record")}${button("Перезаписать", "discard-record", "secondary")}`}<a href="${escape(pending.url)}" download="моя-запись">Скачать копию записи</a>` : ""}</div></aside>`;
   }
   if (p.id === "guest" && p.blob) {
-    return `<aside class="meeting-chat" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><div class="chat-next"><p role="status">Выступление сохранено${state.guestPersisted ? " в браузере" : " в этой вкладке"}.</p><p>${state.user ? "Продолжи в своём аккаунте, чтобы получить вопросы и полный разбор." : "Создай аккаунт, чтобы получить вопросы по этой речи и полный разбор. Записывать заново не нужно."}</p>${state.guestNotice ? errorBox(state.guestNotice) : ""}${button(state.user ? "Продолжить тренировку" : "Создать аккаунт и продолжить", "guest-analyze")}${!state.user ? '<a href="#/login">Уже есть аккаунт? Войти</a>' : ""}${!state.guestPersisted ? "<p>Не закрывай и не обновляй вкладку: браузер не разрешил сохранить черновик.</p>" : ""}</div></aside>`;
+    return `<aside class="meeting-chat" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><div class="chat-next"><p role="status">${p.interrupted ? "Запись прервалась. Восстановили сохранённый фрагмент." : `Выступление сохранено${state.guestPersisted ? " в браузере" : " в этой вкладке"}.`}</p>${p.interrupted ? playback(p.segments[0].media_url, p.blob.type.startsWith("video/")) : ""}<p>${state.user ? "Продолжи в своём аккаунте, чтобы получить вопросы и полный разбор." : "Создай аккаунт, чтобы получить вопросы по этой речи и полный разбор. Записывать заново не нужно."}</p>${state.guestNotice ? errorBox(state.guestNotice) : ""}${button(state.user ? "Продолжить тренировку" : "Создать аккаунт и продолжить", "guest-analyze")}${!state.user ? '<a href="#/login">Уже есть аккаунт? Войти</a>' : ""}${button("Перезаписать", "guest-again", "secondary")}<a href="${escape(p.segments[0].media_url)}" download="моя-запись">Скачать копию записи</a>${!state.guestPersisted ? "<p>Не закрывай и не обновляй вкладку: браузер не разрешил сохранить черновик.</p>" : ""}</div></aside>`;
   }
   return `<aside class="meeting-chat${arrival ? " chat-arrival" : ""}" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><ol class="chat-messages" role="log" aria-label="Чат встречи" aria-live="polite" aria-relevant="additions">${messages}</ol><div class="chat-next">${job ? `<p id="job-status" role="status">${jobStage(job.stage)}</p><p class="caption">Вопросы появятся здесь, когда будут готовы.</p><div id="poll-error" role="alert"></div>` : !p.questions?.length ? `<p>${state.providerReady ? "Выступление сохранено. Осталось подготовить вопросы." : "Сервис нейросети недоступен. Выступление сохранено."}</p>${failed ? errorBox(p.latest_job?.error?.message || "Не удалось подготовить вопросы. Можно попробовать ещё раз.") : ""}${button("Подготовить вопросы", "questions", "primary", state.providerReady ? "" : "disabled")}` : segment && state.activeAnswer !== `${p.id}:${segment.index}` ? `<p>Вопрос ${segment.index} из ${p.questions.length}</p>${button("Ответить на вопрос", "open-answer")}` : `<p>Ответ на вопрос ${segment?.index} из ${p.questions.length}</p>`}</div></aside>`;
 }
@@ -417,9 +647,13 @@ function meetingPage(p, guest = false, job = null) {
 }
 function practicePage(p, guest = false) {
   state.practice = p;
+  if (
+    state.pending?.practiceId === p.id &&
+    state.pending?.ownerId === state.user?.id
+  )
+    return showPending();
   if (p.report) return reportPage(p);
   if (guest && p.blob) return guestResult();
-  if (state.pending) return showPending();
   const active = p.active_job || p.latest_job;
   if (active && ["pending", "running"].includes(active.status))
     return processingPage(p, active);
@@ -779,6 +1013,16 @@ function startRecording() {
     return;
   }
   const chunks = [];
+  const ownerId = p.id === "guest" ? null : state.user?.id;
+  if (p.id !== "guest" && !ownerId) {
+    rememberReturn(p.id);
+    go("/login");
+    return;
+  }
+  state.recordingOwnerId = ownerId;
+  const clientKey = crypto.randomUUID().replaceAll("-", "");
+  const createdAt = Date.now();
+  let lastCheckpoint = createdAt;
   state.recordingError = "";
   try {
     const recorder = new MediaRecorder(
@@ -796,12 +1040,39 @@ function startRecording() {
     state.recorder = recorder;
     recorder.ondataavailable = (event) => {
       if (event.data.size) chunks.push(event.data);
+      if (
+        state.recording &&
+        Date.now() - lastCheckpoint >= 5000 &&
+        chunks.length
+      ) {
+        lastCheckpoint = Date.now();
+        void writeRecordingDraft(
+          {
+            blob: new Blob(chunks, { type: recorder.mimeType || "audio/webm" }),
+            ownerId,
+            practiceId: p.id,
+            clientKey,
+            createdAt,
+            kind: segment.kind,
+            index: segment.index,
+            durationSeconds: (Date.now() - state.started) / 1000,
+            interrupted: true,
+            autoSave: false,
+          },
+          p.config,
+        ).then((saved) => {
+          if (!saved && state.recording)
+            document.querySelector("#record-error").innerHTML = errorBox(
+              "Браузер не разрешил сохранить черновик. Не закрывай вкладку до сохранения записи.",
+            );
+        });
+      }
     };
     recorder.onerror = () => {
       state.recordingError =
         "Запись прервалась из-за ошибки микрофона. Прослушай сохранённый фрагмент перед продолжением.";
     };
-    recorder.onstop = () => {
+    recorder.onstop = async () => {
       state.recording = false;
       clearInterval(state.timer);
       const blob = new Blob(chunks, {
@@ -814,7 +1085,13 @@ function startRecording() {
         url: URL.createObjectURL(blob),
         practiceId: p.id,
         durationSeconds: Math.max(1, (Date.now() - state.started) / 1000),
+        ownerId,
+        clientKey,
+        createdAt,
+        interrupted: false,
+        autoSave: segment.kind === "speech",
       };
+      state.pendingPersisted = false;
       const capture = state.liveCapture;
       state.liveCapture = null;
       if (capture && segment.kind === "speech") {
@@ -827,6 +1104,7 @@ function startRecording() {
         keepCamera: segment.kind === "speech" && p.config.questions,
         keepLive: !!state.pending.liveCompletion,
       });
+      await persistPending();
       if (segment.kind === "speech") void saveRecording();
       else showPending();
     };
@@ -876,6 +1154,11 @@ function saveLabel(p, pending) {
   return "Сохранить и получить разбор";
 }
 async function continueAfterSave(p) {
+  if (!state.user && p.id !== "guest") {
+    rememberReturn(p.id);
+    go("/login");
+    return;
+  }
   const version = state.routeVersion;
   practicePage(p);
   const kind =
@@ -905,6 +1188,18 @@ async function continueAfterSave(p) {
 function showPending() {
   const pending = state.pending;
   if (!pending) return;
+  if (pending.missing) {
+    frame(
+      `<section class="narrow record-review"><h1>Тренировка больше недоступна</h1><p>Локальная запись сохранилась в браузере. Скачай её перед удалением черновика.</p>${playback(pending.url, pending.blob.type.startsWith("video/"))}<a class="button secondary" href="${escape(pending.url)}" download="моя-запись">Скачать черновик</a>${button("Удалить локальный черновик", "delete-local-draft", "text")}<a href="#/app">К тренировкам</a></section>`,
+    );
+    return;
+  }
+  if (pending.conflict) {
+    frame(
+      `<section class="narrow record-review"><h1>На этом этапе уже есть сохранённая запись</h1><p>Локальный черновик отличается от записи на сервере. Его можно прослушать и скачать перед продолжением.</p>${playback(pending.url, pending.blob.type.startsWith("video/"))}<a class="button secondary" href="${escape(pending.url)}" download="моя-запись">Скачать черновик</a>${button("Продолжить с записью на сервере", "use-server-recording")}</section>`,
+    );
+    return;
+  }
   if (pending.kind === "speech") {
     meetingPage(state.practice, state.practice.id === "guest");
     if (state.recordingError)
@@ -914,18 +1209,34 @@ function showPending() {
     return;
   }
   frame(
-    `<section class="record-review narrow"><p class="eyebrow">${pending.kind === "answer" ? `Ответ на вопрос ${pending.index}` : "Тренировка"}</p><h1>${pending.kind === "answer" ? "Ответ записан" : "Выступление записано"}</h1><div id="record-preview">${playback(pending.url, pending.blob.type.startsWith("video/"))}</div><div id="record-controls" class="actions">${button(saveLabel(state.practice, pending), "save-record")}${button("Перезаписать", "discard-record", "secondary")}</div><p class="caption" id="record-status" role="status">${state.practice.id === "guest" ? "Продолжи, чтобы получить разбор этой записи после регистрации." : "Продолжи, чтобы сохранить запись и перейти к следующему этапу."}</p><a class="quiet-link" href="${escape(pending.url)}" download="моя-запись">Скачать копию записи</a><div id="record-error" role="alert">${state.recordingError ? errorBox(state.recordingError) : ""}</div></section>`,
+    `<section class="record-review narrow"><p class="eyebrow">${pending.kind === "answer" ? `Ответ на вопрос ${pending.index}` : "Тренировка"}</p><h1>${pending.interrupted ? "Запись прервалась" : pending.kind === "answer" ? "Ответ записан" : "Выступление записано"}</h1>${pending.interrupted ? "<p>Восстановили сохранённый фрагмент. Прослушай его перед продолжением.</p>" : ""}<div id="record-preview">${playback(pending.url, pending.blob.type.startsWith("video/"))}</div><div id="record-controls" class="actions">${!state.user && pending.ownerId ? button("Войти и продолжить", "reauth") : `${button(saveLabel(state.practice, pending), "save-record")}${button("Перезаписать", "discard-record", "secondary")}`}</div><p class="caption" id="record-status" role="status">${pendingPersistenceText()}</p><a class="quiet-link" href="${escape(pending.url)}" download="моя-запись">Скачать копию записи</a><div id="record-error" role="alert">${state.recordingError ? errorBox(state.recordingError) : ""}</div></section>`,
   );
 }
 function discardPending() {
   if (state.pending) URL.revokeObjectURL(state.pending.url);
   state.pending = null;
+  state.pendingPersisted = false;
+}
+function pendingPersistenceText() {
+  return state.pendingPersisted
+    ? "Запись сохранена в этом браузере на сутки. Можно вернуться и продолжить тренировку."
+    : "Запись остаётся в этой вкладке. Не закрывай её до сохранения на сервере.";
 }
 async function saveRecording() {
   if (!state.pending || state.uploading) return;
   const pending = state.pending,
     p = state.practice;
+  if (pending.ownerId && state.user?.id !== pending.ownerId) {
+    rememberReturn(p.id, pending.ownerId);
+    showPending();
+    return;
+  }
   state.uploading = true;
+  const needsPersist =
+    !pending.autoSave || !state.pendingPersisted || pending.interrupted;
+  pending.autoSave = true;
+  pending.interrupted = false;
+  if (needsPersist) await persistPending(pending);
   if (pending.kind === "speech") meetingPage(p, p.id === "guest");
   else
     document.querySelector("#record-controls").innerHTML =
@@ -934,12 +1245,14 @@ async function saveRecording() {
     if (p.id === "guest") {
       p.blob = pending.blob;
       p.durationSeconds = pending.durationSeconds;
-      p.createdAt = Date.now();
-      p.clientKey = crypto.randomUUID().replaceAll("-", "");
+      p.createdAt = pending.createdAt;
+      p.clientKey = pending.clientKey;
+      p.interrupted = false;
       p.segments = [{ kind: "speech", index: 0, media_url: pending.url }];
       state.guest = p;
+      state.guestPersisted = state.pendingPersisted;
       state.pending = null;
-      await persistGuest();
+      state.pendingPersisted = false;
       guestResult();
       return;
     }
@@ -952,6 +1265,7 @@ async function saveRecording() {
         pending.index,
         session?.sessionId,
         session?.chunkCount,
+        pending.clientKey,
       );
     let saved;
     try {
@@ -962,22 +1276,29 @@ async function saveRecording() {
       pending.liveCompletion = null;
       saved = await upload(null);
     }
-    p.segments.push(saved);
+    if (!p.segments.some((s) => s.id === saved.id)) p.segments.push(saved);
     p.status = "draft";
     p.latest_job = null;
+    await clearAcceptedDraft(pending);
     discardPending();
     closeMedia({ keepCamera: pending.kind === "speech" && p.config.questions });
+    state.uploading = false;
     await continueAfterSave(p);
   } catch (error) {
-    if (error.status === 409) {
+    if (error.status === 409 && error.code !== "UPLOAD_KEY_CONFLICT") {
       try {
         const saved = await api.practice(p.id);
         if (
           saved.segments.some(
-            (s) => s.kind === pending.kind && Number(s.index) === pending.index,
+            (s) =>
+              s.kind === pending.kind &&
+              Number(s.index) === pending.index &&
+              s.client_key === pending.clientKey,
           )
         ) {
+          await clearAcceptedDraft(pending);
           discardPending();
+          state.uploading = false;
           await continueAfterSave(saved);
           return;
         }
@@ -986,13 +1307,14 @@ async function saveRecording() {
     state.uploading = false;
     showPending();
     document.querySelector("#record-error").innerHTML = errorBox(
-      `${errorText(error)} Запись остаётся в этой вкладке.`,
+      `${errorText(error)} ${pendingPersistenceText()}`,
     );
   } finally {
     state.uploading = false;
   }
 }
 async function navigate() {
+  const path = route();
   if (state.recording || state.pending || state.uploading) {
     if (state.uploading) {
       notify("Дождись сохранения записи.");
@@ -1004,6 +1326,7 @@ async function navigate() {
       return;
     }
     if (
+      (state.recording || !state.pendingPersisted) &&
       !confirm(
         "Несохранённая запись будет потеряна при переходе на другую страницу. Перейти?",
       )
@@ -1020,13 +1343,12 @@ async function navigate() {
       state.recorder.stop();
       state.recording = false;
     }
-    discardPending();
+    if (!["/login", "/register", "/reset"].includes(path)) discardPending();
   }
   closeMedia();
   clearTimeout(state.poll);
   window.scrollTo({ top: 0, behavior: "instant" });
   const version = ++state.routeVersion;
-  const path = route();
   if (path === "/landing") return landing();
   if (path === "/example") {
     frame(
@@ -1050,6 +1372,14 @@ async function navigate() {
     return;
   }
   if (!state.user) {
+    const pendingPractice = path.match(/^\/practice\/([a-f0-9]{32})$/);
+    if (pendingPractice)
+      rememberReturn(
+        pendingPractice[1],
+        state.authReturn?.practiceId === pendingPractice[1]
+          ? state.authReturn.ownerId
+          : undefined,
+      );
     if (!state.online) {
       frame(
         `<h1>Нет связи с сервером</h1>${errorBox("Авторизация и сохранение недоступны. Можно повторить подключение или попробовать гостевую запись.")} ${button("Повторить подключение", "reconnect", "secondary")}<a class="button secondary" href="#/guest">Гостевая запись</a>`,
@@ -1066,8 +1396,56 @@ async function navigate() {
     frame('<div class="loading" role="status">Загружаем тренировку…</div>');
     try {
       const p = await api.practice(decodeURIComponent(match[1]));
-      if (version === state.routeVersion) practicePage(p);
+      if (version !== state.routeVersion) return;
+      state.practice = p;
+      await restorePending(p);
+      if (version !== state.routeVersion || !state.user) return;
+      forgetReturn();
+      practicePage(p);
+      if (
+        state.pending?.autoSave &&
+        !state.pending.interrupted &&
+        !state.pending.conflict
+      )
+        await saveRecording();
+      else if (
+        !state.pending &&
+        !p.report &&
+        !p.active_job &&
+        p.segments.some((s) => s.kind === "speech") &&
+        (!p.latest_job ||
+          (p.latest_job.kind === "questions" &&
+            p.latest_job.status === "succeeded" &&
+            !nextSegment(p)))
+      )
+        await continueAfterSave(p);
     } catch (error) {
+      if (
+        error.status === 404 &&
+        state.user &&
+        version === state.routeVersion
+      ) {
+        const ownerId = state.user.id;
+        const drafts = await loadRecordingDrafts(ownerId).catch(() => []);
+        const draft = drafts.find(
+          (d) => d.practiceId === decodeURIComponent(match[1]),
+        );
+        if (
+          draft &&
+          version === state.routeVersion &&
+          state.user?.id === ownerId
+        ) {
+          state.practice = { id: draft.practiceId, config: draft.config };
+          state.pending = {
+            ...draft,
+            url: URL.createObjectURL(draft.blob),
+            missing: true,
+          };
+          state.pendingPersisted = true;
+          showPending();
+          return;
+        }
+      }
       if (version === state.routeVersion)
         frame(
           `<h1>Тренировка недоступна</h1>${errorBox(errorText(error))}<a href="#/history" class="button secondary">Открыть историю</a>`,
@@ -1122,8 +1500,7 @@ async function submitForm(event) {
       state.providerReady = me.provider_ready;
       state.inviteRequired = me.registration_requires_invite;
       state.online = true;
-      if (state.guest?.blob) await importGuest();
-      else go("/app");
+      await resumeAfterLogin();
     } else if (form.id === "setup-form") {
       const config = {
         scenario: body.scenario,
@@ -1193,13 +1570,19 @@ async function action(event) {
         await initialize();
         break;
       case "logout":
-        if (state.recording || state.pending || state.uploading) {
+        if (
+          state.recording ||
+          (state.pending && !state.pendingPersisted) ||
+          state.uploading
+        ) {
           notify("Сначала сохрани или отмени текущую запись.");
           return;
         }
         await api.logout();
+        discardPending();
         state.user = null;
         state.practice = null;
+        forgetReturn();
         go("/landing");
         break;
       case "guest-starter": {
@@ -1271,8 +1654,39 @@ async function action(event) {
         await saveRecording();
         break;
       case "discard-record":
+        if (state.pending) await clearRecordingDraft(state.pending);
         discardPending();
         practicePage(state.practice, state.practice.id === "guest");
+        break;
+      case "reauth":
+        await persistPending();
+        rememberReturn(state.pending.practiceId, state.pending.ownerId);
+        go("/login");
+        break;
+      case "use-server-recording": {
+        if (
+          !confirm(
+            "Удалить локальный черновик и продолжить с записью на сервере?",
+          )
+        )
+          return;
+        const id = state.pending.practiceId;
+        await clearRecordingDraft(state.pending);
+        discardPending();
+        go(`/practice/${encodeURIComponent(id)}`);
+        break;
+      }
+      case "delete-local-draft":
+        if (
+          !confirm(
+            "Удалить локальный черновик? Сначала скачай запись, если она нужна.",
+          )
+        )
+          return;
+        await clearRecordingDraft(state.pending);
+        await clearDraft(state.pending.clientKey);
+        discardPending();
+        go("/app");
         break;
       case "questions":
       case "report": {
@@ -1298,6 +1712,12 @@ async function action(event) {
           return;
         target.disabled = true;
         await api.deletePractice(target.dataset.id);
+        const drafts = await loadRecordingDrafts(state.user.id);
+        await Promise.all(
+          drafts
+            .filter((d) => d.practiceId === target.dataset.id)
+            .map(clearRecordingDraft),
+        );
         notify("Тренировка удалена.");
         await history();
         break;
@@ -1339,21 +1759,13 @@ async function action(event) {
 }
 async function initialize() {
   try {
+    const saved = JSON.parse(sessionStorage.getItem("practice-return"));
+    if (/^[a-f0-9]{32}$/.test(saved?.practiceId)) state.authReturn = saved;
+  } catch {}
+  try {
     const draft = await loadDraft();
     if (draft) {
-      state.guest = {
-        ...draft,
-        id: "guest",
-        segments: [
-          {
-            kind: "speech",
-            index: 0,
-            media_url: URL.createObjectURL(draft.blob),
-          },
-        ],
-        questions: [],
-        report: null,
-      };
+      state.guest = guestFromDraft(draft);
       state.guestPersisted = true;
     }
   } catch {
@@ -1366,10 +1778,29 @@ async function initialize() {
     state.providerReady = me.provider_ready;
     state.inviteRequired = me.registration_requires_invite;
     state.online = true;
+    if (state.pending && state.pending.ownerId !== state.user?.id)
+      discardPending();
   } catch {
     state.online = false;
   }
+  if (state.guest?.ownerId && state.guest.ownerId !== state.user?.id) {
+    state.guest.segments.forEach((s) => URL.revokeObjectURL(s.media_url));
+    state.guest = null;
+    state.guestPersisted = false;
+  }
   await navigate();
+}
+function guestFromDraft(draft) {
+  state.guestPersisted = true;
+  return {
+    ...draft,
+    id: "guest",
+    segments: [
+      { kind: "speech", index: 0, media_url: URL.createObjectURL(draft.blob) },
+    ],
+    questions: [],
+    report: null,
+  };
 }
 app.addEventListener("submit", submitForm);
 app.addEventListener("click", action);
@@ -1381,7 +1812,7 @@ window.addEventListener("hashchange", () => void navigate());
 window.addEventListener("beforeunload", (event) => {
   if (
     state.recording ||
-    state.pending ||
+    (state.pending && !state.pendingPersisted) ||
     state.uploading ||
     (state.guest?.blob && !state.guestPersisted)
   ) {
@@ -1389,18 +1820,5 @@ window.addEventListener("beforeunload", (event) => {
     event.returnValue = "";
   }
 });
-window.addEventListener("session-expired", () => {
-  state.user = null;
-  const currentHeader = document.querySelector(".header");
-  if (currentHeader) currentHeader.outerHTML = header();
-  if (state.pending || state.recording || state.uploading) {
-    notify("Сессия завершилась. Скачай копию записи и войди снова.");
-    const message = document.querySelector("#record-error");
-    if (message)
-      message.innerHTML =
-        errorBox(
-          "Сессия завершилась. Скачай копию записи перед повторным входом.",
-        ) + '<a href="#/login">Войти снова</a>';
-  } else go("/login");
-});
+window.addEventListener("session-expired", sessionExpired);
 void initialize();

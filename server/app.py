@@ -116,7 +116,7 @@ def job_json(row):
 
 
 def segment_json(row):
-    return {'id': row['id'], 'kind': row['kind'], 'index': row['segment_index'], 'media_url': '/api/practices/' + row['practice_id'] + '/segments/' + row['id'] + '/media', 'duration_seconds': row['duration'], 'transcript': row['transcript'], 'has_video': '.video.' in row['filename']}
+    return {'id': row['id'], 'kind': row['kind'], 'index': row['segment_index'], 'media_url': '/api/practices/' + row['practice_id'] + '/segments/' + row['id'] + '/media', 'duration_seconds': row['duration'], 'transcript': row['transcript'], 'has_video': '.video.' in row['filename'], 'client_key': row.get('client_key')}
 
 
 async def decoded_duration(path):
@@ -222,7 +222,7 @@ def create_app(data_dir=None, start_worker=True):
         return row
 
     def practice_json(row):
-        segments = store.all('SELECT * FROM segments WHERE practice_id=? ORDER BY segment_index', (row['id'],))
+        segments = store.all('SELECT s.*,u.client_key FROM segments s LEFT JOIN segment_uploads u ON u.segment_id=s.id WHERE s.practice_id=? ORDER BY s.segment_index', (row['id'],))
         active = store.one("SELECT * FROM jobs WHERE practice_id=? AND status IN ('pending','running') ORDER BY created DESC LIMIT 1", (row['id'],))
         latest = store.one('SELECT * FROM jobs WHERE practice_id=? ORDER BY created DESC LIMIT 1', (row['id'],))
         return {'id': row['id'], 'config': json.loads(row['config']), 'created_at': datetime.fromtimestamp(row['created'], ZoneInfo('UTC')).isoformat(), 'status': row['status'], 'questions': json.loads(row['questions']), 'report': json.loads(row['report']) if row['report'] else None, 'segments': [segment_json(s) for s in segments], 'active_job': job_json(active) if active else None, 'latest_job': job_json(latest) if latest else None}
@@ -443,18 +443,33 @@ def create_app(data_dir=None, start_worker=True):
         return snapshot(store, practice_id, session_id)
 
     @app.post('/api/practices/{practice_id}/segments')
-    async def upload(practice_id: str, request: Request, file: UploadFile = File(...), kind: str = Form(...), index: int = Form(...), live_session_id: str | None = Form(None), live_chunk_count: int | None = Form(None)):
+    async def upload(practice_id: str, request: Request, file: UploadFile = File(...), kind: str = Form(...), index: int = Form(...), live_session_id: str | None = Form(None), live_chunk_count: int | None = Form(None), client_key: str | None = Form(None)):
         user = auth(request, True)
         practice = owned(practice_id, user['id'])
         if not user['consent']:
             fail(403, 'CONSENT_REQUIRED', 'Подтвердите согласие на обработку записи.')
+        if client_key is not None and not re.fullmatch(r'[a-f0-9]{32}', client_key):
+            fail(422, 'UPLOAD_KEY_INVALID', 'Не удалось прочитать идентификатор записи.')
+        existing = store.one('SELECT s.*,u.client_key,u.sha256 FROM segments s LEFT JOIN segment_uploads u ON u.segment_id=s.id WHERE s.practice_id=? AND s.segment_index=?', (practice_id, index))
+        if existing:
+            try:
+                if not client_key or existing['client_key'] != client_key or existing['kind'] != kind:
+                    fail(409, 'SEGMENT_EXISTS', 'На этом этапе уже сохранена другая запись. Локальный черновик остаётся в браузере.')
+                content_hash = hashlib.sha256()
+                while chunk := await file.read(1024 * 1024):
+                    content_hash.update(chunk)
+                if content_hash.hexdigest() != existing['sha256']:
+                    fail(409, 'UPLOAD_KEY_CONFLICT', 'Идентификатор относится к другой записи. Локальный черновик сохранён.')
+                return segment_json(existing)
+            finally:
+                await file.close()
+        if client_key and store.one('SELECT segment_id FROM segment_uploads WHERE practice_id=? AND client_key=?', (practice_id, client_key)):
+            fail(409, 'UPLOAD_KEY_CONFLICT', 'Идентификатор относится к другому этапу тренировки.')
         if practice['status'] in ('processing', 'ready'):
             fail(409, 'PRACTICE_LOCKED', 'Эта тренировка уже обрабатывается или завершена.')
         questions = json.loads(practice['questions'])
         if (kind == 'speech' and index != 0) or (kind == 'answer' and not (1 <= index <= len(questions))) or kind not in ('speech', 'answer'):
             fail(422, 'SEGMENT_INVALID', 'Запись не соответствует этапу тренировки.')
-        if store.one('SELECT id FROM segments WHERE practice_id=? AND segment_index=?', (practice_id, index)):
-            fail(409, 'SEGMENT_EXISTS', 'Эта запись уже сохранена.')
         if store.limited('upload:' + user['id'], 60, 86400):
             fail(429, 'UPLOAD_QUOTA', 'Лимит загрузок на сегодня достигнут.')
         segment_id = uid()
@@ -463,12 +478,14 @@ def create_app(data_dir=None, start_worker=True):
         keep = False
         try:
             size = 0
+            content_hash = hashlib.sha256()
             with path.open('xb') as destination:
                 while chunk := await file.read(1024 * 1024):
                     size += len(chunk)
                     if size > int(os.environ.get('MAX_UPLOAD_BYTES', 32 * 1024 * 1024)):
                         fail(413, 'MEDIA_TOO_LARGE', 'Файл слишком большой. Запишите более короткую тренировку без видео.')
                     destination.write(chunk)
+                    content_hash.update(chunk)
                 destination.flush()
                 os.fsync(destination.fileno())
             probe = await decoded_duration(path)
@@ -495,16 +512,21 @@ def create_app(data_dir=None, start_worker=True):
                     if total + duration > 600:
                         fail(413, 'MEDIA_TOO_LONG', 'Общая длительность тренировки — не больше 10 минут.')
                     db.execute('INSERT INTO segments VALUES(?,?,?,?,?,?,?,?)', (segment_id, practice_id, kind, index, filename, duration, None, now()))
+                    if client_key:
+                        db.execute('INSERT INTO segment_uploads VALUES(?,?,?,?)', (segment_id, practice_id, client_key, content_hash.hexdigest()))
                     if live_session_id:
                         session = db.execute("SELECT * FROM live_sessions WHERE practice_id=? AND session_id=? AND status='open'", (practice_id, live_session_id)).fetchone()
                         if kind != 'speech' or not session or session['created'] < now() - 86400 or (live_chunk_count is not None and not 1 <= live_chunk_count <= 64):
                             fail(409, 'LIVE_SESSION_STALE', 'Промежуточная расшифровка относится к другой записи. Сохраните выступление без неё.')
                         db.execute("UPDATE live_sessions SET status='bound',segment_id=?,expected_chunks=? WHERE practice_id=? AND session_id=?", (segment_id, live_chunk_count, practice_id, live_session_id))
             except sqlite3.IntegrityError:
+                saved = store.one('SELECT s.*,u.client_key,u.sha256 FROM segments s JOIN segment_uploads u ON u.segment_id=s.id WHERE s.practice_id=? AND s.segment_index=?', (practice_id, index))
+                if saved and saved['client_key'] == client_key and saved['kind'] == kind and saved['sha256'] == content_hash.hexdigest():
+                    return segment_json(saved)
                 fail(409, 'SEGMENT_EXISTS', 'Эта запись уже сохранена.')
             keep = True
             store.event('recording_saved', user['id'], practice_id, {'segment_index': index, 'duration_seconds': duration})
-            return segment_json(store.one('SELECT * FROM segments WHERE id=?', (segment_id,)))
+            return segment_json(store.one('SELECT s.*,u.client_key FROM segments s LEFT JOIN segment_uploads u ON u.segment_id=s.id WHERE s.id=?', (segment_id,)))
         finally:
             await file.close()
             if not keep:
@@ -573,6 +595,7 @@ def create_app(data_dir=None, start_worker=True):
             for row in files:
                 (store.media / row['filename']).unlink(missing_ok=True)
             db.execute('DELETE FROM segments WHERE practice_id=?', (practice_id,))
+            db.execute('DELETE FROM segment_uploads WHERE practice_id=?', (practice_id,))
             db.execute('DELETE FROM live_chunks WHERE practice_id=?', (practice_id,))
             db.execute('DELETE FROM live_sessions WHERE practice_id=?', (practice_id,))
             db.execute('DELETE FROM feedback WHERE practice_id=?', (practice_id,))

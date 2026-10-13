@@ -32,6 +32,7 @@ class Store:
                 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,csrf TEXT NOT NULL,expires REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS practices(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,config TEXT NOT NULL,created REAL NOT NULL,status TEXT NOT NULL DEFAULT 'draft',questions TEXT NOT NULL DEFAULT '[]',report TEXT);
                 CREATE TABLE IF NOT EXISTS segments(id TEXT PRIMARY KEY,practice_id TEXT NOT NULL,kind TEXT NOT NULL,segment_index INTEGER NOT NULL,filename TEXT NOT NULL,duration REAL NOT NULL,transcript TEXT,created REAL NOT NULL,UNIQUE(practice_id,segment_index));
+                CREATE TABLE IF NOT EXISTS segment_uploads(segment_id TEXT PRIMARY KEY,practice_id TEXT NOT NULL,client_key TEXT NOT NULL,sha256 TEXT NOT NULL,UNIQUE(practice_id,client_key));
                 CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,practice_id TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL,stage TEXT NOT NULL,created REAL NOT NULL,started REAL,finished REAL,result TEXT,error TEXT);
                 CREATE UNIQUE INDEX IF NOT EXISTS one_active_job ON jobs(practice_id) WHERE status IN ('pending','running');
                 CREATE TABLE IF NOT EXISTS usage(id TEXT PRIMARY KEY,job_id TEXT NOT NULL,user_id TEXT NOT NULL,created REAL NOT NULL,data TEXT NOT NULL);
