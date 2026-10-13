@@ -98,7 +98,7 @@
       const documents = data.documents.filter(d => d.folder === folder.id);
       main.innerHTML = `<nav class="crumbs" aria-label="Навигация"><a href="#">Все материалы</a><a href="#folder/${data.folders.find(f=>f.id!==folder.id).id}">${escape(data.folders.find(f=>f.id!==folder.id).name)}</a></nav><div class="library-header"><h1 tabindex="-1">${escape(folder.name)}</h1><span class="count">${count(documents.length)}</span></div><div class="search"><label for="search">Поиск по материалам папки</label><input type="search" id="search" placeholder="Название, тема или фраза" autocomplete="off"></div><p class="results-count" aria-live="polite"></p><div class="documents"></div>`;
       const input = main.querySelector('input');
-      const searchable = documents.map(doc => ({doc,text:(doc.title+' '+doc.blocks.map(b=>b.text).join(' ')).toLocaleLowerCase('ru')}));
+      const searchable = documents.map(doc => ({doc,text:([doc.title,doc.id,doc.source_title,doc.filename,...doc.blocks.map(b=>b.text)].join(' ')).toLocaleLowerCase('ru')}));
       const update = () => {
         const query = input.value.trim().toLocaleLowerCase('ru');
         queries.set(folder.id,input.value);

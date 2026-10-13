@@ -204,18 +204,25 @@ def extract_archive(archive):
             title = blocks.pop(0)['text']
             code_match = re.search(r'\b[RM]\d{3}\b', title)
             code = code_match[0] if code_match else 'result-' + re.search(r'\d+', title)[0]
+            # Catalog numbering is presentation only; stable source IDs and links
+            # remain bound to the archive and the editorial evidence.
+            number = (int(code[1:]) if code.startswith('R') else
+                      21 + int(code[1:]) if code.startswith('M') else
+                      19 + int(code.removeprefix('result-')))
             # Card previews are source excerpts, never invented summaries.
             preview = next((b['text'] for b in blocks if b['type'] in ('p','li','h4')
                             and not re.match(r'^Респондент(?:ка)?(?: [RM]\d+)?[: ]+\[R\d+', b['text'])), '')
             if len(preview) > 180:
                 preview = preview[:177].rsplit(' ', 1)[0] + '…'
-            documents.append({'id':code, 'folder':group, 'title':title,
+            documents.append({'id':code, 'folder':group, 'title':f'Интервью {number}',
+                              'catalog_number':number, 'source_title':title,
                               'filename':parts[-1], 'preview':preview, 'blocks':blocks,
                               'links':list(dict.fromkeys(links))})
             audit.append({'file':name, 'removed_blocks':removed,
                           'source_lines':len(lines), 'retained_lines':len(retained)})
     assert len({d['id'] for d in documents}) == len(documents)
-    documents.sort(key=lambda d: (d['folder'], 0 if d['id'].startswith('result') else 1 if d['id'].startswith('R') else 2, d['id']))
+    assert len({d['catalog_number'] for d in documents}) == len(documents)
+    documents.sort(key=lambda d: (d['folder'], d['catalog_number']))
     return documents, audit
 
 

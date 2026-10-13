@@ -89,8 +89,14 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(sum(d['folder']=='ideal' for d in docs),28)
         self.assertEqual(sum(d['folder']=='other' for d in docs),11)
         self.assertEqual({d['id'] for d in docs}, {f'R{i:03}' for i in range(1,20)} | {f'M{i:03}' for i in range(1,19)} | {'result-01','result-02'})
+        self.assertEqual({d['title'] for d in docs},{f'Интервью {i}' for i in range(1,40)})
+        for folder in ('ideal','other'):
+            numbers = [d['catalog_number'] for d in docs if d['folder']==folder]
+            self.assertEqual(numbers,sorted(numbers))
         for doc in docs:
             self.assertTrue(doc['blocks'])
+            self.assertTrue(doc['source_title'])
+            self.assertEqual(doc['title'],f"Интервью {doc['catalog_number']}")
             entry = json.loads((ROOT/'docs/customer-development-conclusions.json').read_text())['documents'][doc['id']]
             self.assertEqual(len(entry['findings']),4)
             texts = [b['text'] for b in doc['blocks']]
