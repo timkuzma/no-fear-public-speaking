@@ -477,7 +477,7 @@ async function setup(guest = false) {
         ...unfinished,
       ];
       if (items.length)
-        continuation = `<section class="narrow"><h2>Продолжи незавершённую тренировку</h2><div class="history-list">${items
+        continuation = `<section class="practice-continuation"><h2>Продолжи незавершённую тренировку</h2><div class="history-list">${items
           .slice(0, 3)
           .map(
             (p) =>

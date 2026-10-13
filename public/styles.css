@@ -1055,15 +1055,16 @@ video.recording-playback {
 }
 .first-guide h2 {
   font-size: var(--text-section);
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 }
 .first-guide ol {
+  display: grid;
+  gap: 32px;
   padding-left: 24px;
   margin: 0;
 }
 .first-guide li {
   padding-left: 10px;
-  margin-bottom: 24px;
 }
 .first-guide li strong {
   font-size: 16px;
@@ -1075,14 +1076,13 @@ video.recording-playback {
   margin-top: 8px;
 }
 .custom-setup {
-  border-top: 1px solid var(--line);
-  margin-top: 32px;
-  padding-top: 24px;
+  margin-top: 40px;
 }
 .custom-setup summary {
   cursor: pointer;
   font-size: 16px;
   font-weight: 600;
+  padding: 12px 0;
 }
 .custom-setup[open] .setup-form {
   margin-top: 28px;
@@ -1238,6 +1238,35 @@ video.recording-playback {
 }
 .history-item .actions {
   margin: 0;
+}
+.practice-continuation {
+  margin-top: 48px;
+}
+.practice-continuation h2 {
+  font-size: var(--text-section);
+}
+.practice-continuation .history-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+  border: 0;
+}
+.practice-continuation .history-item {
+  padding: 24px 28px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--neutral);
+}
+.practice-continuation .history-item h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+.practice-continuation > .quiet-link {
+  display: inline-block;
+  margin-top: 20px;
+}
+.practice-continuation + .setup-layout {
+  margin-top: 60px;
 }
 .record-stage {
   display: grid;
@@ -1880,6 +1909,15 @@ video.recording-playback {
     grid-template-columns: 1fr;
     gap: 35px;
     margin-top: 30px;
+  }
+  .practice-continuation {
+    margin-top: 36px;
+  }
+  .practice-continuation .history-item {
+    padding: 20px;
+  }
+  .practice-continuation + .setup-layout {
+    margin-top: 40px;
   }
   .starter {
     padding: 28px;
