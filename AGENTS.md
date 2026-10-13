@@ -8,6 +8,7 @@
 - SQLite WAL, private media and durable queues form a single-host pilot. Run exactly one application process, with one final-job worker and one incremental-ASR worker; startup queue recovery is not safe across simultaneous application instances sharing a database.
 - Do not simulate authentication, store passwords/session tokens in localStorage, or expose provider credentials in frontend source. Never commit `.env`, private data, logs or temporary test artifacts.
 - Provider output is untrusted text. Verify transcript quotations; derive numerical metrics locally. Do not claim voice, gesture or psychological analysis from a text pipeline.
+- `docs/ai-quality-implementation-plan.html` owns the proposed AI-quality roadmap; `docs/research/` holds its source evidence and transfer limits. These are planning artifacts, not implemented prompt/API contracts. Quote-ID and mocked-provider tests prove structural provenance, not semantic entailment or live coaching quality; assess those separately before claiming validation.
 
 ## Interface and Russian copy
 
