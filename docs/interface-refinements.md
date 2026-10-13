@@ -47,3 +47,9 @@ The seven preparation-focused FAQ pairs from source `bf1be1f` are published in i
 The controller reported success with a verified backup. External readiness returned 200 with both workers alive and maintenance disabled. Public HTML and app.js hashes matched `bf1be1f`; HTML references `app.js?v=20261013-product-faq`. The public source and rendered page contained all seven new questions.
 
 HTTPS browser checks verified Enter disclosure, readable 16px answers, 1440 and 375 CSS-pixel layouts without horizontal overflow, and working disclosure under reduced motion with zero active animations. No browser console errors were reported. The landing still had no guest or privacy links. Screenshots are ignored artifacts under `outputs/test-artifacts/product-faq/`. Node syntax checks and diff whitespace checks passed; this copy-only release did not repeat backend/provider testing or make AI calls. No Git push was performed.
+
+## Hero scroll-link removal, 13 October 2026
+
+Source `6f5de35` is published in image `sha256:cfb218949fdf6a3e47d8d72781f2f83d66e99c794482d42a3a91ec60317fe14a`, using the exact previous FAQ image as its backend base. The hero rehearsal-scroll button, unused action handler and CSS rules are absent. HTML references both app.js and landing.css with version `20261013-hero-cleanup`.
+
+The controller succeeded with a verified backup; external readiness returned 200 with both workers alive and maintenance disabled. Public HTML/JS/CSS hashes matched `6f5de35`. The HTTPS browser confirmed no removed phrase/button in the hero, the main CTA still requires registration, all seven FAQ questions remain, and 1440/375 CSS-pixel layouts have no horizontal overflow. Browser console inspection found no errors. Node syntax and diff checks passed; no backend/provider tests were repeated. The previous image `sha256:81c735e02bed6dc1352964d8bf3036d78eea4a9b062e4870c96fb16a2d4bbc31` is retained for rollback. No Git push was performed.
