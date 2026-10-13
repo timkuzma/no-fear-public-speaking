@@ -252,7 +252,7 @@ def create_app(data_dir=None, start_worker=True):
     def session_response(user):
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         store.execute('INSERT INTO sessions VALUES(?,?,?,?)', (digest(token), user['id'], csrf, now() + 7 * 86400))
-        response = JSONResponse({'user': public_user(user), 'csrf_token': csrf})
+        response = JSONResponse({'user': public_user(user), 'csrf_token': csrf, 'provider_ready': provider_ready(), 'registration_requires_invite': production or os.environ.get('REQUIRE_INVITE') == '1'})
         response.set_cookie('nfs_session', token, max_age=7 * 86400, httponly=True, secure=production, samesite='strict', path='/')
         return response
 

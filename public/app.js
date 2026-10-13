@@ -1,6 +1,6 @@
 import { installTypography } from "./typography.js?v=20261013-type";
 import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-refine";
-import { api } from "./api.js?v=20261013-no-example";
+import { api } from "./api.js?v=20261013-auth-gate";
 import { LiveAudioCapture } from "./live-audio.js?v=20261011-live";
 import {
   saveDraft,
@@ -9,7 +9,7 @@ import {
   saveRecordingDraft,
   loadRecordingDrafts,
   clearRecordingDraft,
-} from "./guest-draft.js?v=20261013-recovery";
+} from "./guest-draft.js?v=20261013-auth-gate";
 const app = document.querySelector("#app");
 let landingCleanup = () => {};
 const state = {
@@ -94,7 +94,7 @@ function button(text, action, cls = "primary", extra = "") {
   return `<button class="button ${cls}" type="button" data-action="${action}" ${extra}>${text}</button>`;
 }
 function startLink(text = "Начать тренировку", cls = "primary") {
-  return `<a class="button ${cls}" href="#${state.user ? "/app" : "/guest"}">${text}</a>`;
+  return `<a class="button ${cls}" href="#${state.user ? "/app" : "/register"}">${text}</a>`;
 }
 function header() {
   return `<header class="header"><a class="home-link" href="#/landing">Главная</a><nav class="primary-nav" aria-label="Основная навигация">${state.user ? `<a href="#/app">Тренировка</a><a href="#/history">История</a>` : `<a href="#/login">Вход</a><a class="registration-link" href="#/register">Регистрация</a>`}</nav>${state.user ? `<div class="account-actions">${button("Выход", "logout", "text")}</div>` : ""}</header>`;
@@ -119,7 +119,7 @@ function landing() {
         <p class="landing-kicker" data-enter>Сцена без страха · Репетиция выступлений</p>
         <h1 id="landing-title" data-enter>Отрепетируй речь до встречи с аудиторией</h1>
         <p class="landing-lead" data-enter>Запиши выступление, ответь на вопросы по сказанному и выбери, что улучшить в следующей попытке.</p>
-        <p class="landing-start-note" data-enter>${state.user ? "Твоя следующая попытка останется в истории тренировок." : `Запись и прослушивание — без аккаунта. Вопросы и разбор — после входа.${state.inviteRequired ? " Для регистрации нужен код приглашения от организатора." : ""}`}</p>
+        <p class="landing-start-note" data-enter>${state.user ? "Твоя следующая попытка останется в истории тренировок." : `Зарегистрируйся или войди, чтобы записать выступление и получить разбор.${state.inviteRequired ? " Для регистрации нужен код приглашения от организатора." : ""}`}</p>
         <div class="landing-hero-actions" data-enter>${startLink("Начать с минуты речи", "primary landing-cta")}</div>
       </div>
       <button class="landing-scroll-link" type="button" data-action="landing-scroll" data-section="landing-contexts">Как проходит репетиция</button>
@@ -154,10 +154,10 @@ function landing() {
         <details><summary>Подойдёт ли это для моего выступления?</summary><div><p>Здесь можно репетировать доклад, защиту проекта или презентацию идеи на свою тему. Разбор поможет проверить содержание: главную мысль, аргументы и ответы на вопросы. Дикцию, интонацию и жесты текущая версия не оценивает.</p></div></details>
         <details><summary>Что я получу после первой попытки?</summary><div><p>Разбор речи и ответов: что уже получается, что попробовать изменить и на какие фрагменты записи опираются замечания. После него можно выбрать одну рекомендацию и повторить тренировку с этим фокусом.</p></div></details>
         <details><summary>Сколько времени нужно и что придётся делать?</summary><div><p>Первая попытка — выступление до минуты и три ответа до минуты каждый. Вопросы появятся в чате после сохранения речи; затем сервис подготовит разбор. На обработку и чтение потребуется дополнительное время. В своих настройках вопросы можно отключить.</p></div></details>
-        <details><summary>Можно ли попробовать без регистрации?</summary><div><p>Да, записать и прослушать речь можно сразу. Для вопросов, полного разбора и истории понадобится аккаунт; сделанную запись перенесём без повторного выступления.${state.inviteRequired ? " Для регистрации нужен код приглашения от организатора." : ""}</p></div></details>
+        <details><summary>Нужна ли регистрация?</summary><div><p>Да. Для записи, вопросов и разбора нужен аккаунт. Если уже регистрировался, войди со своей почтой и паролем.${state.inviteRequired ? " Для регистрации нужен код приглашения от организатора." : ""}</p></div></details>
         <details><summary>Мне придётся включать камеру или говорить перед людьми?</summary><div><p>Нет. Достаточно микрофона; камера включается по желанию. На экране виртуальная аудитория, а вопросы задаёт нейросеть по твоей речи. Живые участники к тренировке не подключаются.</p></div></details>
         <details><summary>Насколько можно доверять замечаниям нейросети?</summary><div><p>Цитаты в разборе проверяются по расшифровке, но распознавание речи и выводы могут быть ошибочными. Сверяй важные замечания со своей записью и требованиями выступления. Разбор помогает репетировать и не гарантирует оценку преподавателя или успех на защите.</p></div></details>
-        <details><summary>Кто получит мою запись?</summary><div><p>Другие пользователи не получают доступ к твоим тренировкам через сервис. Для разбора аудио передаётся внешнему сервису расшифровки, текст — нейросети; в аккаунте обработка может начинаться во время записи. До входа или регистрации гостевая запись остаётся в браузере.</p></div></details>
+        <details><summary>Кто получит мою запись?</summary><div><p>Другие пользователи не получают доступ к твоим тренировкам через сервис. Для разбора аудио передаётся внешнему сервису расшифровки, текст — нейросети; в аккаунте обработка может начинаться во время записи.</p></div></details>
         <details><summary>Что будет с записью после тренировки?</summary><div><p>Сохранённая на сервере запись остаётся в аккаунте: её можно прослушать, скачать или удалить из истории вместе с разбором. До отправки черновик доступен сутки в том же браузере, если локальное хранение разрешено. Удаление тренировки не стирает ранее созданные резервные копии и данные у внешнего сервиса.</p></div></details>
       </div>
     </section>
@@ -183,7 +183,7 @@ function authScreen(mode) {
   const register = mode === "register",
     reset = mode === "reset";
   frame(
-    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : state.guest?.blob && !reset ? "Получи разбор своего выступления" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? (state.guest?.blob ? "Твоя запись уже готова. После регистрации перенесём её в аккаунт и подготовим разбор. Повторять выступление не нужно." : "После регистрации начни с короткого упражнения: запиши минуту речи и получи первый разбор.") : state.guest?.blob ? "Войди, чтобы получить разбор уже записанного выступления. Запись перейдёт в твой аккаунт." : state.authReturn ? "После входа вернёмся к незавершённой тренировке. Сохранённые записи повторять не нужно." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Регистрация" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Регистрация" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Регистрация</a> · <a href="#/reset">Восстановить доступ</a>'}</p>${register ? `<a class="quiet-link" href="#/guest">${state.guest?.blob ? "Вернуться к своей записи" : "Начать без регистрации"}</a>` : ""}</section></div>`,
+    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : state.guest?.blob && !reset ? "Получи разбор своего выступления" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? (state.guest?.blob ? "Твоя запись уже готова. После регистрации перенесём её в аккаунт и подготовим разбор. Повторять выступление не нужно." : "После регистрации начни с короткого упражнения: запиши минуту речи и получи первый разбор.") : state.guest?.blob ? "Войди, чтобы получить разбор уже записанного выступления. Запись перейдёт в твой аккаунт." : state.authReturn ? "После входа вернёмся к незавершённой тренировке. Сохранённые записи повторять не нужно." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Регистрация" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Регистрация" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Регистрация</a> · <a href="#/reset">Восстановить доступ</a>'}</p></section></div>`,
   );
 }
 async function persistGuest() {
@@ -1420,11 +1420,7 @@ async function navigate() {
     authScreen(path.slice(1));
     return;
   }
-  if (path === "/guest") {
-    if (state.guest) practicePage(state.guest, true);
-    else setup(true);
-    return;
-  }
+  if (path === "/guest") return go(state.user ? "/app" : "/register");
   if (!state.user) {
     const pendingPractice = path.match(/^\/practice\/([a-f0-9]{32})$/);
     if (pendingPractice)
@@ -1436,7 +1432,7 @@ async function navigate() {
       );
     if (!state.online) {
       frame(
-        `<h1>Нет связи с сервером</h1>${errorBox("Авторизация и сохранение недоступны. Можно повторить подключение или попробовать гостевую запись.")} ${button("Повторить подключение", "reconnect", "secondary")}<a class="button secondary" href="#/guest">Гостевая запись</a>`,
+        `<h1>Нет связи с сервером</h1>${errorBox("Авторизация и сохранение недоступны. Повтори подключение, чтобы войти в аккаунт.")} ${button("Повторить подключение", "reconnect", "secondary")}`,
       );
       return;
     }
@@ -1548,11 +1544,10 @@ async function submitForm(event) {
             })
           : await api.login({ ...body, email: body.email.trim() });
       state.user = data.user;
-      const me = await api.me();
-      state.user = me.user;
-      state.providerReady = me.provider_ready;
-      state.inviteRequired = me.registration_requires_invite;
+      state.providerReady = data.provider_ready ?? state.providerReady;
+      state.inviteRequired = data.registration_requires_invite ?? state.inviteRequired;
       state.online = true;
+      frame(`<div class="loading" role="status">${mode === "register" ? "Аккаунт создан. Открываем тренировку…" : "Вход выполнен. Открываем тренировку…"}</div>`);
       await resumeAfterLogin();
     } else if (form.id === "setup-form") {
       const config = {
@@ -1566,19 +1561,9 @@ async function submitForm(event) {
       try {
         sessionStorage.setItem("practice-topic", config.topic);
       } catch {}
-      if (form.dataset.guest === "true") {
-        state.guest = {
-          id: "guest",
-          config,
-          segments: [],
-          questions: [],
-          report: null,
-        };
-        practicePage(state.guest, true);
-      } else {
-        const p = await api.createPractice(config);
-        go(`/practice/${encodeURIComponent(p.id)}`);
-      }
+      if (!state.user) { go("/register"); return; }
+      const p = await api.createPractice(config);
+      go(`/practice/${encodeURIComponent(p.id)}`);
     } else if (form.id === "feedback-form") {
       await api.feedback(state.practice.id, {
         rating: Number(body.rating),
@@ -1588,7 +1573,9 @@ async function submitForm(event) {
         "<h2>Спасибо за отзыв</h2><p>Он поможет доработать следующие разборы.</p>";
     }
   } catch (e) {
-    error.textContent = errorText(e);
+    if (form.id === "auth-form" && state.user && !form.isConnected)
+      frame(`<h1>Вход выполнен</h1>${errorBox(errorText(e))}${startLink("Открыть тренировку", "secondary")}`);
+    else error.textContent = errorText(e);
   } finally {
     submit.disabled = false;
     submit.textContent = previousLabel;
@@ -1600,6 +1587,11 @@ async function action(event) {
   if (!target || target.disabled) return;
   target.disabled = true;
   const name = target.dataset.action;
+  if (!state.user && ["guest-starter", "guest-again", "start-record"].includes(name)) {
+    target.disabled = false;
+    go("/register");
+    return;
+  }
   try {
     switch (name) {
       case "landing-scroll":
@@ -1822,6 +1814,7 @@ async function action(event) {
   }
 }
 async function initialize() {
+  frame('<div class="loading" role="status">Открываем сцену…</div>');
   try {
     const saved = JSON.parse(sessionStorage.getItem("practice-return"));
     if (/^[a-f0-9]{32}$/.test(saved?.practiceId)) state.authReturn = saved;
@@ -1835,7 +1828,6 @@ async function initialize() {
   } catch {
     state.guestPersisted = false;
   }
-  frame('<div class="loading" role="status">Открываем сцену…</div>');
   try {
     const me = await api.me();
     state.user = me.user;

@@ -73,6 +73,8 @@ def test_no_local_password_and_login(app):
     assert client.post('/api/auth/login', json={'email': 'one@example.org', 'password': 'wrong'}).status_code == 401
     response = client.post('/api/auth/login', json={'email': 'ONE@example.org', 'password': 'LongEnoughPassword123'})
     assert response.status_code == 200
+    assert response.json()['provider_ready'] is False
+    assert response.json()['registration_requires_invite'] is False
     assert 'httponly' in response.headers['set-cookie'].lower()
 
 

@@ -11,8 +11,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
-def create_fixture(directory):
-    os.environ.update(APP_ENV='development', APP_ORIGIN='http://localhost:8094',
+def create_fixture(directory, origin='http://localhost:8094'):
+    os.environ.update(APP_ENV='development', APP_ORIGIN=origin,
                       DATA_DIR=directory, LLM_API_KEY='synthetic-fixture-only',
                       LLM_BASE_URL='https://provider.invalid/v1')
     os.environ.pop('REQUIRE_INVITE', None)
@@ -83,6 +83,11 @@ def create_fixture(directory):
 
 
 if __name__ == '__main__':
+    import argparse
     import uvicorn
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', type=int, default=8094)
+    parser.add_argument('--origin', default='http://localhost:8094')
+    args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='nfs-browser-flow-') as directory:
-        uvicorn.run(create_fixture(directory), host='127.0.0.1', port=8094, access_log=False)
+        uvicorn.run(create_fixture(directory, args.origin), host='127.0.0.1', port=args.port, access_log=False)

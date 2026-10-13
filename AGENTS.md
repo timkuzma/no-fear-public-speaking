@@ -3,7 +3,7 @@
 ## Working boundaries
 
 - Serve `public/` and the API through `server/app.py`, on the same origin. Root `index.html` and `styles.css` are imported legacy copies, not the maintained application.
-- Keep native JavaScript/CSS. Anonymous visitors can record before registration. Full AI reports and server history require an account; import the same recording after authentication instead of restarting practice.
+- Keep native JavaScript/CSS. Starting practice requires an account. Keep legacy guest-draft import after authentication so existing recordings are not lost; do not expose a new anonymous practice route.
 - API and module boundaries are in `docs/api-contract.md`. Private recordings are outside `public/`; every practice, job and media request must enforce ownership on the server.
 - SQLite WAL, private media and durable queues form a single-host pilot. Run exactly one application process, with one final-job worker and one incremental-ASR worker; startup queue recovery is not safe across simultaneous application instances sharing a database.
 - Do not simulate authentication, store passwords/session tokens in localStorage, or expose provider credentials in frontend source. Never commit `.env`, private data, logs or temporary test artifacts.
@@ -18,6 +18,7 @@
 - `public/typography.js` binds short Russian function words to the following word in rendered text across routes and live updates. Apply only to text nodes; never rewrite HTML, form values, stored transcripts or provider evidence. Keep editable/code regions excluded and preserve explicit newlines.
 - Public privacy/consent pages and the registration consent control are currently removed; legacy `#/privacy` links return to the landing. Registration must not silently send consent. New accounts store the historical consent flag as false; it is no longer an upload gate. Ownership, authentication, origin and CSRF checks remain mandatory.
 - Scenario explanations share a CSS grid cell to reserve the tallest copy's height. Keep their CTA outside the animated copy; switching contexts must not recreate or move the button.
+- Auth responses include provider/invitation flags; do not delay a successful registration with a redundant `/auth/me` request. Keep auth requests and IndexedDB operations bounded, and retain form values on failures. Test UI auth on a separate fixture origin (`--port 8095 --origin http://127.0.0.1:8095`) when a user is viewing localhost:8094.
 - Landing styles and finite entrance animations live in `public/landing.css` and `public/landing-motion.js`. Content is visible by default; route replacement must clean up animations, observers and preference listeners. Honor reduced motion. Fonts are self-hosted with their OFL licenses in `public/fonts/`.
 
 - Apply these rules across every route and shared component, including generated report titles.

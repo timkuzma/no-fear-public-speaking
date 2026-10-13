@@ -63,7 +63,11 @@ async function request(
     if (error instanceof ApiError) throw error;
     throw new ApiError(
       error.name === "AbortError"
-        ? "Сервер не успел ответить. Проверь историю перед повторной попыткой."
+        ? path === "/auth/register"
+          ? "Сервер не успел подтвердить регистрацию. Попробуй войти с указанными почтой и паролем: аккаунт мог уже создаться."
+          : path.startsWith("/auth/")
+            ? "Сервер не успел ответить. Проверь подключение и попробуй ещё раз."
+            : "Сервер не успел ответить. Проверь историю перед повторной попыткой."
         : "Нет связи с сервером. Проверь подключение и попробуй ещё раз.",
       "NETWORK_ERROR",
       0,
@@ -74,22 +78,22 @@ async function request(
   }
 }
 export const api = {
-  me: () => request("/auth/me"),
-  register: (body) => request("/auth/register", { method: "POST", body }),
-  login: (body) => request("/auth/login", { method: "POST", body }),
+  me: () => request("/auth/me", { timeout: 10000 }),
+  register: (body) => request("/auth/register", { method: "POST", body, timeout: 15000 }),
+  login: (body) => request("/auth/login", { method: "POST", body, timeout: 15000 }),
   logout: async () => {
     const result = await request("/auth/logout", { method: "POST" });
     csrfToken = null;
     return result;
   },
-  reset: (body) => request("/auth/reset", { method: "POST", body }),
+  reset: (body) => request("/auth/reset", { method: "POST", body, timeout: 15000 }),
   completeOnboarding: () =>
     request("/auth/me", {
       method: "PATCH",
       body: { onboarding_completed: true },
     }),
   createPractice: (body) => request("/practices", { method: "POST", body }),
-  practices: (offset = 0) => request(`/practices?limit=30&offset=${offset}`),
+  practices: (offset = 0) => request(`/practices?limit=30&offset=${offset}`, { timeout: 10000 }),
   practice: (id) => request(`/practices/${encodeURIComponent(id)}`),
   liveChunk: (id, file, sessionId, index, offsetSeconds, signal) => {
     const body = new FormData();

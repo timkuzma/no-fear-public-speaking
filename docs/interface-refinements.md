@@ -21,3 +21,11 @@ The pilot-version footer label and the two requested meeting-image captions are 
 This release changes server registration behavior as well as public assets; it must copy both `server/` and `public/` into the verified application image. Replacing public assets alone would leave registration broken.
 
 Automatic pre-activation recovery remains compatible: maintenance prevents new registrations before promotion. For a later UI rollback, retain this server behavior and restore only the previous public assets. An older server image would reject uploads from new accounts whose historical consent flag is false. Do not fabricate consent flags to make old code accept those accounts; build a rollback image with the current server instead. Code rollback must preserve current database/media as before.
+
+## Required account and registration completion
+
+Following the user's subsequent correction, every public start CTA now leads to registration; `#/guest` redirects to registration or authenticated setup. The anonymous recording action is guarded, and the offline screen no longer offers a guest bypass. Existing guest drafts are still recoverable after authentication. README and landing answers describe the current required-account entry.
+
+Registration/login now receive provider/invitation flags in their successful response. The client no longer waits for another `/auth/me` after account creation. Success displays an explicit progress message before opening setup. Auth requests have 10–15 second bounds; registration timeout copy explains that an account may already exist and offers signing in instead of blindly resubmitting. Form failures retain values and re-enable submission. IndexedDB open/read operations have five-second bounds; writes have a 30-second bound. A late open closes its connection, and a timed-out transaction aborts without discarding the original recording Blob.
+
+An independent fixture origin (`127.0.0.1:8095`) verified actual browser registration to setup, logout, direct guest-route rejection and duplicate-registration error recovery. This avoids changing the session of a user viewing localhost:8094. Node regression checks cover stalled API/IndexedDB operations, late connection cleanup, removal of the redundant session request, retained fields, and required-account navigation. They use synthetic data and make no provider calls.
