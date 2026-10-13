@@ -240,7 +240,7 @@ for (const automatic of [false, true]) {
   );
   assert.match(
     f.flow.questionChat(f.flow.state.guest, null, null),
-    /Создать аккаунт и продолжить/,
+    /data-action="guest-analyze"[^>]*>Регистрация<\/button>/,
   );
 }
 {

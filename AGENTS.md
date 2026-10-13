@@ -14,6 +14,8 @@
 - `docs/prospect-faq.md` owns prospect FAQ copy and its publication prerequisites. Use its short landing set for the public FAQ; keep editorial notes and unresolved commercial/data-policy questions out of public answers until the actual conditions are defined.
 
 - The public interface has no example report or report preview. Old `#/example` links redirect to the landing page; account reports still use real saved recordings.
+- No logo or wordmark appears in the header. Guests have separate login/registration links; authenticated users have practice/history navigation and a separate logout action. All account-creation CTA labels are `Регистрация`.
+- Landing styles and finite entrance animations live in `public/landing.css` and `public/landing-motion.js`. Content is visible by default; route replacement must clean up animations, observers and preference listeners. Honor reduced motion. Fonts are self-hosted with their OFL licenses in `public/fonts/`.
 
 - Apply these rules across every route and shared component, including generated report titles.
 - Use complete, connected headings and prose. Do not force line breaks or split one idea into a sequence of tiny sentences. Let text wrap naturally. Headings never end in a period; preserve question marks and meaningful source text outside headings.

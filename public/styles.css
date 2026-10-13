@@ -123,28 +123,6 @@ p + p {
   gap: 16px;
   flex-wrap: wrap;
 }
-.brand {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  text-decoration: none;
-  font-size: 12px;
-  line-height: 1.12;
-  font-weight: 650;
-  letter-spacing: -0.03em;
-  flex-shrink: 0;
-}
-.brand-symbol {
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  width: 42px;
-  height: 42px;
-  background: var(--ink);
-  color: var(--paper);
-  font-size: 29px;
-  padding-bottom: 5px;
-}
 .header nav {
   display: flex;
   gap: 12px 24px;
@@ -1828,15 +1806,6 @@ video.recording-playback {
     height: auto;
     min-height: 80px;
     padding: 18px 20px;
-  }
-  .brand-symbol {
-    width: 35px;
-    height: 35px;
-    font-size: 25px;
-  }
-  .brand {
-    font-size: 11px;
-    gap: 8px;
   }
   .header nav {
     gap: 17px;
