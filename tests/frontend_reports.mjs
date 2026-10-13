@@ -16,7 +16,9 @@ const context = vm.createContext({
 vm.runInContext(source + `
   frame = content => globalThis.markup = content;
   notify = message => globalThis.notification = message;
-  globalThis.ui = { state, reportMarkup, reportPage, reportText, repeatChoices, repeatPanel, action };
+  pollJob = () => {};
+  closeMedia = () => {};
+  globalThis.ui = { state, reportMarkup, reportPage, reportText, repeatChoices, repeatPanel, action, processingPage };
 `, context);
 const report = {
   schema_version: 2, primary_recommendation_index: 1, insight: "Ignored independent insight",
@@ -99,3 +101,25 @@ ui.reportPage({ ...practice, report: malicious });
 assert.doesNotMatch(context.markup, /<img|onerror="steal/);
 assert.match(context.markup, /&lt;img/);
 console.log("Report focus, source, export, empty/legacy states, escaping and selected repeat checks passed");
+
+ui.processingPage(practice, {id:"pending-report",kind:"report",stage:"transcription_1"});
+assert.equal((context.markup.match(/Готовим разбор выступления/g) || []).length,1);
+assert.match(context.markup,/id="job-status" role="status">Можно закрыть страницу/);
+assert.doesNotMatch(context.markup,/транскрип|расшифров|сервер|очеред/);
+console.log("Processing screen has one title and useful continuation copy");
+
+const oldPractice = {...practice,report:{...report,provenance:{report_prompt_version:"speech-feedback-v2.2"}}};
+ui.state.practice = oldPractice;
+ui.reportPage(oldPractice);
+assert.match(context.markup,/data-action="refresh-report"/);
+const calls=[];
+context.api.startJob=async(...args)=>{calls.push(args);return {id:"refresh-job",kind:"report"};};
+const refreshButton={dataset:{action:"refresh-report"},disabled:false,isConnected:true};
+await ui.action({target:{closest:()=>refreshButton}});
+assert.equal(calls[0][0],"source");
+assert.equal(calls[0][1],"report");
+assert.equal(calls[0][2].refresh,true);
+assert.equal(oldPractice.report.provenance.report_prompt_version,"speech-feedback-v2.2");
+ui.reportPage({...practice,report:{...report,provenance:{report_prompt_version:"speech-feedback-v2.3"}}});
+assert.doesNotMatch(context.markup,/data-action="refresh-report"/);
+console.log("Old reports offer explicit update; current reports remain idempotent");

@@ -46,9 +46,11 @@ def create_fixture(directory, origin='http://localhost:8094'):
                                'transcript_revision': ai.build_context('questions', config, [{'index': 0, 'kind': 'speech', 'text': transcript}])['transcript_revision'],
                                'chat_model': 'fixture', 'items': items}}
 
-    faults = {'fail': False, 'lose': False, 'report': 'normal', 'upload_delay': 0}
+    faults = {'fail': False, 'lose': False, 'report': 'normal', 'upload_delay': 0, 'report_delay': 0}
 
     async def analyze(config, segments, **kwargs):
+        if faults['report_delay']:
+            await asyncio.sleep(faults['report_delay'])
         # Synthetic contract fixtures: these test UI states, not coaching quality.
         candidates = ai._quote_candidates(segments)
         first = candidates[0]
@@ -134,6 +136,13 @@ def create_fixture(directory, origin='http://localhost:8094'):
         if kind not in {'normal', 'sparse', 'unknown', 'legacy'}:
             return JSONResponse({'error': 'Unknown synthetic report state'}, status_code=400)
         faults['report'] = kind
+        return {'ok': True}
+
+    @app.post('/__test__/report-delay/{seconds}')
+    async def report_delay(seconds: int):
+        if not 0 <= seconds <= 15:
+            return JSONResponse({'error': 'Invalid delay'}, status_code=400)
+        faults['report_delay'] = seconds
         return {'ok': True}
 
     @app.post('/__test__/upload-delay/{seconds}')

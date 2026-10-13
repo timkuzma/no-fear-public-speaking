@@ -492,3 +492,47 @@ def test_upload_key_cannot_reuse_another_stage_or_account(app, monkeypatch):
     assert send(one, h1, 'answer', 1).json()['error']['code'] == 'UPLOAD_KEY_CONFLICT'
     assert send(one, h1, 'answer', 1, 'invalid-key').status_code == 422
     assert len(app.state.store.all('SELECT * FROM segments')) == 1
+
+
+@pytest.mark.parametrize('fail_refresh', [False, True])
+def test_owned_versioned_report_refresh_preserves_previous_result_and_media(app, monkeypatch, fail_refresh):
+    from server import ai, feedback_prompts
+    monkeypatch.setenv('LLM_API_KEY', 'synthetic-refresh-test')
+    client = TestClient(app)
+    headers = account(client)
+    pid = practice(client, headers)
+    assert upload(client, headers, pid).status_code == 200
+    original = client.post(f'/api/practices/{pid}/jobs', headers=headers, json={'kind':'report'}).json()
+    old = {'schema_version':2,'strengths':[],'recommendations':[], 'criteria':[],
+           'provenance':{'report_prompt_version':'speech-feedback-v2.2'}}
+    store = app.state.store
+    store.execute("UPDATE jobs SET status='succeeded',stage='complete',result=? WHERE id=?", (json.dumps(old),original['id']))
+    store.execute("UPDATE practices SET status='ready',report=? WHERE id=?", (json.dumps(old),pid))
+    store.execute("UPDATE segments SET transcript='Новый срок — пятница.' WHERE practice_id=?", (pid,))
+    media_before = {p.name:p.read_bytes() for p in store.media.iterdir()}
+    other = TestClient(app)
+    other_headers = account(other,'different@example.org')
+    assert other.post(f'/api/practices/{pid}/jobs',headers=other_headers,json={'kind':'report','refresh':True}).status_code == 404
+    assert client.post(f'/api/practices/{pid}/jobs',json={'kind':'report','refresh':True}).status_code == 403
+    assert client.post(f'/api/practices/{pid}/jobs',headers=headers,json={'kind':'questions','refresh':True}).status_code == 422
+    assert client.post(f'/api/practices/{pid}/jobs',headers=headers,json={'kind':'report'}).json()['id'] == original['id']
+    response = client.post(f'/api/practices/{pid}/jobs',headers=headers,json={'kind':'report','refresh':True})
+    assert response.status_code == 200
+    refreshed = response.json()
+    assert refreshed['id'] != original['id']
+    assert client.post(f'/api/practices/{pid}/jobs',headers=headers,json={'kind':'report','refresh':True}).json()['id'] == refreshed['id']
+    assert store.one("SELECT COUNT(*) AS n FROM rate_limits WHERE key LIKE 'job:%'")['n'] == 2
+    assert json.loads(store.one('SELECT report FROM practices WHERE id=?',(pid,))['report']) == old
+    if fail_refresh:
+        monkeypatch.setattr(ai,'analyze',AsyncMock(side_effect=ai.ProviderError('AI_UNGROUNDED_REPORT','Не удалось подтвердить выводы.')))
+    else:
+        updated = {**old,'provenance':{'report_prompt_version':feedback_prompts.REPORT_VERSION}}
+        monkeypatch.setattr(ai,'analyze',AsyncMock(return_value={'report':updated,'usage':{'model':'synthetic'}}))
+    asyncio.run(process(store,store.claim_job()))
+    final = json.loads(store.one('SELECT report FROM practices WHERE id=?',(pid,))['report'])
+    assert final == (old if fail_refresh else updated)
+    assert json.loads(store.one('SELECT result FROM jobs WHERE id=?',(original['id'],))['result']) == old
+    assert {p.name:p.read_bytes() for p in store.media.iterdir()} == media_before
+    if not fail_refresh:
+        assert client.post(f'/api/practices/{pid}/jobs',headers=headers,json={'kind':'report','refresh':True}).json()['id'] == refreshed['id']
+        assert store.one("SELECT COUNT(*) AS n FROM rate_limits WHERE key LIKE 'job:%'")['n'] == 2

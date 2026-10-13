@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .store import Store, now, uid
 from .worker import run
-from . import limits, monitoring
+from . import limits, monitoring, feedback_prompts
 from .locking import data_lock, instance_lock
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -102,6 +102,7 @@ class Practice(BaseModel):
 
 class JobRequest(BaseModel):
     kind: Literal['questions', 'report']
+    refresh: bool = False
 
 
 class Feedback(BaseModel):
@@ -600,6 +601,11 @@ def create_app(data_dir=None, start_worker=True):
     async def create_job(practice_id: str, body: JobRequest, request: Request):
         user = auth(request, True)
         practice = owned(practice_id, user['id'])
+        if body.refresh and body.kind != 'report':
+            fail(422, 'REPORT_REFRESH_ONLY', 'Обновить можно только разбор.')
+        if body.refresh and not practice['report']:
+            fail(409, 'REPORT_REQUIRED', 'Сначала получите разбор выступления.')
+        refresh = body.refresh and json.loads(practice['report']).get('provenance', {}).get('report_prompt_version') != feedback_prompts.REPORT_VERSION
         active = store.one("SELECT * FROM jobs WHERE practice_id=? AND status IN ('pending','running')", (practice_id,))
         if active:
             return job_json(active)
@@ -611,20 +617,25 @@ def create_app(data_dir=None, start_worker=True):
         if body.kind == 'questions' and not json.loads(practice['config'])['questions']:
             fail(409, 'QUESTIONS_DISABLED', 'Вопросы выключены в настройках этой тренировки.')
         completed = store.one("SELECT * FROM jobs WHERE practice_id=? AND kind=? AND status='succeeded' ORDER BY created DESC LIMIT 1", (practice_id, body.kind))
-        if completed:
+        if completed and not refresh:
             return job_json(completed)
-        if practice['report']:
+        if practice['report'] and not refresh:
             fail(409, 'PRACTICE_COMPLETE', 'Тренировка уже завершена.')
         job_id = uid()
         try:
             with store.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
-                current = db.execute('SELECT id FROM practices WHERE id=? AND user_id=?', (practice_id, user['id'])).fetchone()
+                current = db.execute('SELECT id,report FROM practices WHERE id=? AND user_id=?', (practice_id, user['id'])).fetchone()
                 if not current:
                     fail(404, 'NOT_FOUND', 'Тренировка не найдена.')
                 active = db.execute("SELECT * FROM jobs WHERE practice_id=? AND status IN ('pending','running')", (practice_id,)).fetchone()
                 if active:
                     return job_json(dict(active))
+                if refresh and current['report'] and json.loads(current['report']).get('provenance', {}).get('report_prompt_version') == feedback_prompts.REPORT_VERSION:
+                    latest = db.execute("SELECT * FROM jobs WHERE practice_id=? AND kind='report' AND status='succeeded' ORDER BY created DESC LIMIT 1", (practice_id,)).fetchone()
+                    if latest:
+                        return job_json(dict(latest))
+                    fail(409, 'PRACTICE_COMPLETE', 'Актуальный разбор уже готов.')
                 limits.ensure_accepting(store)
                 limits.queue_capacity(db, 'jobs')
                 quota_key = 'job:' + user['id']

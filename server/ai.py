@@ -308,7 +308,7 @@ def _unique_json_object(pairs):
 
 
 async def _chat(operation, system, data):
-    model = os.getenv("LLM_MODEL", "gigachat-3-pro")
+    model = os.getenv("LLM_MODEL", "gpt-5.4")
     body, usage = await _request("/chat/completions", model, operation, payload={
         "model": model, "temperature": 0.2, "max_tokens": limits.setting('AI_MAX_OUTPUT_TOKENS'),
         "response_format": {"type": "json_object"},
@@ -479,8 +479,9 @@ async def generate_questions(config: dict, transcript: str):
             if not isinstance(evidence_id, str) or evidence_id not in quote_map:
                 raise ValueError()
             question = _string(item['text'], feedback_prompts.CAPS['question'])
-            if len(question) < 8:
+            if len(question) < 8 or question.count('?') > 1:
                 raise ValueError()
+            _check_inline_quotations(question, quote_map[evidence_id]['text'])
             questions.append(question)
             provenance.append({'text': question, **_provenance(quote_map[evidence_id])})
         if len({question.casefold() for question in questions}) != 3:
@@ -494,6 +495,16 @@ async def generate_questions(config: dict, transcript: str):
                            'prompt_version': feedback_prompts.QUESTIONS_VERSION,
                            'transcript_revision': context['transcript_revision'],
                            'chat_model': usage.get('model'), 'items': provenance}}
+
+
+def _check_inline_quotations(text, evidence):
+    # Literal source membership only; this does not prove the entailment of other claims.
+    quoted = re.findall(r'''«([^»]+)»|“([^”]+)”|"([^"\n]+)"|'([^'\n]+)' ''', text, re.X)
+    source = evidence.casefold()
+    for groups in quoted:
+        term = next(value for value in groups if value).strip()
+        if term and term.casefold() not in source:
+            raise ValueError('Inline source quotation is outside selected evidence')
 
 
 def _findings(items, quotes, recommendation=False):
@@ -510,9 +521,11 @@ def _findings(items, quotes, recommendation=False):
         finding = {'title': _string(item['title'], feedback_prompts.CAPS['title']),
                    'observation': _string(item['observation'], feedback_prompts.CAPS['observation']),
                    **_provenance(quotes[evidence_id])}
+        _check_inline_quotations(finding['observation'], finding['evidence'])
         finding['text'] = finding['observation']
         if recommendation:
             finding['action'] = _string(item['action'], feedback_prompts.CAPS['action'])
+            _check_inline_quotations(finding['action'], finding['evidence'])
             # Validate the raw draft before withholding it: malformed fields still fail.
             # Quote provenance does not establish factual safety of a rewritten example.
             if item['example'] is not None:
@@ -634,6 +647,7 @@ async def analyze(config: dict, segments: list):
                                       'context_schema_version': feedback_prompts.CONTEXT_VERSION,
                                       'report_prompt_version': feedback_prompts.REPORT_VERSION,
                                       'rubric_version': feedback_prompts.RUBRIC_VERSION,
+                                      'coaching_context_version': feedback_prompts.coaching_context.VERSION,
                                       'chat_model': usage.get('model'),
                                       'asr_models': sorted({s['asr_model'] for s in context['segments'] if s['asr_model']}),
                                       'asr_model_unknown': any(s['asr_model'] is None for s in context['segments'])},

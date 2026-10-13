@@ -1,6 +1,6 @@
 import { installTypography } from "./typography.js?v=20261013-type";
 import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-refine";
-import { api } from "./api.js?v=20261013-practice-settings";
+import { api } from "./api.js?v=20261013-feedback-23";
 import { LiveAudioCapture } from "./live-audio.js?v=20261013-asr-5s";
 import {
   saveDraft,
@@ -11,6 +11,7 @@ import {
   clearRecordingDraft,
 } from "./guest-draft.js?v=20261013-practice-settings";
 const app = document.querySelector("#app");
+const CURRENT_REPORT_VERSION = "speech-feedback-v2.3";
 let landingCleanup = () => {};
 const state = {
   user: null,
@@ -688,7 +689,7 @@ function reportItem(item, cls) {
 function reportPage(p) {
   if (!state.user) { go("/login"); return; }
   const report = readableReport(p.report);
-  frame(`<div class="report-reading">${practiceProgress(p, "report")}<div class="page-heading"><p class="eyebrow">Разбор · ${escape(date(p.created_at))}</p><h1>${heading(p.config.topic || "Твоя тренировка")}</h1></div><p class="page-description">Обратная связь по твоему выступлению и ответам на вопросы.</p>${reportMarkup(report)}${repeatPanel(p)}<details class="report-detail transcript"><summary>Текст речи и записи</summary>${transcriptMarkup(report)}<h3>Твои записи</h3>${mediaMarkup(p)}</details><details class="report-detail"><summary>Как читать разбор</summary>${report.metrics?.length ? `<div class="report-metrics">${report.metrics.map((m) => `<article><span class="eyebrow">${escape(m.label)}</span><h3>${heading(m.title)}</h3><p>${escape(m.text)}</p></article>`).join("")}</div>` : ""}<p>Разбор помогает оценить содержание речи. Голос, жесты и эмоции здесь не оцениваются.</p>${report.limitations?.length ? `<ul>${report.limitations.map((l) => `<li>${escape(l)}</li>`).join("")}</ul>` : ""}</details><div class="actions report-actions">${button("Скачать разбор", "download-report", "secondary")}${button("Выбрать другую тему", "new-topic", "text")}</div><details class="report-detail"><summary>Оставить отзыв о разборе</summary><form id="feedback-form" class="feedback-form"><h2>Был ли разбор полезен?</h2><fieldset><legend>Оценка от 1 до 5</legend><div class="ratings">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join("")}</div></fieldset><label><span class="label-title">Что стоит улучшить? <span class="optional">необязательно</span></span><textarea name="text" rows="3" maxlength="2000"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button secondary">Отправить отзыв</button></form></details></div>`);
+  frame(`<div class="report-reading">${practiceProgress(p, "report")}<div class="page-heading"><p class="eyebrow">Разбор · ${escape(date(p.created_at))}</p><h1>${heading(p.config.topic || "Твоя тренировка")}</h1></div><p class="page-description">Обратная связь по твоему выступлению и ответам на вопросы.</p>${p.latest_job?.kind === "report" && p.latest_job.status === "failed" ? errorBox("Не удалось обновить разбор. Предыдущий разбор и записи сохранены.") : ""}${reportMarkup(report)}${repeatPanel(p)}<details class="report-detail transcript"><summary>Текст речи и записи</summary>${transcriptMarkup(report)}<h3>Твои записи</h3>${mediaMarkup(p)}</details><details class="report-detail"><summary>Как читать разбор</summary>${report.metrics?.length ? `<div class="report-metrics">${report.metrics.map((m) => `<article><span class="eyebrow">${escape(m.label)}</span><h3>${heading(m.title)}</h3><p>${escape(m.text)}</p></article>`).join("")}</div>` : ""}<p>Разбор помогает оценить содержание речи. Голос, жесты и эмоции здесь не оцениваются.</p>${report.limitations?.length ? `<ul>${report.limitations.map((l) => `<li>${escape(l)}</li>`).join("")}</ul>` : ""}</details><div class="actions report-actions">${button("Скачать разбор", "download-report", "secondary")}${report.provenance?.report_prompt_version !== CURRENT_REPORT_VERSION ? button("Обновить разбор", "refresh-report", "secondary") : ""}${button("Выбрать другую тему", "new-topic", "text")}</div><details class="report-detail"><summary>Оставить отзыв о разборе</summary><form id="feedback-form" class="feedback-form"><h2>Был ли разбор полезен?</h2><fieldset><legend>Оценка от 1 до 5</legend><div class="ratings">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join("")}</div></fieldset><label><span class="label-title">Что стоит улучшить? <span class="optional">необязательно</span></span><textarea name="text" rows="3" maxlength="2000"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button secondary">Отправить отзыв</button></form></details></div>`);
 }
 function playback(url, video = false) {
   const tag = video ? "video" : "audio";
@@ -807,14 +808,14 @@ function practicePage(p, guest = false) {
     state.pending?.ownerId === state.user?.id
   )
     return showPending();
+  const active = p.active_job || p.latest_job;
+  if (active && ["pending", "running"].includes(active.status))
+    return processingPage(p, active);
   if (p.report) {
     closeMedia();
     return reportPage(p);
   }
   if (guest && p.blob) return guestResult();
-  const active = p.active_job || p.latest_job;
-  if (active && ["pending", "running"].includes(active.status))
-    return processingPage(p, active);
   if (queuedAnswers(p).length && !nextSegment(p)) {
     meetingPage(p, guest);
     return;
@@ -844,7 +845,7 @@ function processingPage(p, job) {
   }
   closeMedia();
   frame(
-    `${practiceProgress(p, job.kind)}<div class="processing"><span class="spinner" aria-hidden="true"></span><p class="eyebrow">Записи сохранены</p><h1>${job.kind === "questions" ? "Готовим вопросы по твоей речи" : "Готовим разбор выступления"}</h1><p id="job-status" role="status">${jobStage(job.stage, job.kind)}</p><p class="caption">Можно закрыть страницу. Готовый разбор появится в истории тренировок.</p><a href="#/history" class="button secondary">Открыть историю</a><div id="poll-error" role="alert"></div></div>`,
+    `${practiceProgress(p, job.kind)}<div class="processing"><span class="spinner" aria-hidden="true"></span><p class="eyebrow">Записи сохранены</p><h1>${job.kind === "questions" ? "Готовим вопросы по твоей речи" : "Готовим разбор выступления"}</h1><p class="caption" id="job-status" role="status">Можно закрыть страницу. Готовый разбор появится в истории тренировок.</p><a href="#/history" class="button secondary">Открыть историю</a><div id="poll-error" role="alert"></div></div>`,
   );
   pollJob(p.id, job.id);
 }
@@ -864,7 +865,7 @@ function pollJob(practiceId, jobId) {
         return;
       }
       const status = document.querySelector("#job-status");
-      if (status) status.textContent = jobStage(job.stage, job.kind);
+      if (status && job.kind === "questions") status.textContent = jobStage(job.stage, job.kind);
       document.querySelector("#poll-error").textContent = "";
       state.poll = setTimeout(tick, 1800);
     } catch (error) {
@@ -1969,13 +1970,14 @@ async function action(event) {
         go("/app");
         break;
       case "questions":
+      case "refresh-report":
       case "report": {
         if (queuedAnswers().length) return;
         target.disabled = true;
         const p = state.practice;
         const version = state.routeVersion;
         try {
-          const job = await api.startJob(p.id, name);
+          const job = await api.startJob(p.id, name === "refresh-report" ? "report" : name, {refresh: name === "refresh-report"});
           if (version === state.routeVersion && state.practice?.id === p.id)
             processingPage(p, job);
         } catch (error) {

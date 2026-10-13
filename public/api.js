@@ -132,10 +132,10 @@ export const api = {
       body,
     });
   },
-  startJob: (id, kind) =>
+  startJob: (id, kind, { refresh = false } = {}) =>
     request(`/practices/${encodeURIComponent(id)}/jobs`, {
       method: "POST",
-      body: { kind },
+      body: refresh ? { kind, refresh: true } : { kind },
     }),
   job: (id) => request(`/jobs/${encodeURIComponent(id)}`),
   deletePractice: (id) =>

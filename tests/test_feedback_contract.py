@@ -208,3 +208,60 @@ def test_withholding_does_not_accept_malformed_raw_example(raw, monkeypatch):
     with pytest.raises(ai.ProviderError) as failure:
         run(output, monkeypatch)
     assert failure.value.code == 'AI_UNGROUNDED_REPORT'
+
+
+
+def test_one_requested_criterion_keeps_independent_findings(monkeypatch):
+    example = feedback_prompts.REPORT_EXAMPLES[-1]
+    provider = AsyncMock(return_value=(example['output'], USAGE))
+    monkeypatch.setattr(ai, '_chat', provider)
+    source = example['input']['evidence'][-1]['text']
+    report = asyncio.run(ai.analyze({'criteria': 'На слова паразиты'}, [
+        {'index': 0, 'kind': 'speech', 'text': source, 'duration_seconds': 15}]))['report']
+    assert len(report['criteria']) == 1
+    assert len(report['strengths']) == len(report['recommendations']) == 1
+    assert report['recommendations'][0]['evidence'] == example['input']['evidence'][1]['text']
+    assert report['insight'] == report['recommendations'][0]['action']
+    assert report['provenance']['coaching_context_version'] == 'speech-coaching-v1'
+
+
+@pytest.mark.parametrize('field,value', [
+    ('observation', "В речи есть 'друзья' и 'то есть'."),
+    ('action', 'Произнесите «Совершенно новый факт».')])
+def test_inline_quotation_must_belong_to_selected_evidence(monkeypatch, field, value):
+    output = draft()
+    output['recommendations'][0][field] = value
+    with pytest.raises(ai.ProviderError) as error:
+        run(output, monkeypatch)
+    assert error.value.code == 'AI_UNGROUNDED_REPORT'
+
+
+def test_inline_original_words_are_valid_without_changing_source(monkeypatch):
+    output = draft()
+    output['recommendations'][0]['observation'] = 'В этой фразе назван «Новый срок».'
+    output['recommendations'][0]['action'] = 'Уточните слово «пятница» при следующей попытке.'
+    report = run(output, monkeypatch)
+    assert report['recommendations'][0]['evidence'] == 'Новый срок — пятница.'
+
+
+
+def test_compound_question_cannot_start_a_double_task(monkeypatch):
+    provider = AsyncMock(return_value=({'questions':[
+        {'text':'Почему выбрана пятница? Как это повлияет на встречу?', 'evidence_id':'s0-q1'},
+        {'text':'Какие обстоятельства важны для нового срока?', 'evidence_id':'s0-q1'},
+        {'text':'При каком условии вы изменили бы срок?', 'evidence_id':'s0-q1'}]},USAGE))
+    monkeypatch.setattr(ai,'_chat',provider)
+    with pytest.raises(ai.ProviderError) as error:
+        asyncio.run(ai.generate_questions({},TEXT))
+    assert error.value.code == 'AI_INVALID_RESPONSE'
+
+
+def test_question_cannot_quote_another_evidence_span(monkeypatch):
+    provider = AsyncMock(return_value=({'questions': [
+        {'text': 'Что означает «Новый срок» для встречи?', 'evidence_id': 's0-q0'},
+        {'text': 'Какие обстоятельства важны для нового срока?', 'evidence_id': 's0-q1'},
+        {'text': 'При каком условии вы изменили бы срок?', 'evidence_id': 's0-q1'}]}, USAGE))
+    monkeypatch.setattr(ai, '_chat', provider)
+    with pytest.raises(ai.ProviderError) as error:
+        asyncio.run(ai.generate_questions({}, TEXT))
+    assert error.value.code == 'AI_INVALID_RESPONSE'
