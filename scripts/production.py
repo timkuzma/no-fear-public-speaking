@@ -28,7 +28,7 @@ APP = 'no-fear-stage'
 SCHEMA = '1'
 # Official restic 0.19.1 image, resolved and tested by digest.
 RESTIC_IMAGE = 'restic/restic@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510'
-CONFIG_KEYS = {'APP_ORIGIN', 'LLM_BASE_URL', 'LLM_MODEL', 'TRANSCRIPTION_MODEL', 'AI_ENABLED',
+CONFIG_KEYS = {'APP_ORIGIN', 'LLM_BASE_URL', 'LLM_MODEL', 'FEEDBACK_EDITOR_MODEL', 'TRANSCRIPTION_MODEL', 'AI_ENABLED',
     'AI_DAILY_ATTEMPTS', 'AI_USER_DAILY_ATTEMPTS', 'AI_REQUESTS_PER_MINUTE', 'AI_DAILY_AUDIO_SECONDS',
     'AI_DAILY_INPUT_CHARS', 'AI_DAILY_OUTPUT_TOKENS', 'AI_MAX_OUTPUT_TOKENS', 'MAX_PENDING_JOBS',
     'MAX_PENDING_LIVE_CHUNKS', 'JOB_TIMEOUT_SECONDS', 'LIVE_JOB_TIMEOUT_SECONDS', 'MIN_FREE_DISK_BYTES',
@@ -131,7 +131,8 @@ class Production:
         if (self.root / 'runtime.json').exists() or (self.root / 'secrets.json').exists():
             raise RuntimeError('Runtime configuration already exists')
         atomic_json(self.root / 'runtime.json', {'APP_ORIGIN': 'https://pilot.example.org',
-                    'LLM_BASE_URL': 'https://provider.invalid/v1', 'LLM_MODEL': 'gigachat-3-pro',
+                                  'LLM_BASE_URL': 'https://provider.invalid/v1', 'LLM_MODEL': 'gpt-5.4',
+                                  'FEEDBACK_EDITOR_MODEL': 'deepseek-v3.2',
                     'TRANSCRIPTION_MODEL': 'whisper-large-v3'})
         atomic_json(self.root / 'secrets.json', {'LLM_API_KEY': '', 'OPERATOR_TOKEN': secrets.token_urlsafe(32),
                     'RESTIC_REPOSITORY': 'local', 'RESTIC_PASSWORD': secrets.token_urlsafe(48)})

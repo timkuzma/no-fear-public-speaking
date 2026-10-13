@@ -1,6 +1,6 @@
 import { installTypography } from "./typography.js?v=20261013-type";
 import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-refine";
-import { api } from "./api.js?v=20261013-feedback-23";
+import { api } from "./api.js?v=20261013-wording-24";
 import { LiveAudioCapture } from "./live-audio.js?v=20261013-asr-5s";
 import {
   saveDraft,
@@ -11,7 +11,7 @@ import {
   clearRecordingDraft,
 } from "./guest-draft.js?v=20261013-practice-settings";
 const app = document.querySelector("#app");
-const CURRENT_REPORT_VERSION = "speech-feedback-v2.3";
+const CURRENT_REPORT_VERSION = "speech-feedback-v2.4";
 let landingCleanup = () => {};
 const state = {
   user: null,

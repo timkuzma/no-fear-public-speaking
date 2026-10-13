@@ -15,7 +15,7 @@ python3.12 -m venv .venv
 .venv/bin/python scripts/production.py init --root /srv/no-fear-stage
 ```
 
-Privately edit `/srv/no-fear-stage/runtime.json` and `secrets.json`, both mode 0600. Runtime settings include exact HTTPS `APP_ORIGIN`, HTTPS `LLM_BASE_URL` without credentials/query/fragment, `LLM_MODEL`, `TRANSCRIPTION_MODEL`, and the limits below. Secrets contain `LLM_API_KEY`, independently generated `OPERATOR_TOKEN`, `RESTIC_PASSWORD`, `RESTIC_REPOSITORY` and optional `ALERT_WEBHOOK_URL`. Supported object-storage credential names are listed in `BACKUP_ENV` in the controller. Do not paste any of these files or command environments into reports. `.env` is not loaded automatically.
+Privately edit `/srv/no-fear-stage/runtime.json` and `secrets.json`, both mode 0600. Runtime settings include exact HTTPS `APP_ORIGIN`, HTTPS `LLM_BASE_URL` without credentials/query/fragment, `LLM_MODEL`, optional `FEEDBACK_EDITOR_MODEL`, `TRANSCRIPTION_MODEL`, and the limits below. Secrets contain `LLM_API_KEY`, independently generated `OPERATOR_TOKEN`, `RESTIC_PASSWORD`, `RESTIC_REPOSITORY` and optional `ALERT_WEBHOOK_URL`. Supported object-storage credential names are listed in `BACKUP_ENV` in the controller. Do not paste any of these files or command environments into reports. `.env` is not loaded automatically.
 
 The bootstrap repository value `local` is only for rehearsal. Production requires a separately hosted encrypted repository (for example an S3 endpoint supported by Restic), a private HTTPS notification receiver and an independent external monitor. Keep the Restic password, repository access and nonsecret release/image/configuration information in separate protected recovery storage; losing the only repository password makes recovery impossible. Use a dedicated repository/prefix and credentials for this deployment. Restic verifies TLS normally; insecure TLS options are not enabled. Do not put credentials in provider URLs.
 
@@ -55,7 +55,7 @@ Every actual HTTP provider attempt, including each retry and both workers, reser
 | `AI_REQUESTS_PER_MINUTE` | 30 | All calls in rolling 60 seconds |
 | `AI_DAILY_AUDIO_SECONDS` | 18000 | All reserved ASR audio in rolling 24 hours |
 | `AI_DAILY_INPUT_CHARS` | 5000000 | All reserved chat input characters in rolling 24 hours |
-| `AI_DAILY_OUTPUT_TOKENS` | 300000 | All requested chat output ceilings in rolling 24 hours |
+| `AI_DAILY_OUTPUT_TOKENS` | 600000 | All requested chat output ceilings in rolling 24 hours |
 | `AI_MAX_OUTPUT_TOKENS` | 3000 | Per chat call, maximum 3000 |
 | `MAX_PENDING_JOBS` / `MAX_PENDING_LIVE_CHUNKS` | 20 / 120 | Global pending + running queue rows |
 | `DAILY_JOB_LIMIT` / `DAILY_LIVE_CHUNK_LIMIT` | 20 / 120 | Per-account rolling 24-hour admission |

@@ -9,6 +9,7 @@
 | `LLM_BASE_URL` | `https://shared1.multitool.works:4000/v1` | OpenAI-compatible API root; never a browser setting. |
 | `LLM_API_KEY` | None | Required server-only provider credential. |
 | `LLM_MODEL` | `gpt-5.4` | Chat model supporting `/chat/completions` and `response_format: json_object`. |
+| `FEEDBACK_EDITOR_MODEL` | Empty (disabled) | Optional wording editor; production uses DeepSeek through the same provider. |
 | `TRANSCRIPTION_MODEL` | `whisper-large-v3` | Model supporting `/audio/transcriptions`, Russian language and JSON text output. |
 | `LLM_TIMEOUT_SECONDS` | `120` | Per-attempt HTTP timeout, clamped to 5–180 seconds; connection timeout 10 seconds. |
 | `LLM_MAX_ATTEMPTS` | `2` | Attempts including the initial call; clamped to 1–3. |
@@ -24,7 +25,7 @@ Model listing alone does not establish support for either endpoint, JSON mode, t
 
 ## Questions and reports
 
-The candidate v2 context/draft/public contracts are documented in [ai-quality-contract.md](ai-quality-contract.md). Application-owned versioned prompts and shared caps live in `server/feedback_prompts.py`: question `questions-v2.2`, report `speech-feedback-v2.3`, context `speech-context-v2`, rubric `contextual-text-v2`. They remain tool-free calls under the existing reservation scope; no runtime critic is added.
+The candidate v2 context/draft/public contracts are documented in [ai-quality-contract.md](ai-quality-contract.md). Application-owned versioned prompts and shared caps live in `server/feedback_prompts.py`: question `questions-v2.3`, report `speech-feedback-v2.4`, context `speech-context-v2`, rubric `contextual-text-v2`. They remain tool-free calls under the existing reservation scope; no runtime critic is added.
 
 `generate_questions(config, transcript)` compiles speech-only exact contiguous evidence with content hashes and Unicode offsets. It requires three distinct question objects with one valid evidence ID and closed keys. Multiple question marks and inline quotations outside the selected source fail validation. The prompt asks for natural questions without quotation prefixes. Private question provenance is persisted separately; public questions remain strings. Answer processing binds the real saved question by index and rechecks its exact speech revision/ID/span where v2 provenance exists. Legacy saved questions without provenance remain usable with unknown origin metadata.
 
@@ -55,3 +56,15 @@ Provider errors carry safe Russian `code`/`message` and, where a provider call c
 General analysis remains independent of optional user criteria, with trusted condensed guidance in `server/coaching_context.py`; see [research](research/coaching-question-feedback.md). Transcript punctuation is not speaker behavior. Inline source-word checks in observations/actions contain literal quotation errors only, not unquoted unsupported advice. See [bounded model checks](feedback23-validation.md) for actual provider observations and their limits.
 
 An owner may update a report from an older prompt version without re-recording. The existing generation ledger and quotas still apply. Preserve the old report until success and its previous successful job result afterward; failed updates leave recordings and the old report intact.
+
+## DeepSeek wording stage
+
+The user explicitly requested editing model-authored formulations through DeepSeek. The worker now makes one additional bounded `questions_wording` or `report_wording` call when `FEEDBACK_EDITOR_MODEL` is nonempty. Analysis stays with `LLM_MODEL`. No new service, browser credential, audio transmission or assessment critic is added.
+
+The editor receives only allowlisted display strings and their exact source excerpt. It returns exactly the same field IDs once each. Unknown/missing/duplicate IDs, excess fields, invalid lengths, changed digit sequences (including signs/percent), unsupported inline quotations and compound/duplicate edited questions fail publication. Assessment status, criteria labels, number/order of findings, primary choice, transcript/recordings, metrics and canonical evidence are not offered as editable fields. Compatibility text/insight are derived from the edited observation/action.
+
+These are structural safeguards, not a semantic-equivalence proof. The prompt forbids changing meaning, evidence, uncertainty, facts or advice direction; actual wording needs review. Failure keeps the previous report/recording and offers the existing retry. A successful assessment's usage is persisted before editing, so failed editing does not lose accounting. Both requests still reserve work before transmission; an editor adds latency and usage.
+
+A compatible saved v2.3/v2.4 report with matching transcript revision and exact evidence is reworded without another assessment or ASR call. Previous successful job results retain the earlier text. New report provenance records `analysis_report_prompt_version` and `wording_editor:{version,model,status}`. Fresh reports use `speech-feedback-v2.4`; questions use `questions-v2.3`, and editor usage uses `speech-wording-v1`.
+
+Default daily reserved output capacity increases from 300,000 to 600,000 to accommodate the added stage at the same bounded job capacity. Attempts, per-user caps, per-call 3,000 output limit, daily job count and audio caps remain unchanged. This is a work cap, not a monetary budget or a quoted tariff. Unknown provider prices/currency stay unknown. Explicit installations can choose a lower capacity.

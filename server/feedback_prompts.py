@@ -4,8 +4,8 @@ import json
 from . import coaching_context
 
 CONTEXT_VERSION = 'speech-context-v2'
-QUESTIONS_VERSION = 'questions-v2.2'
-REPORT_VERSION = 'speech-feedback-v2.3'
+QUESTIONS_VERSION = 'questions-v2.3'
+REPORT_VERSION = 'speech-feedback-v2.4'
 RUBRIC_VERSION = 'contextual-text-v2'
 CAPS = {'strengths': 2, 'recommendations': 3, 'title': 180, 'observation': 1200,
         'action': 700, 'example': 700, 'reason': 700, 'question': 600, 'quote': 900}

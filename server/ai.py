@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
-from . import limits, feedback_prompts
+from . import limits, feedback_prompts, wording_prompts
 
 
 MAX_DURATION = 600
@@ -72,7 +72,7 @@ def _usage(model, operation, attempts, audio_seconds=0):
         "audio_seconds": audio_seconds,
         "latency_ms": sum(attempt["latency_ms"] for attempt in attempts),
         "attempts": attempts,
-        "prompt_version": feedback_prompts.QUESTIONS_VERSION if operation == "questions" else
+        "prompt_version": wording_prompts.VERSION if operation.endswith('_wording') else feedback_prompts.QUESTIONS_VERSION if operation == "questions" else
                           feedback_prompts.REPORT_VERSION if operation == "report" else "asr-v1",
     }
 
@@ -307,14 +307,15 @@ def _unique_json_object(pairs):
     return result
 
 
-async def _chat(operation, system, data):
-    model = os.getenv("LLM_MODEL", "gpt-5.4")
-    body, usage = await _request("/chat/completions", model, operation, payload={
+async def _chat(operation, system, data, *, model=None):
+    model = model or os.getenv("LLM_MODEL", "gpt-5.4")
+    payload = {
         "model": model, "temperature": 0.2, "max_tokens": limits.setting('AI_MAX_OUTPUT_TOKENS'),
         "response_format": {"type": "json_object"},
         "messages": [{"role": "system", "content": system},
                      {"role": "user", "content": json.dumps(data, ensure_ascii=False)}],
-    })
+    }
+    body, usage = await _request("/chat/completions", model, operation, payload=payload)
     try:
         choice = body["choices"][0]
         if choice.get("finish_reason") == "length":
@@ -653,3 +654,112 @@ async def analyze(config: dict, segments: list):
                                       'asr_model_unknown': any(s['asr_model'] is None for s in context['segments'])},
                        'limitations': ['Расшифровка может содержать ошибки.',
                                        'Голос, интонация, паузы, жесты и психологическая уверенность не оцениваются.']}, 'usage': usage}
+
+
+def editor_model():
+    return os.getenv('FEEDBACK_EDITOR_MODEL', '').strip()
+
+
+def can_reword_report(config, segments, report):
+    """Reuse a compatible assessment only when its exact sources still match."""
+    if not editor_model() or not isinstance(report, dict) or report.get('schema_version') != 2:
+        return False
+    if report.get('provenance', {}).get('report_prompt_version') not in ('speech-feedback-v2.3', 'speech-feedback-v2.4'):
+        return False
+    context = build_context('report', config, segments)
+    if report.get('transcript_revision') != context['transcript_revision']:
+        return False
+    quotes = {q['id']: _provenance(q) for q in context['evidence']}
+    for item in report.get('strengths', []) + report.get('recommendations', []) + report.get('criteria', []):
+        if item.get('evidence_id') is None:
+            continue
+        expected = quotes.get(item['evidence_id'])
+        if expected is None or any(item.get(k) != v for k, v in expected.items()):
+            return False
+    return True
+
+
+async def _edited_fields(kind, fields):
+    result, usage = await _chat(kind + '_wording', wording_prompts.SYSTEM,
+                                {'fields': fields}, model=editor_model())
+    try:
+        _keys(result, ('fields',))
+        items = result['fields']
+        if not isinstance(items, list) or len(items) != len(fields):
+            raise ValueError()
+        originals = {f['id']: f for f in fields}
+        edited = {}
+        for item in items:
+            if not isinstance(item, dict) or set(item) not in ({'id', 'text'}, {'id', 'text', 'max_chars'}):
+                raise ValueError()
+            key = item['id']
+            if not isinstance(key, str) or key not in originals or key in edited:
+                raise ValueError()
+            original = originals[key]
+            # Some adapters echo the read-only input cap. It cannot change policy.
+            if 'max_chars' in item and (type(item['max_chars']) is not int or item['max_chars'] != original['max_chars']):
+                raise ValueError()
+            text = _string(item['text'], original['max_chars'])
+            numbers = r'[+-]?\d+(?:[.,]\d+)?%?'
+            if re.findall(numbers, text) != re.findall(numbers, original['text']):
+                raise ValueError()
+            if '**' in text or '```' in text:
+                raise ValueError()
+            if original['source']:
+                _check_inline_quotations(text, original['source'])
+            if kind == 'questions' and (len(text) < 8 or text.count('?') != 1 or not text.endswith('?')):
+                raise ValueError()
+            edited[key] = text
+        if kind == 'questions' and len({v.casefold() for v in edited.values()}) != len(edited):
+            raise ValueError()
+    except (KeyError, TypeError, ValueError):
+        error = ProviderError('AI_WORDING_INVALID', 'Не удалось подготовить текст обратной связи. Запись сохранена; попробуйте ещё раз.')
+        error.usage = usage
+        raise error from None
+    return edited, usage
+
+
+async def reword_report(report):
+    fields = []
+    for group, names in [('strengths', ('title', 'observation')),
+                         ('recommendations', ('title', 'observation', 'action')),
+                         ('criteria', ('reason',))]:
+        for index, item in enumerate(report[group]):
+            for name in names:
+                fields.append({'id': f'{group}/{index}/{name}', 'text': item[name],
+                               'source': item.get('evidence', ''),
+                               'max_chars': feedback_prompts.CAPS[name]})
+    updated = json.loads(json.dumps(report))
+    usage = None
+    if fields:
+        edited, usage = await _edited_fields('report', fields)
+        for key, text in edited.items():
+            group, index, name = key.split('/')
+            updated[group][int(index)][name] = text
+    for item in updated['strengths']:
+        item['text'] = item['observation']
+    for item in updated['recommendations']:
+        item['text'] = ' '.join([item['observation'], item['action']])
+    primary = updated['primary_recommendation_index']
+    updated['insight'] = updated['recommendations'][primary]['action'] if primary is not None else None
+    provenance = updated['provenance']
+    provenance.setdefault('analysis_report_prompt_version', provenance['report_prompt_version'])
+    provenance['report_prompt_version'] = feedback_prompts.REPORT_VERSION
+    provenance['wording_editor'] = {'version': wording_prompts.VERSION,
+                                    'model': usage['model'] if usage else None,
+                                    'status': 'applied' if fields else 'not_needed'}
+    return {'report': updated, 'usage': usage}
+
+
+async def reword_questions(response):
+    fields = [{'id': f'questions/{i}/text', 'text': text, 'source': response['provenance']['items'][i]['evidence'],
+               'max_chars': feedback_prompts.CAPS['question']} for i, text in enumerate(response['questions'])]
+    edited, usage = await _edited_fields('questions', fields)
+    updated = json.loads(json.dumps(response))
+    updated['questions'] = [edited[f'questions/{i}/text'] for i in range(len(fields))]
+    for i, item in enumerate(updated['provenance']['items']):
+        item['text'] = updated['questions'][i]
+    updated['provenance']['wording_editor'] = {'version': wording_prompts.VERSION,
+                                               'model': usage['model'], 'status': 'applied'}
+    updated['usage'] = usage
+    return updated

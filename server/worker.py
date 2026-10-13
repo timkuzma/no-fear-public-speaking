@@ -30,7 +30,7 @@ async def _process(store, job):
         questions = []
         question_provenance = None
         if job['kind'] == 'report':
-            practice = store.one('SELECT questions,question_provenance FROM practices WHERE id=?', (practice_id,))
+            practice = store.one('SELECT questions,question_provenance,report FROM practices WHERE id=?', (practice_id,))
             questions = json.loads(practice['questions'])
             question_provenance = json.loads(practice['question_provenance']) if practice['question_provenance'] else None
         prepared = []
@@ -74,12 +74,18 @@ async def _process(store, job):
         store.execute('UPDATE jobs SET stage=? WHERE id=?', (job['kind'], job['id']))
         if job['kind'] == 'questions':
             response = await ai.generate_questions(config, prepared[0]['text'])
-            result = {'questions': response['questions']}
         else:
-            response = await ai.analyze(config, prepared)
-            result = response['report']
+            previous = json.loads(practice['report']) if practice['report'] else None
+            response = {'report': previous, 'usage': None} if ai.can_reword_report(config, prepared, previous) else await ai.analyze(config, prepared)
+        if ai.editor_model():
+            if response['usage']:
+                store.usage(job, response['usage'])
+            store.execute('UPDATE jobs SET stage=? WHERE id=?', (job['kind'] + '_wording', job['id']))
+            response = await (ai.reword_questions(response) if job['kind'] == 'questions' else ai.reword_report(response['report']))
+        result = {'questions': response['questions']} if job['kind'] == 'questions' else response['report']
         with store.connect() as db:
-            db.execute('INSERT INTO usage VALUES(?,?,?,?,?)', (__import__('uuid').uuid4().hex, job['id'], job['user_id'], now(), json.dumps(response['usage'])))
+            if response['usage']:
+                db.execute('INSERT INTO usage VALUES(?,?,?,?,?)', (__import__('uuid').uuid4().hex, job['id'], job['user_id'], now(), json.dumps(response['usage'])))
             if job['kind'] == 'questions':
                 db.execute("UPDATE practices SET questions=?,question_provenance=?,status='draft' WHERE id=?",
                            (json.dumps(result['questions'], ensure_ascii=False),

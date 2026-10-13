@@ -7,7 +7,7 @@ This documents implemented **candidate** behavior, not a claim of improved live 
 `server.ai.build_context(operation, config, segments)` compiles a server-owned `speech-context-v2` envelope. The runtime uses one tool-free questions call and one tool-free report call, existing system/user JSON messages, JSON-object mode and the same durable provider reservation/retry/timeout boundaries. No runtime critic, independent production agent or new service is added.
 
 - `operation`: `questions` or `report`.
-- `prompt_version`: `questions-v2.2` or `speech-feedback-v2.3`; `rubric_version`: `contextual-text-v2`.
+- `prompt_version`: `questions-v2.3` or `speech-feedback-v2.4`; `rubric_version`: `contextual-text-v2`.
 - `transcript_revision`: SHA-256 of compact UTF-8 JSON of ordered `{index,kind,text}` segments. Individual segment revisions hash their exact UTF-8 text. Whitespace changes change the revision.
 - `context`: optional user topic as weak contextual intent and history metadata, scenario and explicitly supplied criteria. Optional API-validated `repeat_focus` stays separate from formal criteria. It represents a selected next-practice action, not a compulsory scorecard.
 - `segments`: one original `speech` and up to three saved, confirmed `answer` segments, measured durations and origin/revision metadata. Text is not silently retyped or normalized. `asr_model` is the actual current transcription call's model alias where available; cached/live sources remain null unless known. Never label a cached transcript with today's configured model. Known server/evaluation capture interruption (`capture_complete:false`) and ASR doubt (`asr_quality:uncertain`) are passed separately; unknown runtime metadata stays unknown. Neither field can upgrade lexical completeness. These are internal inputs, not new public client assertions.
@@ -88,3 +88,11 @@ The shorter report prompt includes a complete protocol example separating genera
 The compiler rejects multiple question marks and checks inline quoted words in question text, observation and action against the exact selected evidence (case-insensitive). This catches fabricated alleged filler words and quotation/ID mismatch. It does not check unquoted claims, titles, criterion explanations, causal entailment or usefulness. Grammar variants inside quotation marks must remain verbatim. New report provenance includes `coaching_context_version`.
 
 Owners can explicitly refresh a report produced by an older prompt using the existing durable job endpoint. Active work and already-current reports are idempotent. Old report JSON and all recordings remain until successful publication; failure leaves them usable. The previous successful job result retains the old report. No automatic history regeneration, new recording or extra background critic is performed. Refresh consumes the existing generation quotas.
+
+## User-requested wording pass (2.4)
+
+The user requested DeepSeek to edit GPT-authored formulations. This explicitly adds one editor call after assessment/question generation, not a second assessor. See [pipeline and controls](llm.md#deepseek-wording-stage). `server/wording_prompts.py` owns the application guidance; wording version is `speech-wording-v1`.
+
+Production selects `deepseek-v3.2` for editing. Main analysis remains `gpt-5.4`. Only display strings enter an allowlisted field map; immutable assessment/source data stay in the server's report. Edited questions retain their source bindings and their new displayed text becomes the saved private provenance text. An exact read-only `max_chars` echo is tolerated and discarded; modified caps and other extra keys fail. The server always enforces its own original caps.
+
+Source-matched compatible reports can be reworded without re-analysis. Current report version is `speech-feedback-v2.4`; original analysis version is recorded separately. Failure does not publish an unedited fallback. Existing retry and prior successful job archival remain unchanged. Structural preservation does not prove that every paraphrase preserves meaning; manual style/meaning review and user acceptance remain distinct.

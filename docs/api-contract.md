@@ -135,3 +135,7 @@ During maintenance, business `/api/*` requests return 503 `MAINTENANCE` with `Re
 - `POST /api/operator/ai` `{enabled: boolean}`: bearer plus allowed-origin validation; durable operator pause independent of `AI_ENABLED=0`. Does not cancel a request already sent upstream. Return `{enabled: boolean}` is the effective state.
 
 Public proxy configuration denies all operator routes. Full settings, alert codes, retention and recovery boundaries are in `docs/operations.md`.
+
+## Wording provenance
+
+Report refresh can reuse a compatible saved assessment when exact transcript revisions and evidence match; an optional DeepSeek call edits display strings only. Question wording edits preserve source IDs and update private `items[].text` to the actual saved public question. New private provenance may include `wording_editor:{version,model,status}`; report provenance also retains `analysis_report_prompt_version`. Report schema and endpoints are unchanged. The current report version is `speech-feedback-v2.4`; failed editing retains old report/media and follows the existing failed-job retry.

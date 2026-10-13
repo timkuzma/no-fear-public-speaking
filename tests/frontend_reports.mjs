@@ -120,6 +120,6 @@ assert.equal(calls[0][0],"source");
 assert.equal(calls[0][1],"report");
 assert.equal(calls[0][2].refresh,true);
 assert.equal(oldPractice.report.provenance.report_prompt_version,"speech-feedback-v2.2");
-ui.reportPage({...practice,report:{...report,provenance:{report_prompt_version:"speech-feedback-v2.3"}}});
+ui.reportPage({...practice,report:{...report,provenance:{report_prompt_version:"speech-feedback-v2.4"}}});
 assert.doesNotMatch(context.markup,/data-action="refresh-report"/);
 console.log("Old reports offer explicit update; current reports remain idempotent");
