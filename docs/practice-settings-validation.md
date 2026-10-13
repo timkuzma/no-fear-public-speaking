@@ -16,3 +16,9 @@ The copy audit covers landing, account entry/recovery, setup, history, meeting, 
 - At 390px the setup stacked into one column, both fields remained visible and document width matched the viewport. No browser errors were observed. Screenshot evidence is ignored output under `outputs/test-artifacts/practice-settings/`.
 
 No real provider requests or physical-device captures were made for these checks. Useful coaching and physical-device behavior remain the user's production pilot checks.
+
+## Production publication
+
+Source `efc9ce4bf6b77f9d2fae304e32de1bcb564c4243` was published to the existing No Fear Stage HTTPS host as image `sha256:662e3019683bb18797dae991692552d5f889073c94e8ac0aa8637f4cbac40d01`. The controller verified the pre-release backup/restore check and promoted without rollback. The previous image remains available; database structure and stored recordings are unchanged.
+
+External HTTPS checks matched the entry HTML, application, API client, draft module and stylesheet bytes. Readiness confirmed writable storage, both workers alive and maintenance disabled. A deliberately invalid registration returned HTTP 422 with only the password field/message and no mention of practice time; invalid input cannot create an account. No Git push was made.
