@@ -11,7 +11,7 @@
 
 ## Interface and Russian copy
 
-- `docs/prospect-faq.md` owns prospect FAQ copy and its publication prerequisites. Use its short landing set for the public FAQ; keep editorial notes and unresolved commercial/data-policy questions out of public answers until the actual conditions are defined.
+- `docs/prospect-faq.md` owns prospect FAQ copy and its research rationale. Landing FAQ answers connect a concrete preparation problem to an available practice action and its use before a real speech. Keep account/device/recovery details in their relevant flows; never substitute technical mechanics for the reason to practice or invent outcome guarantees.
 
 - The public interface has no example report or report preview. Old `#/example` links redirect to the landing page; account reports still use real saved recordings.
 - No logo or wordmark appears in the header. Guests have separate login/registration links; authenticated users have practice/history navigation and a separate logout action. All account-creation CTA labels are `Регистрация`.
