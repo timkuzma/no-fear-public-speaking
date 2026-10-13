@@ -1,0 +1,29 @@
+{
+  "mode": "injected_offline_baseline",
+  "provider_calls": 0,
+  "human_ratings": 0,
+  "semantic_quality_measured": false,
+  "baseline": "65f6904-frozen",
+  "probes": [
+    {
+      "probe": "invented_freestanding_insight",
+      "accepted": true,
+      "criteria_count": 0
+    },
+    {
+      "probe": "empty_findings",
+      "accepted": false,
+      "error_code": "AI_UNGROUNDED_REPORT"
+    },
+    {
+      "probe": "invalid_evidence_id",
+      "accepted": false,
+      "error_code": "AI_UNGROUNDED_REPORT"
+    },
+    {
+      "probe": "unrequested_criteria",
+      "accepted": true,
+      "criteria_count": 0
+    }
+  ]
+}

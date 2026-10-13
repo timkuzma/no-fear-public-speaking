@@ -1,0 +1,12 @@
+{
+  "version": "release-gates-proposal-v1",
+  "status": "pending_measured_baseline_and_human_calibration",
+  "baseline_measurement": null,
+  "deterministic_contract_pass_rate": 1.0,
+  "observed_critical_failures": 0,
+  "human_grounding_and_actionability_at_least_2_proposed_rate": 0.9,
+  "judge_seeded_failure_recall_proposed_rate": 0.95,
+  "latency_and_work_budgets": null,
+  "acceptance_authorized": false,
+  "qualification": "Operational proposals, not scientific standards or achieved quality. Freeze final definitions after baseline and before first acceptance access. No reviewers or real participants currently available."
+}
