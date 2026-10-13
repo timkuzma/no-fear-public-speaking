@@ -8,7 +8,7 @@ import time
 import uuid
 
 REQUEST_ID = contextvars.ContextVar('analytics_request_id', default=None)
-VERSION = 'contest-metrics-v1'
+VERSION = 'contest-metrics-v1.1'
 CLIENT_EVENTS = {
     'page_viewed', 'landing_cta_clicked', 'registration_viewed', 'registration_submitted',
     'registration_failed', 'setup_viewed', 'device_access_result', 'capture_started',

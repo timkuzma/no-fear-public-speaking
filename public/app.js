@@ -1,7 +1,7 @@
-import { track, trackPage, analyticsActor, observeReport, flush } from "./analytics.js?v=20261013-analytics-1";
+import { track, trackPage, analyticsActor, observeReport, flush } from "./analytics.js?v=20261013-analytics-2";
 import { installTypography } from "./typography.js?v=20261013-type";
 import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-stable-scroll";
-import { api } from "./api.js?v=20261013-analytics-1";
+import { api } from "./api.js?v=20261013-analytics-2";
 import { LiveAudioCapture } from "./live-audio.js?v=20261013-asr-5s";
 import {
   saveDraft,
@@ -124,7 +124,7 @@ function button(text, action, cls = "primary", extra = "") {
 function startLink(text = "Начать тренировку", cls = "primary") {
   return `<a class="button ${cls}" href="#${state.user ? "/app" : "/register"}">${text}</a>`;
 }
-function telemetry(kind,data={},practiceId=null){if(typeof track==="function")track(kind,data,practiceId)}
+function telemetry(kind,data={},practiceId=null){try{if(typeof track==="function")track(kind,data,practiceId)}catch{}}
 function header() {
   return `<header class="header"><a class="home-link" href="#/landing">Главная</a><nav class="primary-nav" aria-label="Основная навигация">${state.user ? `<a href="#/app">Тренировка</a><a href="#/history">История</a>${state.user.analytics_access ? '<a href="#/admin/analytics">Аналитика</a>' : ""}` : `<a href="#/login">Вход</a><a class="registration-link" href="#/register">Регистрация</a>`}</nav>${state.user ? `<div class="account-actions">${button("Выход", "logout", "text")}</div>` : ""}</header>`;
 }
@@ -380,6 +380,7 @@ async function resumeAfterLogin() {
 }
 
 function sessionExpired() {
+  telemetry("reauthentication_needed",{},state.practice?.id);
   const ownerId =
     state.user?.id || state.pending?.ownerId || state.recordingOwnerId;
   if(route()==="/admin/analytics"){state.adminReturn=true;try{sessionStorage.setItem("analytics-return","1")}catch{}}
@@ -978,6 +979,7 @@ async function checkMic() {
     if (errorPanel) errorPanel.textContent = "";
   } catch (error) {
     const owned = ownsMedia();
+    telemetry("device_access_result",{device_kind:"microphone",result:error.name==="NotAllowedError"?"denied":"unavailable"},state.practice?.id);
     releaseMedia();
     if (version !== state.routeVersion || !owned) return;
     updateMicUI();
@@ -1096,6 +1098,7 @@ async function toggleCamera() {
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
+    telemetry("device_access_result",{device_kind:"camera",result:"granted"},state.practice?.id);
     state.cameraStream = stream;
     stream.getVideoTracks().forEach((t) =>
       t.addEventListener("ended", () => {
@@ -1112,6 +1115,7 @@ async function toggleCamera() {
       cameraVersion !== state.cameraVersion
     )
       return;
+    telemetry("device_access_result",{device_kind:"camera",result:error.name==="NotAllowedError"?"denied":"unavailable"},state.practice?.id);
     status.textContent =
       error.name === "NotAllowedError"
         ? "Доступ к камере закрыт. Разреши его в настройках сайта или продолжи со звуком."
@@ -1673,11 +1677,11 @@ async function navigate() {
   }
   if (path === "/admin/analytics") {
     if(!state.user.analytics_access){frame('<h1>Доступ не предоставлен</h1><p>Аналитика доступна владельцу платформы.</p>');return}
-    const module=await import("./admin-analytics.js?v=20261013-analytics-1");
+    const module=await import("./admin-analytics.js?v=20261013-analytics-2");
     if(version===state.routeVersion)await module.mountAdmin(frame);return;
   }
   if (path === "/app") {if(typeof trackPage==="function")trackPage(path);return setup()}
-  if (path === "/history") return history();
+  if (path === "/history") {if(typeof trackPage==="function")trackPage(path);return history()}
   const match = path.match(/^\/practice\/([^/]+)$/);
   if (match) {
     frame('<div class="loading" role="status">Открываем тренировку…</div>');
@@ -1859,6 +1863,7 @@ async function action(event) {
         await history(Number(target.dataset.offset));
         break;
       case "download-report":
+        telemetry("report_export_requested",{report_version_id:state.practice.report_version_id},state.practice.id);
         downloadReport(state.practice);
         break;
       case "choose-focus":
@@ -2138,5 +2143,17 @@ window.addEventListener("beforeunload", (event) => {
   }
 });
 window.addEventListener("session-expired", sessionExpired);
+document.addEventListener("play",(event)=>{
+  if(!document.querySelector(".report-reading")||!state.practice)return;
+  const segment=(state.practice.segments||[]).find(s=>s.media_url===event.target.getAttribute?.("src"));
+  if(segment)telemetry("media_play_started",{segment_id:segment.id},state.practice.id);
+},true);
+document.addEventListener("click",(event)=>{
+  const link=event.target.closest?.(".media-list a[download]");
+  if(!link||!document.querySelector(".report-reading")||!state.practice)return;
+  const segment=(state.practice.segments||[]).find(s=>link.getAttribute("href")===s.media_url+"?download=true");
+  if(segment)telemetry("media_download_requested",{segment_id:segment.id},state.practice.id);
+});
+
 installTypography([app, document.querySelector("#toast")]);
 void initialize();

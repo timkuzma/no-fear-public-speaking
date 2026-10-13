@@ -252,3 +252,59 @@ def test_question_indices_and_observed_drilldown_are_exact(setup):
     with s.connect() as db:record(db,'report_engaged',uid,pid,origin='client_observed')
     assert owner.get('/api/admin/analytics/practices?stage=report_engaged').json()['total']==1
     assert owner.get('/api/admin/analytics/report?from=2026-10-13T00:10:00').status_code==422
+
+
+def test_detailed_funnel_memberships_timings_and_evidence(setup):
+    from server.analytics_events import record
+    app,owner,_,_,uid,*_=setup;s=app.state.store
+    p1,sid=fixture_practice(s,uid,True);p2,_=fixture_practice(s,uid,True,report=False,answers=1)
+    with s.connect() as db:
+        for kind in ('question_presented','answer_started','answer_recorded'):
+            record(db,kind,uid,p1,{'question_index':1},origin='client_observed')
+        record(db,'capture_started',uid,p1,{'segment_index':0},origin='client_observed')
+    d=owner.get('/api/admin/analytics/report').json()
+    assert d['questions'][0]['presented']==d['questions'][0]['started']==d['questions'][0]['recorded']==1
+    assert d['questions'][0]['saved']==2 and d['questions'][1]['saved']==1
+    assert d['unfinished']['awaiting_questions']==1
+    assert d['timings']['report_ready']['p50_seconds']==7
+    for step in d['funnel']:
+        listing=owner.get('/api/admin/analytics/practices',params={'stage':step['id']}).json()
+        assert listing['total']==step['count'],step
+    detail=owner.get('/api/admin/analytics/practices/'+p1).json()
+    speech=next(v for v in detail['segments'] if v['id']==sid)
+    assert speech['stored_sha256']==hashlib.sha256(b'fixture-media').hexdigest()
+    assert speech['upload_sha256'] is None and speech['bytes']==13
+
+
+def test_acquisition_branches_and_creative_reconciliation(setup):
+    app,owner,_,oid,uid,h,*_=setup;visitor=TestClient(app)
+    events=[{'id':uuid.uuid4().hex,'kind':kind,'data':data} for kind,data in [
+        ('page_viewed',{'route_id':'/landing'}),('landing_cta_clicked',{'cta_id':'landing'}),
+        ('registration_viewed',{}),('registration_submitted',{}),('registration_failed',{'error_code':'INVITE_REQUIRED'})]]
+    assert visitor.post('/api/analytics/events',json={'events':events}).status_code==200
+    d=owner.get('/api/admin/analytics/report').json()['acquisition']
+    assert d['landing_visits']==d['cta_visits']==d['form_visits']==d['submitted_visits']==1
+    assert d['direct_form_visits']==0 and d['registration_errors']=={'INVITE_REQUIRED':1}
+    text=csv_bytes().decode();head,line=text.strip().split('\n')
+    first=line.replace('Campaign,,','Campaign,creative1,')
+    second=line.replace('Campaign,,','Campaign,creative2,').replace(',100,5,10,',',200,10,20,')
+    bid=owner.post('/api/admin/marketing/imports',headers=h,content=(head+'\n'+first+'\n'+second+'\n').encode()).json()['id']
+    assert owner.post('/api/admin/marketing/imports/'+bid+'/confirm',headers=h).status_code==200
+    m=owner.get('/api/admin/analytics/report').json()['marketing']
+    assert len(m['creative_items'])==2
+    assert sum(c['spend'] for c in m['creative_items'])==m['items'][0]['spend']==30
+    assert sum(c['impressions'] for c in m['creative_items'])==300
+
+
+def test_optional_analytics_flags_do_not_block_product(setup,monkeypatch):
+    app,owner,_,oid,uid,h,*_=setup
+    monkeypatch.setenv('ANALYTICS_CLIENT_ENABLED','0')
+    assert owner.post('/api/analytics/events',json={'events':[]}).json()['disabled'] is True
+    monkeypatch.setenv('ANALYTICS_EXPORT_ENABLED','0')
+    assert owner.get('/api/admin/analytics/events?format=csv').status_code==503
+    assert owner.get('/api/admin/analytics/events?format=ndjson').status_code==503
+    assert owner.get('/api/admin/analytics/report').status_code==200
+    monkeypatch.setenv('ANALYTICS_ADMIN_ENABLED','0')
+    assert owner.get('/api/admin/analytics/report').status_code==403
+    assert owner.get('/api/auth/me').json()['user']['analytics_access'] is False
+    assert owner.post('/api/practices',headers=h,json={'scenario':'speech','duration':1,'questions':False}).status_code==200

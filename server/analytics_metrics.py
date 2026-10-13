@@ -79,7 +79,7 @@ def accepted(row,f):
 
 def public_row(row):
     c=json.loads(row['config']);complete=bool(row['report_at'] and row['speech_at'] and (not c.get('questions') or row['answers']>=3))
-    return {k:row[k] for k in ('id','user_id','created','status','speech_at','seconds','answers','answer_1','answer_2','answer_3','report_at','report_version_id','questions_at','failures','rating','classification','source','campaign','registered_at','role','prompt_version')}|{
+    return {k:row[k] for k in ('id','user_id','created','status','speech_at','seconds','answers','answer_1','answer_2','answer_3','last_answer_at','report_at','report_version_id','questions_at','failures','rating','classification','source','campaign','registered_at','role','prompt_version')}|{
         'participant':'Участник '+row['user_id'][:8],'scenario':c.get('scenario','speech'),
         'duration_seconds':float(c.get('duration',0))*60,'questions':bool(c.get('questions')),
         'topic_present':bool(c.get('topic')),'focus_present':bool(c.get('repeat_focus')),
@@ -92,7 +92,8 @@ def fraction(n,d):return {'numerator':n,'denominator':d,'value':round(n/d*100,2)
 
 def percentile(values,p):
     if not values:return None
-    values=sorted(values);return values[min(len(values)-1,int((len(values)-1)*p))]
+    values=sorted(values);position=(len(values)-1)*p;lower=int(position);upper=min(lower+1,len(values)-1)
+    return values[lower]+(values[upper]-values[lower])*(position-lower)
 
 
 def calculate(db,query):
@@ -120,13 +121,17 @@ def calculate(db,query):
     window=f['window_hours']*3600
     matured=[r for r in selected if r['created']+window<=moment]
     timely=[r for r in matured if r['completion_at'] and r['completion_at']-r['created']<=window]
-    event_clauses=["kind IN ('page_viewed','registration_viewed','registration_confirmed','capture_started','report_viewed','report_engaged','question_presented','segment_saved')",'occurred>=?','occurred<?'];event_args=[start,end]
+    event_clauses=["kind IN ('page_viewed','registration_viewed','registration_confirmed','capture_started','report_viewed','report_engaged','question_presented','segment_saved','landing_cta_clicked','registration_submitted','registration_failed','setup_viewed')",'occurred>=?','occurred<?'];event_args=[start,end]
     if not f['include_staff']:event_clauses.append("(actor_id IS NULL OR actor_id NOT IN (SELECT user_id FROM account_classifications WHERE classification IN ('staff','test')))")
     events=[dict(e) for e in db.execute('SELECT * FROM analytics_events WHERE '+' AND '.join(event_clauses),event_args)]
     sessions={e['session_id'] for e in events if e['kind']=='page_viewed' and e['session_id']}
     if f['source'] or f['campaign']:
         touch_sessions={r['session_id'] for r in db.execute('SELECT * FROM acquisition_touches') if (not f['source'] or r['source']==f['source']) and (not f['campaign'] or r['campaign_id']==f['campaign'])}
         sessions &=touch_sessions;events=[e for e in events if e['session_id'] in touch_sessions or e['actor_id'] in {a['id'] for a in accounts}]
+    if any(f[k] for k in ('actor_id','role','scenario','questions','duration','report_version','classification')):
+        account_ids={a['id'] for a in accounts}
+        events=[e for e in events if e['actor_id'] in account_ids]
+        sessions={e['session_id'] for e in events if e['kind']=='page_viewed' and e['session_id']}
     registration_sessions={e['session_id'] for e in events if e['kind']=='registration_viewed' and e['session_id']}
     reg_views={}
     for e in events:
@@ -137,13 +142,55 @@ def calculate(db,query):
     observed_reg={e['actor_id'] for e in confirmed if e['session_id'] in reg_views and 0<=e['occurred']-reg_views[e['session_id']]<=7*86400}
     # Report views count only browser-observed rendering, never legacy GETs.
     selected_ids={r['id'] for r in selected}
-    phase_events=[dict(e) for e in db.execute("SELECT DISTINCT kind,practice_id FROM analytics_events WHERE kind IN ('capture_started','report_viewed','report_engaged','question_presented') AND occurred>=? AND occurred<=?",(start,moment))] if f['mode']=='cohort' else events
-    observed={kind:{e['practice_id'] for e in phase_events if e['kind']==kind and e['practice_id'] in selected_ids} for kind in ('capture_started','report_viewed','report_engaged','question_presented')}
-    funnel=[('practice_created','Тренировка создана',len(selected)),('capture_started','Запись началась',len(observed['capture_started'])),('speech_saved','Речь сохранена',sum(bool(r['speech_at']) for r in selected)),('report_generated','Разбор готов',len(generated)),('report_viewed','Разбор показан',len(observed['report_viewed'])),('report_engaged','Просмотр ≥10 секунд',len(observed['report_engaged']))]
-    previous_base={k:len(selected) if k=='speech_saved' else sum(bool(r['speech_at']) for r in selected) if k=='report_generated' else len(generated) if k=='report_viewed' else None for k,_,_ in funnel}
-    funnel=[{'id':k,'label':label,'count':n,'from_base':fraction(n,len(selected)), 'from_previous':fraction(n,previous_base[k]) if previous_base[k] is not None else None, 'origin':'client_observed' if k in observed else 'server_confirmed'} for k,label,n in funnel]
+    phase_events=[dict(e) for e in db.execute("SELECT kind,practice_id,data FROM analytics_events WHERE kind IN ('capture_started','report_viewed','report_engaged','question_presented','answer_started','answer_recorded') AND occurred>=? AND occurred<=?",(start,moment))] if f['mode']=='cohort' else [dict(e) for e in db.execute("SELECT kind,practice_id,data FROM analytics_events WHERE kind IN ('capture_started','report_viewed','report_engaged','question_presented','answer_started','answer_recorded') AND occurred>=? AND occurred<?",(start,end))]
+    observed={kind:{e['practice_id'] for e in phase_events if e['kind']==kind and e['practice_id'] in selected_ids} for kind in ('capture_started','report_viewed','report_engaged','question_presented','answer_started','answer_recorded')}
+    observed['capture_started']={e['practice_id'] for e in phase_events if e['kind']=='capture_started' and e['practice_id'] in selected_ids and json.loads(e['data']).get('segment_index')==0}
     question_rows=[r for r in selected if r['questions'] and r['speech_at']]
-    questions=[{'index':i,'saved':sum(bool(r['answer_'+str(i)]) for r in question_rows),'base':len(question_rows),'conversion':fraction(sum(bool(r['answer_'+str(i)]) for r in question_rows),len(question_rows))} for i in (1,2,3)]
+    question_ids={r['id'] for r in question_rows}
+    memberships={'practice_created':selected_ids,'speech_saved':{r['id'] for r in selected if r['speech_at']},
+      'questions_generated':{r['id'] for r in question_rows if r['questions_at']},
+      'inputs_saved':{r['id'] for r in selected if r['speech_at'] and (not r['questions'] or r['answers']==3)},
+      'report_generated':{r['id'] for r in generated},'feedback_submitted':{r['id'] for r in selected if r['rating'] is not None}}
+    memberships.update(observed)
+    questions=[]
+    for i in (1,2,3):
+        cell={'index':i,'base':len(question_rows),'ready':len(memberships['questions_generated'])}
+        for kind,key in (('question_presented','presented'),('answer_started','started'),('answer_recorded','recorded')):
+            ids={e['practice_id'] for e in phase_events if e['practice_id'] in question_ids and e['kind']==kind and json.loads(e['data']).get('question_index')==i}
+            memberships[kind+'_'+str(i)]=ids;cell[key]=len(ids)
+        ids={r['id'] for r in question_rows if r['answer_'+str(i)]}
+        memberships['answer_saved_'+str(i)]=ids;cell['saved']=len(ids);cell['conversion']=fraction(len(ids),len(question_rows));questions.append(cell)
+    steps=[('practice_created','Тренировка создана',len(selected),False),('capture_started','Запись началась',None,True),
+      ('speech_saved','Речь сохранена',len(selected),False),('questions_generated','Вопросы готовы',len(question_rows),False)]
+    for i in (1,2,3):
+        steps.extend([(f'question_presented_{i}',f'Вопрос {i} показан',len(question_rows),True),
+          (f'answer_started_{i}',f'Ответ {i} начат',len(question_rows),True),(f'answer_recorded_{i}',f'Ответ {i} записан локально',len(question_rows),True),
+          (f'answer_saved_{i}',f'Ответ {i} сохранён',len(question_rows),False)])
+    steps.extend([('inputs_saved','Все обязательные записи сохранены',len(selected),False),('report_generated','Разбор готов',len(memberships['inputs_saved']),False),
+      ('report_viewed','Разбор показан',len(generated),True),('report_engaged','Просмотр ≥10 секунд',len(generated),True),('feedback_submitted','Оценка сохранена',len(generated),False)])
+    funnel=[{'id':k,'label':label,'count':len(memberships[k]),'from_base':fraction(len(memberships[k]),len(selected)),
+      'from_previous':fraction(len(memberships[k]),base) if base is not None else None,'origin':'client_observed' if client else 'server_confirmed'} for k,label,base,client in steps]
+    landing_sessions={e['session_id'] for e in events if e['kind']=='page_viewed' and json.loads(e['data']).get('route_id')=='/landing' and e['session_id']}
+    cta_sessions={e['session_id'] for e in events if e['kind']=='landing_cta_clicked' and e['session_id']} & landing_sessions
+    submit_sessions={e['session_id'] for e in events if e['kind']=='registration_submitted' and e['session_id']} & registration_sessions
+    acquisition={'landing_visits':len(landing_sessions),'cta_visits':len(cta_sessions),'cta_conversion':fraction(len(cta_sessions),len(landing_sessions)),
+      'form_visits':len(registration_sessions),'direct_form_visits':len(registration_sessions-landing_sessions),'submitted_visits':len(submit_sessions),
+      'submission_conversion':fraction(len(submit_sessions),len(registration_sessions)),
+      'registration_errors':{code:sum(e['kind']=='registration_failed' and json.loads(e['data']).get('error_code')==code for e in events) for code in sorted({json.loads(e['data']).get('error_code','UNKNOWN') for e in events if e['kind']=='registration_failed'})}}
+    intervals={'speech_saved':[], 'questions_ready':[], 'report_ready':[]}
+    negative_intervals=0
+    for r in selected:
+        for key,a,b in (('speech_saved',r['created'],r['speech_at']),('questions_ready',r['speech_at'],r['questions_at']),
+          ('report_ready',max(r['speech_at'] or 0,r.get('last_answer_at') or 0),r['report_at'])):
+            if not a or not b:continue
+            if b<a:negative_intervals+=1;continue
+            intervals[key].append(b-a)
+    timings={k:{'count':len(v),'p50_seconds':percentile(v,.5),'p90_seconds':percentile(v,.9)} for k,v in intervals.items()}
+    unfinished={k:0 for k in ('no_speech','awaiting_questions','answering','awaiting_report','processing_failed')}
+    for r in selected:
+        if r['complete']:continue
+        key='no_speech' if not r['speech_at'] else 'processing_failed' if r['failures'] else 'awaiting_questions' if r['questions'] and not r['questions_at'] else 'answering' if r['questions'] and r['answers']<3 else 'awaiting_report'
+        unfinished[key]+=1
     no_questions=[r for r in selected if not r['questions'] and r['speech_at']]
     trend={}
     cursor=datetime.fromtimestamp(start,ZONE).date();last=datetime.fromtimestamp(end,ZONE).date()
@@ -184,5 +231,5 @@ def calculate(db,query):
       'source_watermark':db.execute('SELECT coalesce(MAX(seq),0) FROM analytics_events').fetchone()[0], 'coverage':quality,
       'summary':{'registrations':len(new),'practices':len(selected),'speeches':sum(bool(r['speech_at']) for r in selected),'reports':len(generated),'completed':sum(r['complete'] for r in selected),'active_accounts':len(active),'visits':len(sessions),'visitors':len({e['visitor_id'] for e in events if e['kind']=='page_viewed' and e['visitor_id']}),'dau':dau[1],'wau':dau[7],'mau':dau[30],
       'activation_7d':fraction(len(activated),len(mature))|{'pending':len(new)-len(mature),'members':activated},'completion':fraction(len(timely),len(matured))|{'pending':len(selected)-len(matured)},'registration_conversion':fraction(len(reg_converted),len(mature_views))|{'pending':len(reg_views)-len(mature_views)},'registration_observed':fraction(len(observed_reg),len(reg_views)),
-      'seconds':sum(r['seconds'] for r in selected),'rating_average':statistics.mean(ratings) if ratings else None,'rating_count':len(ratings),'rating_distribution':{str(n):ratings.count(n) for n in range(1,6)},'time_to_value_p50':percentile([first_report[a['id']]-a['created'] for a in new if a['id'] in first_report],.5),'time_to_value_p90':percentile([first_report[a['id']]-a['created'] for a in new if a['id'] in first_report],.9)},
-      'observed_memberships':{k:sorted(v) for k,v in observed.items()},'funnel':funnel,'questions':questions,'no_questions':{'base':len(no_questions),'reports':sum(bool(r['report_at']) for r in no_questions)},'trend':trend,'retention':retention,'repeats':repeats,'practices':selected,'accounts':new,'account_roster':accounts,'active_account_ids':sorted(active)}
+      'seconds':sum(r['seconds'] for r in selected),'rating_average':statistics.mean(ratings) if ratings else None,'rating_count':len(ratings),'rating_distribution':{str(n):ratings.count(n) for n in range(1,6)},'time_to_value_p50':percentile([first_report[a['id']]-a['created'] for a in new if a['id'] in first_report and first_report[a['id']]>=a['created']],.5),'time_to_value_p90':percentile([first_report[a['id']]-a['created'] for a in new if a['id'] in first_report and first_report[a['id']]>=a['created']],.9)},
+      'observed_memberships':{k:sorted(v) for k,v in memberships.items()},'acquisition':acquisition,'timings':timings,'unfinished':unfinished,'negative_intervals':negative_intervals,'funnel':funnel,'questions':questions,'no_questions':{'base':len(no_questions),'reports':sum(bool(r['report_at']) for r in no_questions)},'trend':trend,'retention':retention,'repeats':repeats,'practices':selected,'accounts':new,'account_roster':accounts,'active_account_ids':sorted(active)}

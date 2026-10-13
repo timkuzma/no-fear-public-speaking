@@ -109,7 +109,9 @@ def marketing(db,start,end,filters=None):
         candidates=[g for g in groups.values() if g['campaign_id']==c['campaign_id'] and g['platform']==c['source']]
         # No guessed cross-account/currency allocation. Ambiguity stays unlinked.
         if len(candidates)!=1:continue
-        g=candidates[0];g['registrations']+=1
+        g=candidates[0]
+        if datetime.fromtimestamp(c['touch_at'],ZONE).date().isoformat() not in g['days']:continue
+        g['registrations']+=1
         if c['first_report'] and 0<=c['first_report']-c['created']<=7*86400:g['activated']+=1
     output=[]
     for g in groups.values():
@@ -120,7 +122,17 @@ def marketing(db,start,end,filters=None):
         if any(filters.get(k) for k in ('scenario','questions','duration','role','report_version','actor_id')):
             g['cost_registration']=None;g['cost_activation']=None;g['segment_cost_unavailable']=True
         output.append(g)
-    return {'items':output,'coverage':'uploaded_days_only','model':'first-observed-touch-v1' if filters.get('source_model')=='first' else 'last-nondirect-30d-v1','maturity_days':37,'budget_available':bool(items)}
+    creatives={}
+    for r in items:
+        key=(r['platform'],r['account'],r['campaign_id'],r['creative_id'],r['currency'],r['tax_mode'],r['timezone'])
+        g=creatives.setdefault(key,{'platform':r['platform'],'account':r['account'],'campaign_id':r['campaign_id'],'creative_id':r['creative_id'],'currency':r['currency'],'tax_mode':r['tax_mode'],'impressions':0,'clicks':0,'spend':Decimal(0)})
+        g['impressions']+=r['impressions'];g['clicks']+=r['clicks'];g['spend']+=Decimal(r['spend'])
+    creative_items=[]
+    for g in creatives.values():
+        g['spend']=float(g['spend']);g['ctr']=g['clicks']/g['impressions']*100 if g['impressions'] else None
+        g['cpc']=g['spend']/g['clicks'] if g['clicks'] else None;g['cpm']=g['spend']/g['impressions']*1000 if g['impressions'] else None
+        creative_items.append(g)
+    return {'batch_ids':sorted({r['batch_id'] for r in items}),'creative_items':creative_items,'items':output,'coverage':'uploaded_days_only','model':'first-observed-touch-v1' if filters.get('source_model')=='first' else 'last-nondirect-30d-v1','maturity_days':37,'budget_available':bool(items)}
 
 
 def install(app,store,auth,check_origin,practice_json):
@@ -205,11 +217,10 @@ def install(app,store,auth,check_origin,practice_json):
     @app.get('/api/admin/analytics/practices')
     async def practices(request:Request,offset:int=0,limit:int=50,stage:str=''):
         owner(request);data=await report(dict(request.query_params));items=data['practices']
-        if stage in ('speech_saved','report_generated','completed','failed','capture_started','report_viewed','report_engaged'):
-            if stage in ('capture_started','report_viewed','report_engaged'):
-                ids=set(data['observed_memberships'][stage]);items=[r for r in items if r['id'] in ids]
-            else:
-                key={'speech_saved':'speech_at','report_generated':'report_at','completed':'complete','failed':'failures'}[stage];items=[r for r in items if r[key]]
+        if stage in data['observed_memberships']:
+            ids=set(data['observed_memberships'][stage]);items=[r for r in items if r['id'] in ids]
+        elif stage in ('completed','failed'):
+            items=[r for r in items if r['complete' if stage=='completed' else 'failures']]
         items.sort(key=lambda r:(r['created'],r['id']),reverse=True)
         return {'items':items[max(0,offset):max(0,offset)+min(100,max(1,limit))],'total':len(items),'as_of':data['as_of']}
 
@@ -223,6 +234,18 @@ def install(app,store,auth,check_origin,practice_json):
         for segment in result['segments']:
             segment['media_url']=f'/api/admin/evidence/{pid}/segments/{segment["id"]}/media'
             row=store.one('SELECT filename FROM segments WHERE id=?',(segment['id'],));segment['available']=bool(row and (store.media/row['filename']).is_file())
+        def integrity():
+            for segment in result['segments']:
+                row=store.one('SELECT s.filename,s.created,u.sha256 FROM segments s LEFT JOIN segment_uploads u ON u.segment_id=s.id WHERE s.id=?',(segment['id'],))
+                segment['upload_sha256']=row['sha256'] if row else None
+                segment['saved_at']=row['created'] if row else None
+                try:
+                    path=store.media/row['filename']
+                    with path.open('rb') as file:
+                        checksum=hashlib.file_digest(file,'sha256').hexdigest()
+                    segment.update(stored_sha256=checksum,bytes=path.stat().st_size)
+                except OSError:segment['available']=False
+        await asyncio.to_thread(integrity)
         result['versions']=[{'id':r['id'],'finished':r['finished'],'report':json.loads(r['result'])} for r in store.all("SELECT id,finished,result FROM jobs WHERE practice_id=? AND kind='report' AND status='succeeded' ORDER BY finished DESC,id DESC LIMIT 100",(pid,)) if r['result']]
         result['feedback']=store.all('SELECT rating,text,created FROM feedback WHERE practice_id=? ORDER BY created DESC LIMIT 100',(pid,))
         result['trace']=events_query({'practice_id':pid,'limit':'500','from':datetime.fromtimestamp(max(p['created'],time.time()-179*86400),ZONE).date().isoformat(),'to':(datetime.now(ZONE).date()+timedelta(days=1)).isoformat()})
@@ -261,6 +284,7 @@ def install(app,store,auth,check_origin,practice_json):
         try:result=await asyncio.to_thread(events_query,dict(request.query_params))
         except (ValueError,TypeError,OverflowError):reject('FILTER_INVALID','Проверь фильтры журнала.')
         if request.query_params.get('format') in ('csv','ndjson'):
+            if os.getenv('ANALYTICS_EXPORT_ENABLED','1')=='0':reject('EXPORT_PAUSED','Выгрузка временно отключена.',503)
             audit(store,user['id'],'admin_log_export')
             if request.query_params['format']=='csv':return Response(safe_csv(result['items']),media_type='text/csv',headers={'Content-Disposition':'attachment; filename="events.csv"'})
             return Response('\n'.join(json.dumps(r,ensure_ascii=False) for r in result['items']),media_type='application/x-ndjson',headers={'Content-Disposition':'attachment; filename="events.ndjson"'})
@@ -366,7 +390,7 @@ def install(app,store,auth,check_origin,practice_json):
         data=await report(body.get('filters',{}))
         if len(data['practices'])>10000:reject('SNAPSHOT_LIMIT','В срез можно включить до 10 000 тренировок. Сократи период.',422)
         # Private owner export: pseudonymous entity IDs, no speech, names or email.
-        data['methodology']={'version':ev.VERSION,'activation_days':7,'practice_window_hours':data['filters']['window_hours'],'attribution_days':30,'ad_maturity_days':37,'dau_activity':'server-confirmed segment saved','report_view':'client observed; legacy GET excluded','deleted_evidence':'not recoverable','bot_identity':'not certified','pricing':'unknown currency; no estimated AI costs'}
+        data['methodology']={'version':ev.VERSION,'release':os.getenv('APP_RELEASE','local'),'activation_days':7,'practice_window_hours':data['filters']['window_hours'],'attribution_days':30,'ad_maturity_days':37,'dau_activity':'server-confirmed segment saved','report_view':'client observed; legacy GET excluded','deleted_evidence':'not recoverable','bot_identity':'not certified','pricing':'unknown currency; no estimated AI costs'}
         raw=json.dumps(data,ensure_ascii=False,sort_keys=True);sid=uuid.uuid4().hex;checksum=hashlib.sha256(raw.encode()).hexdigest()
         with store.connect() as db:
             db.execute('INSERT INTO analytics_snapshots VALUES(?,?,?,?,?,NULL)',(sid,time.time(),user['id'],raw,checksum))
