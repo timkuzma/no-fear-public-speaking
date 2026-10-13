@@ -96,9 +96,21 @@ class AIContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_unrequested_criteria_are_not_published(self):
         response = report_response()
         response["criteria"] = [{"criterion": "Психологическая уверенность", "status": "met", "evidence": TEXT}]
-        with self.provider(lambda request: httpx.Response(200, json=completion(response))):
-            result = await ai.analyze({}, SEGMENTS)
+        captured = []
+
+        def handler(request):
+            captured.append(json.loads(request.content))
+            return httpx.Response(200, json=completion(response))
+
+        with self.provider(handler):
+            result = await ai.analyze({"scenario": "speech", "topic": "", "criteria": ""}, SEGMENTS)
         self.assertEqual(result["report"]["criteria"], [])
+        data = json.loads(captured[0]["messages"][1]["content"])
+        self.assertEqual(data["requested_criteria"], [])
+        self.assertEqual(data["config"]["topic"], "")
+        self.assertEqual(data["config"]["criteria"], "")
+        self.assertEqual(data["segments"][0]["text"], TEXT)
+        self.assertIn("Отсутствие этих элементов само по себе не недостаток", captured[0]["messages"][0]["content"])
 
     async def test_canonical_quote_ids_and_original_criteria_labels(self):
         response = report_response()

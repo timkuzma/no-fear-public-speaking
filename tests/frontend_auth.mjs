@@ -81,7 +81,7 @@ const context = vm.createContext({
 vm.runInContext(source + `
   frame = content => events.push(content);
   closeMedia = () => {};
-  globalThis.flow = { state, submitForm, startLink, navigate };
+  globalThis.flow = { state, submitForm, startLink, navigate, action };
 `, context);
 await context.flow.submitForm({ target: form, preventDefault() {} });
 assert.equal(context.location.hash, "/app");
@@ -102,4 +102,25 @@ assert.match(context.flow.startLink(), /href="#\/register"/);
 context.location.hash = "#/guest";
 await context.flow.navigate();
 assert.equal(context.location.hash, "/register");
+// Starting practice must not silently set a speech task or assessment rubric.
+context.flow.state.user = { id: "test-user" };
+const createdConfigs = [];
+mockedApi.createPractice = async (config) => {
+  createdConfigs.push(JSON.parse(JSON.stringify(config)));
+  return { id: "neutral-practice" };
+};
+const starter = { dataset: { action: "starter" }, disabled: false, isConnected: true };
+await context.flow.action({ target: { closest: () => starter } });
+assert.equal(context.location.hash, "/practice/neutral-practice");
+assert.deepEqual(createdConfigs[0], { scenario: "speech", topic: "", duration: 1, questions: true, criteria: "" });
+assert.equal(starter.disabled, false);
+form.id = "setup-form";
+Object.assign(values, { scenario: "free", topic: "", duration: "3", questions: "on", criteria: "" });
+await context.flow.submitForm({ target: form, preventDefault() {} });
+assert.equal(createdConfigs.length, 2, "Custom practice may start without a topic or criteria");
+assert.deepEqual(createdConfigs[1], { scenario: "free", topic: "", duration: 3, questions: true, criteria: "" });
+Object.assign(values, { topic: "Моя история", criteria: "Понятен ли рассказ" });
+await context.flow.submitForm({ target: form, preventDefault() {} });
+assert.equal(createdConfigs[2].topic, "Моя история");
+assert.equal(createdConfigs[2].criteria, "Понятен ли рассказ", "Explicit user criteria must remain available");
 console.log("Auth completion, timeout recovery, storage bounds and anonymous entry checks passed");
