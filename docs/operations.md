@@ -118,3 +118,9 @@ docker exec no-fear-stage python -m server.cli reset participant@example.com --m
 ```
 
 Share codes privately after checking identity; do not put them in service logs. Production always requires invitations. Automated email verification/recovery remains deferred. Before inviting participants, configure the actual host/domain/TLS, provider limits and billing, offsite repository/password recovery, alert receiver and independent monitor, support/consent/recording-retention policy. Verify the complete flow and microphone access at the actual external origin on desktop and mobile. Local Docker acceptance is not an external deployment or real-provider capacity claim.
+
+## Existing shared TLS terminator
+
+On a host where HAProxy already owns port 443, use `deploy/nginx-behind-haproxy.conf` for an exact new virtual host on a free loopback port. Add only that hostname's HAProxy ACL/backend and certificate; preserve existing routes/default certificates. Back up configurations privately, validate both daemons before reload and restore the previous configuration if validation/activation fails. HTTPS readiness must be checked externally as well as directly because proxy health checks can delay public recovery.
+
+Install `deploy/renew-haproxy-certificate.py` as a private executable Certbot deploy hook, with its lineage set to this application's exact certificate directory. The hook ignores other domains, publishes the combined certificate/key atomically, validates HAProxy and reloads it, and preserves the previous PEM on failure. Verify the Certbot timer and exercise the hook against the valid current certificate. The actual host deployment and remaining external protections are recorded in `docs/production-deployment.md`.
