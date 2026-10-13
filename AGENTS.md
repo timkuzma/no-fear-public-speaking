@@ -15,6 +15,9 @@
 
 - The public interface has no example report or report preview. Old `#/example` links redirect to the landing page; account reports still use real saved recordings.
 - No logo or wordmark appears in the header. Guests have separate login/registration links; authenticated users have practice/history navigation and a separate logout action. All account-creation CTA labels are `Регистрация`.
+- `public/typography.js` binds short Russian function words to the following word in rendered text across routes and live updates. Apply only to text nodes; never rewrite HTML, form values, stored transcripts or provider evidence. Keep editable/code regions excluded and preserve explicit newlines.
+- Public privacy/consent pages and the registration consent control are currently removed; legacy `#/privacy` links return to the landing. Registration must not silently send consent. New accounts store the historical consent flag as false; it is no longer an upload gate. Ownership, authentication, origin and CSRF checks remain mandatory.
+- Scenario explanations share a CSS grid cell to reserve the tallest copy's height. Keep their CTA outside the animated copy; switching contexts must not recreate or move the button.
 - Landing styles and finite entrance animations live in `public/landing.css` and `public/landing-motion.js`. Content is visible by default; route replacement must clean up animations, observers and preference listeners. Honor reduced motion. Fonts are self-hosted with their OFL licenses in `public/fonts/`.
 
 - Apply these rules across every route and shared component, including generated report titles.

@@ -54,7 +54,7 @@ class Register(BaseModel):
     password: str = Field(min_length=10, max_length=128)
     role: str = Field(default='other', max_length=40)
     invite_code: str | None = Field(default=None, max_length=200)
-    consent: bool
+    consent: bool = False  # Legacy clients may supply this; no implicit acceptance.
 
     @field_validator('email')
     @classmethod
@@ -273,10 +273,8 @@ def create_app(data_dir=None, start_worker=True):
     @app.post('/api/auth/register')
     async def register(body: Register, request: Request):
         entry_limit(request)
-        if not body.consent:
-            fail(422, 'CONSENT_REQUIRED', 'Подтвердите согласие на сохранение записи и обработку речи внешним AI-сервисом.')
         require_invite = production or os.environ.get('REQUIRE_INVITE') == '1'
-        user = {'id': uid(), 'email': body.email, 'name': body.name, 'password': await asyncio.to_thread(ph.hash, body.password), 'role': body.role, 'onboarding_completed': False, 'consent': True, 'created': now()}
+        user = {'id': uid(), 'email': body.email, 'name': body.name, 'password': await asyncio.to_thread(ph.hash, body.password), 'role': body.role, 'onboarding_completed': False, 'consent': body.consent, 'created': now()}
         try:
             with store.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
@@ -285,7 +283,7 @@ def create_app(data_dir=None, start_worker=True):
                     if not invite:
                         fail(403, 'INVITE_INVALID', 'Для регистрации нужен действующий код приглашения.')
                     db.execute('UPDATE invites SET uses_left=uses_left-1 WHERE token=?', (invite['token'],))
-                db.execute('INSERT INTO users VALUES(?,?,?,?,?,?,?,?)', (user['id'], user['email'], user['name'], user['password'], user['role'], 0, 1, user['created']))
+                db.execute('INSERT INTO users VALUES(?,?,?,?,?,?,?,?)', (user['id'], user['email'], user['name'], user['password'], user['role'], 0, int(user['consent']), user['created']))
         except sqlite3.IntegrityError:
             fail(409, 'ACCOUNT_EXISTS', 'Не удалось создать аккаунт. Попробуйте войти или обратитесь к организатору тестирования.')
         store.event('registered', user['id'])
@@ -378,8 +376,6 @@ def create_app(data_dir=None, start_worker=True):
     async def live_chunk(practice_id: str, request: Request, file: UploadFile = File(...), session_id: str = Form(...), index: int = Form(...), offset_seconds: float = Form(...)):
         user = auth(request, True)
         practice = owned(practice_id, user['id'])
-        if not user['consent']:
-            fail(403, 'CONSENT_REQUIRED', 'Подтвердите согласие на обработку записи.')
         if not provider_ready():
             fail(503, 'AI_NOT_CONFIGURED', 'Расшифровка пока не подключена. Запись можно сохранить и обработать позже.')
         if not re.fullmatch(r'[a-f0-9]{32}', session_id) or not 0 <= index < 64 or not math.isfinite(offset_seconds) or offset_seconds < 0:
@@ -470,8 +466,6 @@ def create_app(data_dir=None, start_worker=True):
     async def upload(practice_id: str, request: Request, file: UploadFile = File(...), kind: str = Form(...), index: int = Form(...), live_session_id: str | None = Form(None), live_chunk_count: int | None = Form(None), client_key: str | None = Form(None)):
         user = auth(request, True)
         practice = owned(practice_id, user['id'])
-        if not user['consent']:
-            fail(403, 'CONSENT_REQUIRED', 'Подтвердите согласие на обработку записи.')
         if client_key is not None and not re.fullmatch(r'[a-f0-9]{32}', client_key):
             fail(422, 'UPLOAD_KEY_INVALID', 'Не удалось прочитать идентификатор записи.')
         existing = store.one('SELECT s.*,u.client_key,u.sha256 FROM segments s LEFT JOIN segment_uploads u ON u.segment_id=s.id WHERE s.practice_id=? AND s.segment_index=?', (practice_id, index))

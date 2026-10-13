@@ -1053,25 +1053,6 @@ video.recording-playback {
     padding: 24px;
   }
 }
-.consent-details {
-  margin-top: 12px;
-  font-size: 14px;
-}
-.consent-details summary {
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-.consent-text {
-  color: var(--muted);
-  line-height: 1.65;
-  font-size: var(--text-body);
-}
-.consent-text h3 {
-  font-size: 16px;
-  color: var(--ink);
-  margin: 24px 0 8px;
-}
 .first-guide h2 {
   font-size: var(--text-section);
   margin-bottom: 24px;

@@ -1,4 +1,5 @@
-import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-redesign";
+import { installTypography } from "./typography.js?v=20261013-type";
+import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-refine";
 import { api } from "./api.js?v=20261013-no-example";
 import { LiveAudioCapture } from "./live-audio.js?v=20261011-live";
 import {
@@ -102,7 +103,7 @@ function frame(content, kind = "workspace") {
   landingCleanup();
   landingCleanup = () => {};
   document.body.dataset.view = kind;
-  app.innerHTML = `${kind === "meeting" ? "" : header()}<main id="main" class="${kind}" tabindex="-1">${content}</main>${kind === "meeting" ? "" : '<footer><span>Сцена без страха</span><a href="#/privacy">Записи и данные</a><span>Пилотная версия</span></footer>'}`;
+  app.innerHTML = `${kind === "meeting" ? "" : header()}<main id="main" class="${kind}" tabindex="-1">${content}</main>${kind === "meeting" ? "" : '<footer><span>Сцена без страха</span></footer>'}`;
   queueMicrotask(() =>
     document.querySelector("#main")?.focus({ preventScroll: true }),
   );
@@ -132,10 +133,10 @@ function landing() {
           ["free", "Свободная речь", "Тема, которую хочется обсудить"],
         ].map(([key, title, copy], index) => `<button class="landing-context-card" type="button" data-action="landing-context" data-context="${key}" aria-pressed="${index === 0}" aria-controls="landing-context-panel"><span class="landing-context-mark" aria-hidden="true">${landingContextIcon(key)}</span><strong>${title}</strong><span>${copy}</span><span class="context-selected" aria-hidden="true">Выбрано</span></button>`).join("")}
       </div>
-      <div class="landing-context-panel" id="landing-context-panel" aria-live="polite">${landingContextCopy("speech")}</div>
+      <div class="landing-context-panel" id="landing-context-panel"><div class="landing-context-copy" id="landing-context-copy" aria-live="polite">${["speech", "defense", "free"].map((key) => `<div data-context-copy="${key}" aria-hidden="${key !== "speech"}">${landingContextCopy(key)}</div>`).join("")}</div>${startLink("Начать с минуты речи", "secondary")}</div>
     </section>
     <section class="landing-meeting landing-light" aria-labelledby="meeting-title">
-      <figure class="landing-meeting-visual" data-reveal><div class="landing-meeting-frame"><div class="landing-meeting-caption"><span>Пространство для репетиции</span><span>Твоё выступление</span></div><img src="/audience-meeting-v1.png" width="1536" height="1024" alt="Иллюстрация виртуальной аудитории в переговорной" loading="lazy"><div class="landing-meeting-tools" aria-hidden="true">${deviceIcon("mic")}${deviceIcon("camera")}<span>Микрофон и камера</span></div></div><figcaption>Виртуальная встреча, в которой можно спокойно попробовать.</figcaption></figure>
+      <figure class="landing-meeting-visual" data-reveal><div class="landing-meeting-frame"><div class="landing-meeting-caption"><span>Пространство для репетиции</span><span>Твоё выступление</span></div><img src="/audience-meeting-v1.png" width="1536" height="1024" alt="Иллюстрация виртуальной аудитории в переговорной" loading="lazy"><div class="landing-meeting-tools" aria-hidden="true">${deviceIcon("mic")}${deviceIcon("camera")}</div></div></figure>
       <div class="landing-feature-copy" data-reveal><p class="landing-kicker">Знакомая обстановка</p><h2 id="meeting-title">Говори так, как будешь говорить на встрече</h2><p>Микрофон, камера по желанию и слушатели перед тобой. После выступления вопросы появляются в чате этой же встречи.</p><ul class="landing-feature-list"><li><strong>Запись сохраняется</strong><span>После завершения выступления можно вернуться к своей попытке.</span></li><li><strong>Вопросы по твоим словам</strong><span>Их основа — подтверждённая расшифровка сохранённой речи.</span></li><li><strong>Один фокус для повторения</strong><span>В разборе выбираешь рекомендацию для следующей тренировки.</span></li></ul></div>
     </section>
     <section class="landing-method" aria-labelledby="method-title">
@@ -153,10 +154,10 @@ function landing() {
         <details><summary>Подойдёт ли это для моего выступления?</summary><div><p>Здесь можно репетировать доклад, защиту проекта или презентацию идеи на свою тему. Разбор поможет проверить содержание: главную мысль, аргументы и ответы на вопросы. Дикцию, интонацию и жесты текущая версия не оценивает.</p></div></details>
         <details><summary>Что я получу после первой попытки?</summary><div><p>Разбор речи и ответов: что уже получается, что попробовать изменить и на какие фрагменты записи опираются замечания. После него можно выбрать одну рекомендацию и повторить тренировку с этим фокусом.</p></div></details>
         <details><summary>Сколько времени нужно и что придётся делать?</summary><div><p>Первая попытка — выступление до минуты и три ответа до минуты каждый. Вопросы появятся в чате после сохранения речи; затем сервис подготовит разбор. На обработку и чтение потребуется дополнительное время. В своих настройках вопросы можно отключить.</p></div></details>
-        <details><summary>Можно ли попробовать без регистрации?</summary><div><p>Да, записать и прослушать речь можно сразу. Для вопросов, полного разбора и истории понадобится аккаунт; сделанную запись перенесём без повторного выступления.${state.inviteRequired ? " Для регистрации во внешнем пилоте нужен код приглашения от организатора." : ""}</p></div></details>
+        <details><summary>Можно ли попробовать без регистрации?</summary><div><p>Да, записать и прослушать речь можно сразу. Для вопросов, полного разбора и истории понадобится аккаунт; сделанную запись перенесём без повторного выступления.${state.inviteRequired ? " Для регистрации нужен код приглашения от организатора." : ""}</p></div></details>
         <details><summary>Мне придётся включать камеру или говорить перед людьми?</summary><div><p>Нет. Достаточно микрофона; камера включается по желанию. На экране виртуальная аудитория, а вопросы задаёт нейросеть по твоей речи. Живые участники к тренировке не подключаются.</p></div></details>
         <details><summary>Насколько можно доверять замечаниям нейросети?</summary><div><p>Цитаты в разборе проверяются по расшифровке, но распознавание речи и выводы могут быть ошибочными. Сверяй важные замечания со своей записью и требованиями выступления. Разбор помогает репетировать и не гарантирует оценку преподавателя или успех на защите.</p></div></details>
-        <details><summary>Кто получит мою запись?</summary><div><p>Другие пользователи не получают доступ к твоим тренировкам через сервис. Для разбора аудио передаётся внешнему сервису расшифровки, текст — нейросети; в аккаунте обработка может начинаться во время записи. До входа или регистрации гостевая запись остаётся в браузере.</p><a href="#/privacy">Записи и данные</a></div></details>
+        <details><summary>Кто получит мою запись?</summary><div><p>Другие пользователи не получают доступ к твоим тренировкам через сервис. Для разбора аудио передаётся внешнему сервису расшифровки, текст — нейросети; в аккаунте обработка может начинаться во время записи. До входа или регистрации гостевая запись остаётся в браузере.</p></div></details>
         <details><summary>Что будет с записью после тренировки?</summary><div><p>Сохранённая на сервере запись остаётся в аккаунте: её можно прослушать, скачать или удалить из истории вместе с разбором. До отправки черновик доступен сутки в том же браузере, если локальное хранение разрешено. Удаление тренировки не стирает ранее созданные резервные копии и данные у внешнего сервиса.</p></div></details>
       </div>
     </section>
@@ -176,21 +177,13 @@ function landingContextCopy(key) {
     free: ["Потренируй тему, которую выберешь сам", "Выбери свободную речь и свою тему. Это может быть знакомство, обсуждение идеи или история, которую хочется рассказать понятнее."],
   };
   const [title, description] = copy[key];
-  return `<div><h3>${title}</h3><p>${description}</p></div>${startLink("Начать с минуты речи", "secondary")}`;
+  return `<h3>${title}</h3><p>${description}</p>`;
 }
 function authScreen(mode) {
   const register = mode === "register",
     reset = mode === "reset";
   frame(
-    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : state.guest?.blob && !reset ? "Получи разбор своего выступления" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Для пилота организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? (state.guest?.blob ? "Твоя запись уже готова. После регистрации перенесём её в аккаунт и подготовим разбор. Повторять выступление не нужно." : "После регистрации начни с короткого упражнения: запиши минуту речи и получи первый разбор.") : state.guest?.blob ? "Войди, чтобы получить разбор уже записанного выступления. Запись перейдёт в твой аккаунт." : state.authReturn ? "После входа вернёмся к незавершённой тренировке. Сохранённые записи повторять не нужно." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Регистрация" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}<div class="field-group"><label class="check"><input type="checkbox" name="consent" required><span>Соглашаюсь на хранение записи и передачу аудио и текста сервисам нейросети для разбора.</span></label><details class="consent-details"><summary>Условия обработки данных</summary><div class="consent-text">${privacyContent(3)}</div></details></div>` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Регистрация" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Регистрация</a> · <a href="#/reset">Восстановить доступ</a>'}</p>${register ? `<a class="quiet-link" href="#/guest">${state.guest?.blob ? "Вернуться к своей записи" : "Начать без регистрации"}</a>` : ""}</section></div>`,
-  );
-}
-function privacyContent(level = 2) {
-  return `<h${level}>Что сохраняется</h${level}><p>Имя, электронная почта, настройки тренировок, записи, расшифровки и разборы. Для входа сервер хранит хеш пароля. Другие пользователи не получают доступ к твоим тренировкам.</p><h${level}>Как появляется разбор</h${level}><p>Во время выступления в аккаунте аудио передаётся внешнему сервису расшифровки фрагментами примерно по 15 секунд. Если распознавание во время записи недоступно, расшифровываем полную запись после завершения. Текст речи и выбранные критерии передаются нейросети для вопросов и разбора. Разбор основан на содержании текста и может содержать ошибки. Гостевая запись не передаётся внешним сервисам до входа или регистрации.</p><h${level}>Как удалить запись</h${level}><p>Открой историю и удали тренировку. Вместе с ней сервер удалит запись, расшифровку и разбор. Удаление не отменяет обработку, уже выполненную внешним сервисом, и не удаляет данные из ранее созданных резервных копий.</p><h${level}>Черновики в браузере</h${level}><p>Завершённые записи и промежуточные фрагменты сохраняются в этом браузере на сутки, чтобы продолжить после сбоя или повторного входа. Черновики аккаунта доступны в интерфейсе только после входа в тот же аккаунт. Они удаляются после подтверждённого сохранения на сервере или по твоему действию; просроченные — при следующем обращении к черновикам. Очистка данных сайта может удалить локальные записи.</p><h${level}>Гостевой режим</h${level}><p>До регистрации запись хранится только в этом браузере. Черновик доступен сутки; просроченный черновик удаляется при следующем открытии сайта. Если включена камера, запись содержит и видео. Для разбора внешнему сервису передаётся только звуковая дорожка. После регистрации или входа запись передаётся в твой аккаунт для разбора и удаляется из локального черновика. Если браузер не разрешает локальное сохранение, не закрывай вкладку до завершения регистрации.</p><h${level}>Обратная связь</h${level}><p>Оценку разбора и комментарий можно отправить с его страницы. Не добавляй в комментарий пароли или данные других людей.</p>`;
-}
-function privacy() {
-  frame(
-    `<section class="narrow prose"><p class="eyebrow">Пилотная версия</p><h1>Записи и данные</h1>${privacyContent()}<a class="button secondary" href="#/landing">На главную</a></section>`,
+    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : state.guest?.blob && !reset ? "Получи разбор своего выступления" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? (state.guest?.blob ? "Твоя запись уже готова. После регистрации перенесём её в аккаунт и подготовим разбор. Повторять выступление не нужно." : "После регистрации начни с короткого упражнения: запиши минуту речи и получи первый разбор.") : state.guest?.blob ? "Войди, чтобы получить разбор уже записанного выступления. Запись перейдёт в твой аккаунт." : state.authReturn ? "После входа вернёмся к незавершённой тренировке. Сохранённые записи повторять не нужно." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Регистрация" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Регистрация" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Регистрация</a> · <a href="#/reset">Восстановить доступ</a>'}</p>${register ? `<a class="quiet-link" href="#/guest">${state.guest?.blob ? "Вернуться к своей записи" : "Начать без регистрации"}</a>` : ""}</section></div>`,
   );
 }
 async function persistGuest() {
@@ -1417,7 +1410,7 @@ async function navigate() {
   const version = ++state.routeVersion;
   if (path === "/landing") return landing();
   if (path === "/example") return go("/landing");
-  if (path === "/privacy") return privacy();
+  if (path === "/privacy") return go("/landing");
   if (["/register", "/login", "/reset"].includes(path)) {
     if (state.user && path !== "/reset") {
       if (state.guest?.blob) return guestResult();
@@ -1552,7 +1545,6 @@ async function submitForm(event) {
               ...body,
               email: body.email.trim(),
               name: body.name.trim(),
-              consent: body.consent === "on",
             })
           : await api.login({ ...body, email: body.email.trim() });
       state.user = data.user;
@@ -1614,10 +1606,10 @@ async function action(event) {
         document.getElementById(target.dataset.section)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
         break;
       case "landing-context": {
-        const panel = document.getElementById("landing-context-panel");
+        const panel = document.getElementById("landing-context-copy");
         if (target.getAttribute("aria-pressed") === "true") break;
         document.querySelectorAll("[data-context]").forEach((choice) => choice.setAttribute("aria-pressed", String(choice === target)));
-        panel.innerHTML = landingContextCopy(target.dataset.context);
+        panel.querySelectorAll("[data-context-copy]").forEach((copy) => copy.setAttribute("aria-hidden", String(copy.dataset.contextCopy !== target.dataset.context)));
         animateContextChange(panel);
         break;
       }
@@ -1893,4 +1885,5 @@ window.addEventListener("beforeunload", (event) => {
   }
 });
 window.addEventListener("session-expired", sessionExpired);
+installTypography([app, document.querySelector("#toast")]);
 void initialize();

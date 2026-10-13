@@ -23,7 +23,7 @@ def app(tmp_path, monkeypatch):
 
 
 def account(client, email='one@example.org'):
-    response = client.post('/api/auth/register', json={'email': email, 'name': 'Тестовый пользователь', 'password': 'LongEnoughPassword123', 'role': 'student', 'consent': True})
+    response = client.post('/api/auth/register', json={'email': email, 'name': 'Тестовый пользователь', 'password': 'LongEnoughPassword123', 'role': 'student'})
     assert response.status_code == 200, response.text
     return {'X-CSRF-Token': response.json()['csrf_token']}
 
@@ -112,10 +112,10 @@ def test_actual_media_decode_and_invalid(app):
     assert response.json()['duration_seconds'] == pytest.approx(1, abs=0.03)
 
 
-def test_consent_limits_and_quota(app, monkeypatch):
+def test_limits_and_quota(app, monkeypatch):
     client = TestClient(app)
-    assert client.post('/api/auth/register', json={'email': 'one@example.org', 'name': 'Тест', 'password': 'LongEnoughPassword123', 'consent': False}).status_code == 422
     headers = account(client)
+    assert app.state.store.one('SELECT consent FROM users')['consent'] == 0
     monkeypatch.setattr('server.app.decoded_duration', AsyncMock(return_value={'duration_seconds': 599, 'extension': '.wav', 'mime_type': 'audio/wav'}))
     pid = practice(client, headers, questions=True)
     assert upload(client, headers, pid).status_code == 200

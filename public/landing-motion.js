@@ -6,7 +6,8 @@ const contextAnimations = new WeakMap();
 export function animateContextChange(panel) {
   contextAnimations.get(panel)?.cancel();
   if (reducedMotion.matches || !panel.animate) return;
-  const animation = panel.animate(
+  const target = panel.querySelector('[aria-hidden="false"]');
+  const animation = target.animate(
     [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "translateY(0)" }],
     { duration: 220, easing: easeOut },
   );
@@ -43,7 +44,7 @@ export function mountLandingMotion(root) {
     observer?.disconnect();
     animations.forEach((animation) => animation.cancel());
     animations.clear();
-    contextAnimations.get(root.querySelector("#landing-context-panel"))?.cancel();
+    contextAnimations.get(root.querySelector("#landing-context-copy"))?.cancel();
   };
   const onPreferenceChange = () => { if (reducedMotion.matches) cancel(); };
   reducedMotion.addEventListener("change", onPreferenceChange);
