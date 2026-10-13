@@ -122,7 +122,6 @@ function landing() {
         <p class="landing-start-note" data-enter>${state.user ? "Твоя следующая попытка останется в истории тренировок." : `Зарегистрируйся или войди, чтобы записать выступление и получить разбор.${state.inviteRequired ? " Для регистрации нужен код приглашения от организатора." : ""}`}</p>
         <div class="landing-hero-actions" data-enter>${startLink("Начать с минуты речи", "primary landing-cta")}</div>
       </div>
-      <button class="landing-scroll-link" type="button" data-action="landing-scroll" data-section="landing-contexts">Как проходит репетиция</button>
     </section>
     <section class="landing-contexts landing-light" id="landing-contexts" aria-labelledby="contexts-title">
       <div class="landing-section-heading" data-reveal><p class="landing-kicker">Под твою задачу</p><h2 id="contexts-title">Когда важно объяснить свою мысль</h2><p>Выбери ситуацию и посмотри, на чём можно сосредоточиться в тренировке.</p></div>
@@ -1593,9 +1592,6 @@ async function action(event) {
   }
   try {
     switch (name) {
-      case "landing-scroll":
-        document.getElementById(target.dataset.section)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
-        break;
       case "landing-context": {
         const panel = document.getElementById("landing-context-copy");
         if (target.getAttribute("aria-pressed") === "true") break;
