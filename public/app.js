@@ -875,21 +875,6 @@ async function checkMic() {
           stream,
           api,
           practiceId: state.practice.id,
-          onStatus: (result) => {
-            if (!state.recording || state.liveCapture !== capture) return;
-            const status = document.querySelector("#record-status");
-            if (!status) return;
-            const enabled = stream
-              .getAudioTracks()
-              .some((track) => track.enabled);
-            status.textContent = !enabled
-              ? "Микрофон выключен"
-              : result.status === "unavailable"
-                ? "Идёт запись. Распознаем речь после завершения"
-                : result.recognized_words > 0
-                  ? `Идёт запись. Распознано слов: ${result.recognized_words}`
-                  : "Идёт запись. Распознаём речь фрагментами";
-          },
         });
         state.liveCapture = capture;
         try {
@@ -1198,12 +1183,7 @@ function startRecording() {
     updateCameraUI();
     state.started = Date.now();
     document.querySelector("#record-status").textContent = "Идёт запись";
-    if (segment.kind === "speech") {
-      const live = state.liveCapture?.start();
-      if (!live && state.user && state.providerReady)
-        document.querySelector("#record-status").textContent =
-          "Идёт запись. Распознаем речь после завершения";
-    }
+    if (segment.kind === "speech") state.liveCapture?.start();
     document.querySelector("#record-controls").innerHTML = button(
       segment.kind === "answer" ? "Завершить ответ" : "Завершить выступление",
       "stop-record",
