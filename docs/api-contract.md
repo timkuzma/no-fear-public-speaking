@@ -81,12 +81,14 @@ New reports use `schema_version:2`; legacy stored reports remain readable/export
  transcript_segments:[{index,kind,origin,text,duration_seconds,transcript_revision,
                        lexical_completeness:"unknown",asr_model:string|null,question?:string}],
  provenance:{context_schema_version,report_prompt_version,rubric_version,chat_model,
-             asr_models,asr_model_unknown}}
+             asr_models,asr_model_unknown,publisher_policy}}
 ```
 
 Strengths contain zero to two items, recommendations zero to three. The selected main focus is a valid recommendation index or null; public `insight` is compiled from its validated action, never independently generated. Empty findings/focus are valid and display ordinary continuation rather than fabricated advice. Exact contiguous evidence and Unicode code-point offsets are server-owned and bound to the original segment's SHA-256 revision; an evidence ID proves source identity, not semantic correctness.
 
 Formal criteria come only from user-selected labels and occur exactly once. No criterion means an empty list. Available ASR does not establish reliable lexical completeness; attempted absence findings and unavailable modality criteria become `unknown`. Presence requires a valid span, but correctness of its interpretation still needs semantic assessment. No invented psychological, gesture or acoustic assessment. Recording duration/recognized words/average rate are local descriptive metrics, not speech scores. Questions are never part of spoken evidence or word counts. UI escapes all strings; no public example report exists.
+
+Fresh candidate publication validates but withholds unreviewed rewrite examples: `example:null`, with no copy in compatibility `text` or export (`publisher_policy:withhold_unreviewed_rewrites-v1`). Stored reports remain unchanged. This contains one field's risk; it does not certify observations/actions as semantically correct.
 
 Detailed strict provider draft/context contracts, versioning and migration are in `docs/ai-quality-contract.md`. Private `practices.question_provenance` never appears in practice/job JSON; public questions remain strings. The worker verifies available saved question provenance against the speech revision and saved question before binding an answer. Legacy questions without metadata remain usable with unknown provenance.
 
