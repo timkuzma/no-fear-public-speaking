@@ -16,7 +16,7 @@ def create_fixture(directory, origin='http://localhost:8094'):
                       DATA_DIR=directory, LLM_API_KEY='synthetic-fixture-only',
                       LLM_BASE_URL='https://provider.invalid/v1')
     os.environ.pop('REQUIRE_INVITE', None)
-    from fastapi.responses import JSONResponse
+    from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
     from server import ai
     from server.app import create_app
 
@@ -98,6 +98,21 @@ def create_fixture(directory, origin='http://localhost:8094'):
 
     ai.transcribe, ai.generate_questions, ai.analyze = transcribe, questions, analyze
     app = create_app()
+
+    @app.get('/__test__/meeting')
+    async def synthetic_meeting():
+        # Native MediaRecorder/AudioWorklet with generated media; never opens
+        # physical devices or changes the maintained production entry point.
+        html = (Path(__file__).resolve().parent.parent / 'public/index.html').read_text()
+        html = html.replace('<script type="module" src="/app.js',
+                            '<script type="module" src="/__test__/synthetic-media.js"></script>\n'
+                            '    <script type="module" src="/app.js')
+        return HTMLResponse(html)
+
+    @app.get('/__test__/synthetic-media.js')
+    async def synthetic_media():
+        return FileResponse(Path(__file__).with_name('synthetic-media.js'),
+                            media_type='text/javascript')
 
     @app.middleware('http')
     async def fault(request, call_next):

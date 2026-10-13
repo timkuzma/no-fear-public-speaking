@@ -27,6 +27,7 @@ function fixture({
         textContent: "",
         hidden: false,
         setAttribute() {},
+        scrollIntoView() {},
         insertAdjacentHTML(_position, content) {
           this.innerHTML += content;
         },
@@ -36,7 +37,8 @@ function fixture({
       });
     return nodes.get(selector);
   };
-  let timer;
+  let timer, timerId = 0;
+  const intervals = new Map();
   let clockOffset = 0;
   let rejectUpload = failUpload;
   const session = new Map();
@@ -45,7 +47,7 @@ function fixture({
       events.push({ type: "upload", id, blob, kind, index, clientKey });
       if (rejectUpload)
         throw Object.assign(new Error("Connection failed"), { status: 0 });
-      return { id: "saved", kind, index, media_url: "/media" };
+      return { id: `${kind}-${index}`, kind, index, media_url: "/media", client_key: clientKey };
     },
     async startJob(id, kind) {
       events.push({ type: "job", id, kind });
@@ -56,7 +58,8 @@ function fixture({
     static isTypeSupported() {
       return true;
     }
-    constructor() {
+    constructor(stream) {
+      events.push({ type: "recorder", tracks: stream.tracks });
       this.mimeType = "audio/webm";
     }
     start() {
@@ -89,7 +92,7 @@ function fixture({
       }
     },
     MediaRecorder: Recorder,
-    MediaStream: class {},
+    MediaStream: class { constructor(tracks) { this.tracks = tracks; } },
     console,
     URL: { createObjectURL: () => "blob:recording", revokeObjectURL() {} },
     document: { querySelector: node },
@@ -103,9 +106,10 @@ function fixture({
     confirm: () => true,
     setInterval(callback) {
       timer = callback;
-      return 1;
+      intervals.set(++timerId, callback);
+      return timerId;
     },
-    clearInterval() {},
+    clearInterval(id) { intervals.delete(id); },
     setTimeout() {
       return 1;
     },
@@ -134,7 +138,7 @@ function fixture({
       `
     meetingPage = p => events.push({type:'meeting', id:p.id, uploading:state.uploading});
     frame = content => events.push({type:'frame', content});
-    globalThis.flow = {state, startRecording, stopRecording, saveRecording, questionChat, restorePending, sessionExpired, resumeAfterLogin, navigate, continueAfterSave, showPending, action};
+    globalThis.flow = {state, beginMeeting, scheduleAnswer, cancelAnswerCountdown, closeMedia, practicePage, toggleMic, startRecording, stopRecording, saveRecording, questionChat, restorePending, sessionExpired, resumeAfterLogin, navigate, continueAfterSave, showPending, action};
   `,
     context,
   );
@@ -164,6 +168,8 @@ function fixture({
     accountDrafts,
     api,
     context,
+    track,
+    tick() { [...intervals.values()].forEach(callback => callback()); },
     advance(milliseconds) {
       clockOffset += milliseconds;
     },
@@ -248,15 +254,10 @@ for (const automatic of [false, true]) {
   f.flow.startRecording();
   f.flow.stopRecording();
   await settle();
-  assert.equal(f.flow.state.pending.kind, "answer");
-  assert.equal(
-    f.events.some((e) => e.type === "upload"),
-    false,
-  );
-  assert.match(
-    f.events.find((e) => e.type === "frame").content,
-    /record-review/,
-  );
+  assert.equal(f.flow.state.pending, null);
+  assert.equal(f.events.filter((e) => e.type === "upload").length, 1);
+  assert.equal(f.events.find((e) => e.type === "upload").index, 1);
+  assert.equal(f.events.some((e) => e.type === "frame"), false);
 }
 console.log("5 recording lifecycle cases passed");
 
@@ -284,14 +285,14 @@ console.log("5 recording lifecycle cases passed");
   assert.equal(f.accountDrafts.size, 0);
 }
 {
-  const f = fixture({ answer: true });
+  const f = fixture({ answer: true, failUpload: true });
   f.flow.startRecording();
   f.flow.stopRecording();
   await settle();
   const restored = fixture({ answer: true, accountDrafts: f.accountDrafts });
   await restored.flow.restorePending(restored.flow.state.practice);
   assert.equal(restored.flow.state.pending.kind, "answer");
-  assert.equal(restored.flow.state.pending.autoSave, false);
+  assert.equal(restored.flow.state.pending.autoSave, true);
   assert.equal(restored.events.filter((e) => e.type === "upload").length, 0);
   await restored.flow.saveRecording();
   assert.equal(restored.events.find((e) => e.type === "upload").index, 1);
@@ -464,3 +465,98 @@ console.log(
 console.log(
   "Bound guest fallback and saved-recording job continuation cases passed",
 );
+
+// One ready action owns the meeting. Devices survive all answer transitions;
+// each completed answer uploads once before the next question can record.
+{
+  const f = fixture();
+  const video = { readyState: "live", enabled: true, stop() { this.readyState = "ended"; } };
+  f.flow.state.cameraStream = { getTracks: () => [video], getVideoTracks: () => [video] };
+  await f.flow.beginMeeting();
+  assert.equal(f.flow.state.recording, true);
+  f.flow.stopRecording();
+  await settle();
+  assert.equal(f.track.readyState, "live");
+  assert.equal(video.readyState, "live");
+  const p = f.flow.state.practice;
+  p.questions = ["Question one?", "Question two?", "Question three?"];
+  f.flow.practicePage(p);
+  assert.equal(f.flow.state.recording, false);
+  let chat = f.flow.questionChat(p, {kind: "answer", index: 1}, null);
+  assert.match(chat, /Question one/);
+  assert.doesNotMatch(chat, /Question two|Question three|open-answer|<audio|download/);
+  for (let index = 1; index <= 3; index++) {
+    // Repeated renders must not start a second countdown/recorder.
+    f.flow.scheduleAnswer(p);
+    f.tick(); f.tick();
+    assert.equal(f.flow.state.recording, false);
+    f.tick();
+    assert.equal(f.flow.state.recording, true);
+    assert.equal(f.node("#record-status").textContent, "Идёт запись");
+    if (index === 2) f.expire();
+    else f.flow.stopRecording();
+    await settle();
+    assert.equal(f.events.filter(e => e.type === "upload" && e.index === index).length, 1);
+    assert.equal(f.flow.state.pending, null);
+    assert.equal(f.events.some(e => e.type === "frame" && /record-review/.test(e.content)), false);
+    if (index < 3) {
+      assert.equal(f.track.readyState, "live");
+      assert.equal(video.readyState, "live");
+    }
+  }
+  assert.deepEqual(f.events.filter(e => e.type === "upload").map(e => e.index), [0, 1, 2, 3]);
+  assert.deepEqual(f.events.filter(e => e.type === "job").map(e => e.kind), ["questions", "report"]);
+  const captures = f.events.filter(e => e.type === "recorder");
+  assert.equal(captures.length, 4);
+  assert.ok(captures.every(e => e.tracks[0] === f.track && e.tracks[1] === video));
+  assert.equal(f.track.readyState, "ended");
+  assert.equal(video.readyState, "ended");
+}
+// Leaving, muting or losing authentication cancels automatic answer capture.
+for (const reason of ["leave", "mute", "auth"]) {
+  const f = fixture({answer: true});
+  await f.flow.beginMeeting();
+  if (reason === "leave") f.flow.closeMedia();
+  if (reason === "mute") await f.flow.toggleMic();
+  if (reason === "auth") f.flow.sessionExpired();
+  f.tick(); f.tick(); f.tick();
+  assert.equal(f.flow.state.recording, false);
+  assert.equal(f.events.filter(e => e.type === "recorder").length, 0);
+}
+{
+  const f = fixture({answer: true, failUpload: true});
+  await f.flow.beginMeeting();
+  f.tick(); f.tick(); f.tick();
+  f.flow.stopRecording();
+  await settle();
+  assert.equal(f.flow.state.pending.index, 1);
+  assert.equal(f.flow.state.pending.autoSave, true);
+  assert.equal(f.accountDrafts.size, 1);
+  assert.equal(f.flow.state.answerCountdown, null);
+  assert.equal(f.track.readyState, "live");
+  const chat = f.flow.questionChat(f.flow.state.practice, null, null);
+  assert.match(chat, /Повторить сохранение/);
+  assert.doesNotMatch(chat, /<audio|download/);
+  f.allowUpload();
+  await f.flow.saveRecording();
+  assert.equal(f.flow.state.pending, null);
+  assert.equal(f.flow.state.answerCountdown.key, "practice:2");
+}
+console.log("Continuous meeting, device reuse, automatic answers and cancellation cases passed");
+
+{
+  const f = fixture({answer: true});
+  await f.flow.beginMeeting();
+  f.tick(); f.tick(); f.tick();
+  f.flow.state.recorder.onerror();
+  f.flow.stopRecording();
+  await settle();
+  assert.equal(f.flow.state.pending.interrupted, true);
+  assert.equal(f.flow.state.pending.autoSave, false);
+  assert.equal(f.events.filter(e => e.type === "upload").length, 0);
+  const recovery = f.flow.questionChat(f.flow.state.practice, null, null);
+  assert.match(recovery, /Сохранить фрагмент и продолжить/);
+  assert.match(recovery, /<audio/);
+  assert.doesNotMatch(recovery, /download/);
+}
+console.log("Recorder errors retain the original fragment for explicit recovery");
