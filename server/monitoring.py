@@ -62,11 +62,21 @@ def snapshot(store, worker_enabled=True):
 
 async def supervise(app, store):
     last_prune = 0
+    last_rollup = 0
     while True:
         workers = {'final_alive': bool(app.state.worker_task and not app.state.worker_task.done()), 'live_alive': bool(app.state.live_worker_task and not app.state.live_worker_task.done())}
         store.execute("INSERT INTO operational_state VALUES('heartbeat',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated=excluded.updated", (json.dumps(workers), now()))
+        if now()-last_rollup>=60:
+            from .analytics_archive import rollup
+            try:
+                await asyncio.to_thread(rollup,store)
+                last_rollup=now()
+            except Exception:
+                __import__('logging').getLogger('pilot.analytics').error('analytics_rollup_failed')
         if now() - last_prune >= 3600:
             with store.connect() as db:
+                from .analytics_archive import prune
+                prune(db)
                 db.execute('DELETE FROM ai_attempts WHERE created<?', (now() - 2 * 86400,))
                 db.execute("DELETE FROM events WHERE created<?", (now() - 90 * 86400,))
                 db.execute("DELETE FROM usage WHERE created<?", (now() - 90 * 86400,))

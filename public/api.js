@@ -146,3 +146,6 @@ export const api = {
       body,
     }),
 };
+
+export {request as adminRequest};
+export function adminMutationHeaders(){return csrfToken?{"X-CSRF-Token":csrfToken}:{}}

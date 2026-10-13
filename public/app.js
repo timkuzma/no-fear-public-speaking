@@ -1,6 +1,7 @@
+import { track, trackPage, analyticsActor, observeReport, flush } from "./analytics.js?v=20261013-analytics-1";
 import { installTypography } from "./typography.js?v=20261013-type";
 import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-stable-scroll";
-import { api } from "./api.js?v=20261013-wording-24";
+import { api } from "./api.js?v=20261013-analytics-1";
 import { LiveAudioCapture } from "./live-audio.js?v=20261013-asr-5s";
 import {
   saveDraft,
@@ -15,6 +16,7 @@ const CURRENT_REPORT_VERSION = "speech-feedback-v2.4";
 let landingCleanup = () => {};
 const state = {
   user: null,
+  adminReturn: false,
   providerReady: false,
   inviteRequired: false,
   online: true,
@@ -122,8 +124,9 @@ function button(text, action, cls = "primary", extra = "") {
 function startLink(text = "Начать тренировку", cls = "primary") {
   return `<a class="button ${cls}" href="#${state.user ? "/app" : "/register"}">${text}</a>`;
 }
+function telemetry(kind,data={},practiceId=null){if(typeof track==="function")track(kind,data,practiceId)}
 function header() {
-  return `<header class="header"><a class="home-link" href="#/landing">Главная</a><nav class="primary-nav" aria-label="Основная навигация">${state.user ? `<a href="#/app">Тренировка</a><a href="#/history">История</a>` : `<a href="#/login">Вход</a><a class="registration-link" href="#/register">Регистрация</a>`}</nav>${state.user ? `<div class="account-actions">${button("Выход", "logout", "text")}</div>` : ""}</header>`;
+  return `<header class="header"><a class="home-link" href="#/landing">Главная</a><nav class="primary-nav" aria-label="Основная навигация">${state.user ? `<a href="#/app">Тренировка</a><a href="#/history">История</a>${state.user.analytics_access ? '<a href="#/admin/analytics">Аналитика</a>' : ""}` : `<a href="#/login">Вход</a><a class="registration-link" href="#/register">Регистрация</a>`}</nav>${state.user ? `<div class="account-actions">${button("Выход", "logout", "text")}</div>` : ""}</header>`;
 }
 function frame(content, kind = "workspace") {
   landingCleanup();
@@ -372,15 +375,18 @@ async function resumeAfterLogin() {
     (!state.guest.ownerId || state.guest.ownerId === ownerId)
   )
     await importGuest();
+  else if(state.adminReturn){state.adminReturn=false;try{sessionStorage.removeItem("analytics-return")}catch{};go("/admin/analytics")}
   else go("/app");
 }
 
 function sessionExpired() {
   const ownerId =
     state.user?.id || state.pending?.ownerId || state.recordingOwnerId;
-  if (state.practice?.id && state.practice.id !== "guest")
+  if(route()==="/admin/analytics"){state.adminReturn=true;try{sessionStorage.setItem("analytics-return","1")}catch{}}
+  else if (state.practice?.id && state.practice.id !== "guest")
     rememberReturn(state.practice.id, ownerId);
   state.user = null;
+  if(typeof analyticsActor==="function")analyticsActor(null);
   state.meetingPracticeId = null;
   state.liveCapture?.cancel();
   state.liveCapture = null;
@@ -688,6 +694,7 @@ function reportItem(item, cls) {
 }
 function reportPage(p) {
   if (!state.user) { go("/login"); return; }
+  if(typeof observeReport==="function")observeReport(p);
   const report = readableReport(p.report);
   frame(`<div class="report-reading">${practiceProgress(p, "report")}<div class="page-heading"><p class="eyebrow">Разбор · ${escape(date(p.created_at))}</p><h1>${heading(p.config.topic || "Твоя тренировка")}</h1></div><p class="page-description">Обратная связь по твоему выступлению и ответам на вопросы.</p>${p.latest_job?.kind === "report" && p.latest_job.status === "failed" ? errorBox("Не удалось обновить разбор. Предыдущий разбор и записи сохранены.") : ""}${reportMarkup(report)}${repeatPanel(p)}<details class="report-detail transcript"><summary>Текст речи и записи</summary>${transcriptMarkup(report)}<h3>Твои записи</h3>${mediaMarkup(p)}</details><details class="report-detail"><summary>Как читать разбор</summary>${report.metrics?.length ? `<div class="report-metrics">${report.metrics.map((m) => `<article><span class="eyebrow">${escape(m.label)}</span><h3>${heading(m.title)}</h3><p>${escape(m.text)}</p></article>`).join("")}</div>` : ""}<p>Разбор помогает оценить содержание речи. Голос, жесты и эмоции здесь не оцениваются.</p>${report.limitations?.length ? `<ul>${report.limitations.map((l) => `<li>${escape(l)}</li>`).join("")}</ul>` : ""}</details><div class="actions report-actions">${button("Скачать разбор", "download-report", "secondary")}${report.provenance?.report_prompt_version !== CURRENT_REPORT_VERSION ? button("Обновить разбор", "refresh-report", "secondary") : ""}${button("Выбрать другую тему", "new-topic", "text")}</div><details class="report-detail"><summary>Оставить отзыв о разборе</summary><form id="feedback-form" class="feedback-form"><h2>Был ли разбор полезен?</h2><fieldset><legend>Оценка от 1 до 5</legend><div class="ratings">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join("")}</div></fieldset><label><span class="label-title">Что стоит улучшить? <span class="optional">необязательно</span></span><textarea name="text" rows="3" maxlength="2000"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button secondary">Отправить отзыв</button></form></details></div>`);
 }
@@ -910,6 +917,7 @@ async function checkMic() {
       return;
     }
     state.stream = stream;
+    telemetry("device_access_result",{device_kind:"microphone",result:"granted"},state.practice?.id);
     const Context = window.AudioContext || window.webkitAudioContext;
     if (Context) {
       context = new Context();
@@ -1217,6 +1225,7 @@ async function pumpAnswerUploads(p) {
       const answer = queuedAnswers(p)[0];
       if (!answer || answer.error) break;
       let saved;
+      telemetry("segment_upload_started",{capture_id:answer.clientKey,segment_index:answer.index},p.id);
       try {
         try {
           saved = await api.upload(p.id, answer.blob, "answer", answer.index,
@@ -1237,6 +1246,7 @@ async function pumpAnswerUploads(p) {
         if (version === state.routeVersion && state.practice === p && state.user?.id === ownerId)
           updateAnswerProgress(p);
       } catch (error) {
+        telemetry("segment_upload_failed",{capture_id:answer.clientKey,segment_index:answer.index,error_code:error.code||"UPLOAD_FAILED"},p.id);
         answer.error = error;
         break;
       }
@@ -1339,6 +1349,8 @@ function startRecording() {
         "Запись прервалась из-за ошибки микрофона. Прослушай сохранённый фрагмент перед продолжением.";
     };
     recorder.onstop = async () => {
+      telemetry(state.recordingError?"capture_interrupted":"capture_stopped",{capture_id:clientKey,segment_index:segment.index,elapsed_ms:Math.min(86400000,Math.max(0,Date.now()-state.started))},p.id);
+      if(segment.kind==="answer")telemetry("answer_recorded",{capture_id:clientKey,question_index:segment.index},p.id);
       state.recording = false;
       clearInterval(state.timer);
       const blob = new Blob(chunks, {
@@ -1386,6 +1398,8 @@ function startRecording() {
       }
     };
     recorder.start(1000);
+    telemetry("capture_started",{capture_id:clientKey,segment_index:segment.index,camera_enabled:withVideo},p.id);
+    if(segment.kind==="answer"){telemetry("question_presented",{question_index:segment.index},p.id);telemetry("answer_started",{capture_id:clientKey,question_index:segment.index},p.id)}
     state.recording = true;
     state.recordingWithVideo = withVideo;
     updateCameraUI();
@@ -1533,6 +1547,7 @@ async function saveRecording() {
         pending.clientKey,
       );
     let saved;
+    telemetry("segment_upload_started",{capture_id:pending.clientKey,segment_index:pending.index},p.id);
     try {
       saved = await upload(live);
     } catch (error) {
@@ -1623,7 +1638,7 @@ async function navigate() {
   clearTimeout(state.poll);
   window.scrollTo({ top: 0, behavior: "instant" });
   const version = ++state.routeVersion;
-  if (path === "/landing") return landing();
+  if (path === "/landing") {if(typeof trackPage==="function")trackPage(path);return landing()}
   if (path === "/example") return go("/landing");
   if (path === "/privacy") return go("/landing");
   if (["/register", "/login", "/reset"].includes(path)) {
@@ -1632,11 +1647,13 @@ async function navigate() {
       go("/app");
       return;
     }
+    if(typeof trackPage==="function")trackPage(path);
     authScreen(path.slice(1));
     return;
   }
   if (path === "/guest") return go(state.user ? "/app" : "/register");
   if (!state.user) {
+    if(path==="/admin/analytics"){state.adminReturn=true;try{sessionStorage.setItem("analytics-return","1")}catch{}}
     const pendingPractice = path.match(/^\/practice\/([a-f0-9]{32})$/);
     if (pendingPractice)
       rememberReturn(
@@ -1654,7 +1671,12 @@ async function navigate() {
     go("/login");
     return;
   }
-  if (path === "/app") return setup();
+  if (path === "/admin/analytics") {
+    if(!state.user.analytics_access){frame('<h1>Доступ не предоставлен</h1><p>Аналитика доступна владельцу платформы.</p>');return}
+    const module=await import("./admin-analytics.js?v=20261013-analytics-1");
+    if(version===state.routeVersion)await module.mountAdmin(frame);return;
+  }
+  if (path === "/app") {if(typeof trackPage==="function")trackPage(path);return setup()}
   if (path === "/history") return history();
   const match = path.match(/^\/practice\/([^/]+)$/);
   if (match) {
@@ -1663,6 +1685,7 @@ async function navigate() {
       const p = await api.practice(decodeURIComponent(match[1]));
       if (version !== state.routeVersion) return;
       state.practice = p;
+      if(typeof trackPage==="function")trackPage(path,p);
       await restorePending(p);
       if (version !== state.routeVersion || !state.user) return;
       forgetReturn();
@@ -1748,6 +1771,7 @@ async function submitForm(event) {
   try {
     if (form.id === "auth-form") {
       const mode = form.dataset.mode;
+      if(mode==="register"){telemetry("registration_submitted");if(typeof flush==="function")void flush()}
       if (mode === "reset") {
         await api.reset({ token: body.token.trim(), password: body.password });
         notify("Пароль обновлён. Войди с новым паролем.");
@@ -1763,6 +1787,7 @@ async function submitForm(event) {
             })
           : await api.login({ ...body, email: body.email.trim() });
       state.user = data.user;
+      if(typeof analyticsActor==="function")analyticsActor(state.user?.id);
       state.providerReady = data.provider_ready ?? state.providerReady;
       state.inviteRequired = data.registration_requires_invite ?? state.inviteRequired;
       state.online = true;
@@ -1800,6 +1825,7 @@ async function submitForm(event) {
         "<h2>Спасибо за отзыв</h2><p>Он поможет доработать следующие разборы.</p>";
     }
   } catch (e) {
+    if(form.id==="auth-form"&&form.dataset.mode==="register")telemetry("registration_failed",{error_code:e.code||"REGISTRATION_FAILED"});
     if (form.id === "auth-form" && state.user && !form.isConnected)
       frame(`<h1>Вход выполнен</h1>${errorBox(errorText(e))}${startLink("Открыть тренировку", "secondary")}`);
     else error.textContent = errorText(e);
@@ -1861,7 +1887,9 @@ async function action(event) {
         await api.logout();
         discardPending();
         state.user = null;
+        if(typeof analyticsActor==="function")analyticsActor(null);
         state.practice = null;
+        state.adminReturn=false;try{sessionStorage.removeItem("analytics-return")}catch{}
         forgetReturn();
         go("/landing");
         break;
@@ -2046,6 +2074,7 @@ async function action(event) {
 async function initialize() {
   frame('<div class="loading" role="status">Открываем сцену…</div>');
   try {
+    state.adminReturn=sessionStorage.getItem("analytics-return")==="1";
     const saved = JSON.parse(sessionStorage.getItem("practice-return"));
     if (/^[a-f0-9]{32}$/.test(saved?.practiceId)) state.authReturn = saved;
   } catch {}
@@ -2061,6 +2090,7 @@ async function initialize() {
   try {
     const me = await api.me();
     state.user = me.user;
+    if(typeof analyticsActor==="function")analyticsActor(state.user?.id);
     state.providerReady = me.provider_ready;
     state.inviteRequired = me.registration_requires_invite;
     state.online = true;

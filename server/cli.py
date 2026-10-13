@@ -18,7 +18,17 @@ def main():
     reset = commands.add_parser('reset')
     reset.add_argument('email')
     reset.add_argument('--minutes', type=int, default=30)
+    owner=commands.add_parser('analytics-owner')
+    owner.add_argument('--email-stdin',action='store_true',required=True)
     args = parser.parse_args()
+    if args.command=='analytics-owner':
+        import sys
+        from .analytics_events import grant_owner
+        store=Store.__new__(Store)
+        store.directory=Path(args.data_dir).resolve();store.path=store.directory/'pilot.sqlite3';store.media=store.directory/'media'
+        grant_owner(store,sys.stdin.readline().strip())
+        print('Exclusive analytics owner assigned')
+        return
     with data_lock(args.data_dir, shared=True):
         store = Store(args.data_dir)
         raw = secrets.token_urlsafe(32)

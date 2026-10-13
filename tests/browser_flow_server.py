@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
-def create_fixture(directory, origin='http://localhost:8094'):
+def create_fixture(directory, origin='http://localhost:8094', test_banner=False):
     os.environ.update(APP_ENV='development', APP_ORIGIN=origin,
                       DATA_DIR=directory, LLM_API_KEY='synthetic-fixture-only',
                       LLM_BASE_URL='https://provider.invalid/v1')
@@ -110,6 +110,8 @@ def create_fixture(directory, origin='http://localhost:8094'):
         html = html.replace('<script type="module" src="/app.js',
                             '<script type="module" src="/__test__/synthetic-media.js"></script>\n'
                             '    <script type="module" src="/app.js')
+        if test_banner:
+            html = html.replace('<body>', '<body><aside role="note" style="padding:10px 24px;background:#e3eddc;color:#253d2b;font:14px system-ui">Тестовый стенд — синтетические данные, не статистика production</aside>')
         return HTMLResponse(html)
 
     @app.get('/__test__/synthetic-media.js')

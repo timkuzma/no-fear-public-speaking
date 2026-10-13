@@ -55,6 +55,8 @@ class Store:
                 db.execute('ALTER TABLE practices ADD COLUMN question_provenance TEXT')
             if 'expected_chunks' not in [row[1] for row in db.execute('PRAGMA table_info(live_sessions)')]:
                 db.execute('ALTER TABLE live_sessions ADD COLUMN expected_chunks INTEGER')
+            from .analytics_events import migrate
+            migrate(db)
         os.chmod(self.path, 0o600)
 
     @contextmanager
@@ -82,7 +84,12 @@ class Store:
             return db.execute(sql, args).rowcount
 
     def event(self, kind, user_id=None, practice_id=None, data=None):
-        self.execute('INSERT INTO events VALUES(?,?,?,?,?,?)', (uid(), user_id, practice_id, kind, now(), json.dumps(data or {})))
+        with self.connect() as db:
+            db.execute('INSERT INTO events VALUES(?,?,?,?,?,?)', (uid(), user_id, practice_id, kind, now(), json.dumps(data or {})))
+            if kind in ('request','service_failure','login','logout'):
+                from .analytics_events import record
+                safe = {k:v for k,v in (data or {}).items() if k in ('request_id','route','method','status','latency_ms','error_code','code','job_id','operation')}
+                record(db,kind,user_id,practice_id,safe,request_id=safe.get('request_id'))
 
     def limited(self, key, count, seconds):
         # Lock before reading so concurrent requests cannot overrun the bound.

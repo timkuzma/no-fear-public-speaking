@@ -141,6 +141,8 @@ async def decoded_duration(path):
 
 def create_app(data_dir=None, start_worker=True):
     limits.validate()
+    for flag in ('ANALYTICS_CLIENT_ENABLED','ANALYTICS_ADMIN_ENABLED','ANALYTICS_EXPORT_ENABLED'):
+        if os.getenv(flag,'1') not in ('0','1'):raise RuntimeError('Invalid analytics flag: '+flag)
     production = os.environ.get('APP_ENV', 'development') == 'production'
     origin = os.environ.get('APP_ORIGIN', '').rstrip('/')
     if production and not origin.startswith('https://'):
@@ -220,6 +222,9 @@ def create_app(data_dir=None, start_worker=True):
     async def request_metrics(request, call_next):
         began = time.monotonic()
         request_id = uid()
+        from .analytics_events import REQUEST_ID
+        context_token=REQUEST_ID.set(request_id)
+        request.state.request_id=request_id
         try:
             response = await call_next(request)
         except Exception:
@@ -230,10 +235,17 @@ def create_app(data_dir=None, start_worker=True):
         if request.url.path.startswith('/api/') and request.url.path not in ('/api/health', '/api/readiness') and not request.url.path.startswith('/api/operator/'):
             route = request.scope.get('route')
             template = getattr(route, 'path', 'unknown')
-            store.event('request', data={'request_id': request_id, 'route': template, 'method': request.method, 'status': response.status_code, 'latency_ms': elapsed})
+            practice_match=re.fullmatch(r'/api/practices/([a-f0-9]{32})(?:/.*)?',request.url.path)
+            try:
+                store.event('request', practice_id=practice_match[1] if practice_match and store.one('SELECT 1 FROM practices WHERE id=?',(practice_match[1],)) else None, data={'request_id': request_id, 'route': template, 'method': request.method, 'status': response.status_code, 'latency_ms': elapsed})
+            except sqlite3.Error:
+                log.error('analytics_request_log_failed')
             log.info('request id=%s route=%s status=%s latency_ms=%s', request_id, template, response.status_code, elapsed)
+        REQUEST_ID.reset(context_token)
         response.headers['X-Request-ID'] = request_id
         response.headers['X-Content-Type-Options'] = 'nosniff'
+        if request.url.path.startswith('/api/admin/'):
+            response.headers['Cross-Origin-Resource-Policy']='same-origin'
         response.headers['Referrer-Policy'] = 'same-origin'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Permissions-Policy'] = 'microphone=(self), camera=(self)'
@@ -273,12 +285,16 @@ def create_app(data_dir=None, start_worker=True):
         segments = store.all('SELECT s.*,u.client_key FROM segments s LEFT JOIN segment_uploads u ON u.segment_id=s.id WHERE s.practice_id=? ORDER BY s.segment_index', (row['id'],))
         active = store.one("SELECT * FROM jobs WHERE practice_id=? AND status IN ('pending','running') ORDER BY created DESC LIMIT 1", (row['id'],))
         latest = store.one('SELECT * FROM jobs WHERE practice_id=? ORDER BY created DESC LIMIT 1', (row['id'],))
-        return {'id': row['id'], 'config': json.loads(row['config']), 'created_at': datetime.fromtimestamp(row['created'], ZoneInfo('UTC')).isoformat(), 'status': row['status'], 'questions': json.loads(row['questions']), 'report': json.loads(row['report']) if row['report'] else None, 'segments': [segment_json(s) for s in segments], 'active_job': job_json(active) if active else None, 'latest_job': job_json(latest) if latest else None}
+        return {'id': row['id'], 'config': json.loads(row['config']), 'created_at': datetime.fromtimestamp(row['created'], ZoneInfo('UTC')).isoformat(), 'status': row['status'], 'questions': json.loads(row['questions']), 'report': json.loads(row['report']) if row['report'] else None, 'segments': [segment_json(s) for s in segments], 'active_job': job_json(active) if active else None, 'latest_job': job_json(latest) if latest else None, 'report_version_id': (store.one("SELECT id FROM jobs WHERE practice_id=? AND kind='report' AND status='succeeded' ORDER BY finished DESC,id DESC LIMIT 1",(row['id'],)) or {}).get('id')}
+
+    def exposed_user(user):
+        from .analytics_api import is_owner
+        return {**public_user(user), 'analytics_access': is_owner(store,user['id'])}
 
     def session_response(user):
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         store.execute('INSERT INTO sessions VALUES(?,?,?,?)', (digest(token), user['id'], csrf, now() + 7 * 86400))
-        response = JSONResponse({'user': public_user(user), 'csrf_token': csrf, 'provider_ready': provider_ready(), 'registration_requires_invite': production or os.environ.get('REQUIRE_INVITE') == '1'})
+        response = JSONResponse({'user': exposed_user(user), 'csrf_token': csrf, 'provider_ready': provider_ready(), 'registration_requires_invite': production or os.environ.get('REQUIRE_INVITE') == '1'})
         response.set_cookie('nfs_session', token, max_age=7 * 86400, httponly=True, secure=production, samesite='strict', path='/')
         return response
 
@@ -294,7 +310,7 @@ def create_app(data_dir=None, start_worker=True):
             user = auth(request)
         except HTTPException:
             user = None
-        return {'user': public_user(user) if user else None, 'csrf_token': user['csrf'] if user else None, 'provider_ready': provider_ready(), 'registration_requires_invite': production or os.environ.get('REQUIRE_INVITE') == '1'}
+        return {'user': exposed_user(user) if user else None, 'csrf_token': user['csrf'] if user else None, 'provider_ready': provider_ready(), 'registration_requires_invite': production or os.environ.get('REQUIRE_INVITE') == '1'}
 
     @app.post('/api/auth/register')
     async def register(body: Register, request: Request):
@@ -313,7 +329,11 @@ def create_app(data_dir=None, start_worker=True):
         except sqlite3.IntegrityError:
             fail(409, 'ACCOUNT_EXISTS', 'Не удалось создать аккаунт. Попробуйте войти или обратитесь к организатору тестирования.')
         store.event('registered', user['id'])
-        return session_response(user)
+        from .analytics_api import bind_registration, cookies
+        visitor, visit = bind_registration(store,request,user['id'])
+        response=session_response(user)
+        cookies(response,visitor,visit,production)
+        return response
 
     @app.post('/api/auth/login')
     async def login(body: Login, request: Request):
@@ -333,9 +353,12 @@ def create_app(data_dir=None, start_worker=True):
 
     @app.post('/api/auth/logout')
     async def logout(request: Request):
-        auth(request, True)
+        user=auth(request, True)
+        store.event('logout',user['id'])
         store.execute('DELETE FROM sessions WHERE token=?', (digest(request.cookies['nfs_session']),))
         response = JSONResponse({'ok': True})
+        response.delete_cookie('nfs_visit',path='/')
+        response.delete_cookie('nfs_visitor',path='/')
         response.delete_cookie('nfs_session', path='/', secure=production, httponly=True, samesite='strict')
         return response
 
@@ -357,7 +380,7 @@ def create_app(data_dir=None, start_worker=True):
     async def update_me(body: Profile, request: Request):
         user = auth(request, True)
         store.execute('UPDATE users SET onboarding_completed=? WHERE id=?', (int(body.onboarding_completed), user['id']))
-        return {'user': public_user(store.one('SELECT * FROM users WHERE id=?', (user['id'],)))}
+        return {'user': exposed_user(store.one('SELECT * FROM users WHERE id=?', (user['id'],)))}
 
     @app.post('/api/practices')
     async def create_practice(body: Practice, request: Request):
@@ -401,6 +424,9 @@ def create_app(data_dir=None, start_worker=True):
                 return saved
             raise
         store.event('practice_started', user['id'], practice_id)
+        visit=request.cookies.get('nfs_visit','')
+        touch=store.one('SELECT touch_id FROM analytics_sessions WHERE id=? AND actor_id=?',(visit,user['id']))
+        store.execute('INSERT OR IGNORE INTO practice_attribution VALUES(?,?)',(practice_id,touch['touch_id'] if touch else None))
         return practice_json(owned(practice_id, user['id']))
 
     @app.get('/api/practices')
@@ -672,6 +698,8 @@ def create_app(data_dir=None, start_worker=True):
                 fail(409, 'PRACTICE_BUSY', 'Дождитесь завершения обработки, затем удалите тренировку.')
             if db.execute("SELECT id FROM live_chunks WHERE practice_id=? AND status='running'", (practice_id,)).fetchone():
                 fail(409, 'PRACTICE_BUSY', 'Дождитесь завершения расшифровки, затем удалите тренировку.')
+            from .analytics_archive import delete_facts
+            delete_facts(db,dict(practice))
             files = db.execute('SELECT filename FROM segments WHERE practice_id=?', (practice_id,)).fetchall()
             files += db.execute('SELECT filename FROM live_chunks WHERE practice_id=?', (practice_id,)).fetchall()
             # Retain rows on filesystem failure so the deletion can be retried.
@@ -801,6 +829,8 @@ def create_app(data_dir=None, start_worker=True):
                 return await response(scope, receive, send)
             if scope['type'] != 'http' or scope['method'] not in ('POST', 'PATCH', 'DELETE') or not scope['path'].startswith('/api/'):
                 return await self.app(scope, receive, send)
+            is_analytics_import = scope['path']=='/api/admin/marketing/imports'
+            is_analytics_events = scope['path']=='/api/analytics/events'
             is_upload = bool(re.fullmatch(r'/api/practices/[^/]+/(segments|live-chunks)', scope['path']))
             is_live_upload = scope['path'].endswith('/live-chunks') and is_upload
             request = Request(scope)
@@ -820,13 +850,13 @@ def create_app(data_dir=None, start_worker=True):
                 await response(scope, receive, send)
 
             try:
-                if scope['path'] in ('/api/auth/register', '/api/auth/login', '/api/auth/reset'):
+                if is_analytics_events or scope['path'] in ('/api/auth/register', '/api/auth/login', '/api/auth/reset'):
                     check_origin(request)
                 elif scope['path'] != '/api/operator/ai':
                     auth(request, True)
                 if is_upload and not monitoring.storage_health(store)['ready']:
                     fail(503, 'STORAGE_CAPACITY', 'На сервере временно недостаточно места. Запись остаётся в браузере; повторите позже.')
-                maximum = 524288 + 16384 if is_live_upload else int(os.environ.get('MAX_UPLOAD_BYTES', 32 * 1024 * 1024)) + 16384 if is_upload else 65536
+                maximum = 10*1024*1024 if is_analytics_import else 524288 + 16384 if is_live_upload else int(os.environ.get('MAX_UPLOAD_BYTES', 32 * 1024 * 1024)) + 16384 if is_upload else 65536
                 content_length = request.headers.get('content-length')
                 if content_length and int(content_length) > maximum:
                     fail(413, 'MEDIA_TOO_LARGE', 'Файл слишком большой. Запишите более короткую тренировку без видео.')
@@ -868,6 +898,9 @@ def create_app(data_dir=None, start_worker=True):
                 return await self.app(scope, replay, send)
 
     app.add_middleware(UploadGuard)
+    from .analytics_api import install
+    install(app,store,auth,check_origin,practice_json)
+
     app.mount('/', StaticFiles(directory=ROOT / 'public', html=True), name='public')
     return app
 

@@ -45,6 +45,8 @@
 
 ## Validation and operations
 
+- Owner analytics is maintained in `server/analytics_*.py` and `public/admin-analytics.*`; definitions and privacy boundaries are in `docs/analytics-dashboard.md`. Only `admin_memberships` grants access, never occupation `users.role`; `analytics-owner --email-stdin` assigns exactly one owner without migrating the live Store. Keep admin/media/export APIs server-authorized. Native SQLite triggers persist milestones atomically and remain writable with previous schema-family-1 code on rollback. Client observations cannot claim server success; legacy `report_opened` is not a visible report view.
+
 - Use Python 3.12+ in `.venv`; `pytest -q` covers API isolation, jobs and provider validation. Check both frontend modules with Node syntax checks, and verify the actual UI in a browser.
 - The deterministic browser acceptance fixture is `tests/browser_flow_server.py`: loopback port 8094, temporary data, synthetic provider functions and test-only fault endpoints. Never include its fault routes in the maintained app or production container.
 - Its `/__test__/meeting` entry installs `tests/synthetic-media.js` before the real application: generated audio/video exercise native browser codecs and worklets without physical device access. Track device-request counts through the fixture's body data attributes; keep this shim outside `public/`.

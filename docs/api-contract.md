@@ -139,3 +139,13 @@ Public proxy configuration denies all operator routes. Full settings, alert code
 ## Wording provenance
 
 Report refresh can reuse a compatible saved assessment when exact transcript revisions and evidence match; an optional DeepSeek call edits display strings only. Question wording edits preserve source IDs and update private `items[].text` to the actual saved public question. New private provenance may include `wording_editor:{version,model,status}`; report provenance also retains `analysis_report_prompt_version`. Report schema and endpoints are unchanged. The current report version is `speech-feedback-v2.4`; failed editing retains old report/media and follows the existing failed-job retry.
+
+## Owner analytics (13 October 2026)
+
+Authentication envelopes now include `user.analytics_access`; practice details include the current successful `report_version_id`. Neither changes ordinary participant ownership checks. Owner-only UI is `/#/admin/analytics`.
+
+`POST /api/analytics/events` accepts a bounded allowlisted client-observation batch and optional sanitized acquisition touch. It returns accepted/duplicate/rejected IDs. Server success events are never accepted from a client. Origin and ingestion/body limits apply to anonymous events; object-linked events require the authenticated owner of that practice.
+
+Closed owner routes: `/api/admin/analytics/report`, `/accounts`, `/practices`, `/practices/{id}`, `/events`, `/quality`, `/snapshots`, `/snapshots/{id}`; private owner media is `/api/admin/evidence/{practice_id}/segments/{segment_id}/media`. Marketing uses `/api/admin/marketing/imports` plus explicit confirm/rollback actions. Classification mutation uses `/api/admin/analytics/account-classifications/{user_id}`. All mutations retain Origin/CSRF checks. No administrator is assigned through registration or user role.
+
+Exact definitions, limits, snapshot privacy, filter date basis and the owner-only CLI are documented in `docs/analytics-dashboard.md`. Existing bearer-only `/api/operator/*` remains isolated and blocked by the public proxy.
