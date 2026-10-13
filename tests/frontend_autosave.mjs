@@ -16,6 +16,7 @@ function fixture({
   failUpload = false,
   accountDrafts = new Map(),
   storageFails = false,
+  writeGate = null,
 } = {}) {
   const events = [],
     drafts = [],
@@ -27,6 +28,7 @@ function fixture({
         textContent: "",
         hidden: false,
         setAttribute() {},
+        classList: { add() {}, remove() {} },
         scrollIntoView() {},
         insertAdjacentHTML(_position, content) {
           this.innerHTML += content;
@@ -120,6 +122,7 @@ function fixture({
     loadDraft: async () => null,
     saveRecordingDraft: async (draft) => {
       if (storageFails) throw new Error("Storage denied");
+      if (writeGate) await writeGate;
       accountDrafts.set(
         `${draft.ownerId}:${draft.practiceId}:${draft.index}`,
         structuredClone(draft),
@@ -138,7 +141,7 @@ function fixture({
       `
     meetingPage = p => events.push({type:'meeting', id:p.id, uploading:state.uploading});
     frame = content => events.push({type:'frame', content});
-    globalThis.flow = {state, beginMeeting, scheduleAnswer, cancelAnswerCountdown, closeMedia, practicePage, toggleMic, startRecording, stopRecording, saveRecording, questionChat, restorePending, sessionExpired, resumeAfterLogin, navigate, continueAfterSave, showPending, action, recordingLimit};
+    globalThis.flow = {state, beginMeeting, startNextAnswer, pumpAnswerUploads, queuedAnswers, closeMedia, practicePage, toggleMic, startRecording, stopRecording, saveRecording, questionChat, restorePending, sessionExpired, resumeAfterLogin, navigate, continueAfterSave, showPending, action, recordingLimit};
   `,
     context,
   );
@@ -467,7 +470,7 @@ console.log(
 );
 
 // One ready action owns the meeting. Devices survive all answer transitions;
-// each completed answer uploads once before the next question can record.
+// completed answers upload in the background while the next question records.
 {
   const f = fixture();
   const video = { readyState: "live", enabled: true, stop() { this.readyState = "ended"; } };
@@ -481,16 +484,15 @@ console.log(
   const p = f.flow.state.practice;
   p.questions = ["Question one?", "Question two?", "Question three?"];
   f.flow.practicePage(p);
-  assert.equal(f.flow.state.recording, false);
+  assert.equal(f.flow.state.recording, true);
   let chat = f.flow.questionChat(p, {kind: "answer", index: 1}, null);
   assert.match(chat, /Question one/);
   assert.doesNotMatch(chat, /Question two|Question three|open-answer|<audio|download/);
   for (let index = 1; index <= 3; index++) {
-    // Repeated renders must not start a second countdown/recorder.
-    f.flow.scheduleAnswer(p);
-    f.tick(); f.tick();
-    assert.equal(f.flow.state.recording, false);
-    f.tick();
+    // Repeated scheduling must not create a second recorder.
+    const recorders = f.events.filter(e => e.type === "recorder").length;
+    f.flow.startNextAnswer(p);
+    assert.equal(f.events.filter(e => e.type === "recorder").length, recorders);
     assert.equal(f.flow.state.recording, true);
     assert.equal(f.node("#record-status").textContent, "Идёт запись");
     if (index === 2) f.expire();
@@ -512,35 +514,36 @@ console.log(
   assert.equal(f.track.readyState, "ended");
   assert.equal(video.readyState, "ended");
 }
-// Leaving, muting or losing authentication cancels automatic answer capture.
-for (const reason of ["leave", "mute", "auth"]) {
+// A fresh or muted meeting never auto-starts an answer without the user's ready action.
+for (const reason of ["fresh", "leave", "mute", "auth"]) {
   const f = fixture({answer: true});
-  await f.flow.beginMeeting();
   if (reason === "leave") f.flow.closeMedia();
-  if (reason === "mute") await f.flow.toggleMic();
+  if (reason === "mute") { f.flow.state.meetingPracticeId = "practice"; await f.flow.toggleMic(); }
   if (reason === "auth") f.flow.sessionExpired();
-  f.tick(); f.tick(); f.tick();
+  f.flow.startNextAnswer(f.flow.state.practice);
   assert.equal(f.flow.state.recording, false);
   assert.equal(f.events.filter(e => e.type === "recorder").length, 0);
 }
 {
   const f = fixture({answer: true, failUpload: true});
   await f.flow.beginMeeting();
-  f.tick(); f.tick(); f.tick();
   f.flow.stopRecording();
   await settle();
-  assert.equal(f.flow.state.pending.index, 1);
-  assert.equal(f.flow.state.pending.autoSave, true);
+  assert.equal(f.flow.state.answerQueue[0].index, 1);
+  assert.equal(f.flow.state.answerQueue[0].autoSave, true);
   assert.equal(f.accountDrafts.size, 1);
-  assert.equal(f.flow.state.answerCountdown, null);
+  assert.equal(f.flow.state.recording, true, "A failed upload must not interrupt the next answer");
   assert.equal(f.track.readyState, "live");
+  f.flow.stopRecording(); await settle();
+  f.flow.stopRecording(); await settle();
   const chat = f.flow.questionChat(f.flow.state.practice, null, null);
   assert.match(chat, /Повторить сохранение/);
   assert.doesNotMatch(chat, /<audio|download/);
   f.allowUpload();
-  await f.flow.saveRecording();
-  assert.equal(f.flow.state.pending, null);
-  assert.equal(f.flow.state.answerCountdown.key, "practice:2");
+  f.flow.state.answerQueue.forEach(answer => { answer.error = null; });
+  await f.flow.pumpAnswerUploads(f.flow.state.practice);
+  assert.equal(f.flow.state.answerQueue.length, 0);
+  assert.equal(f.events.filter(e => e.type === "job" && e.kind === "report").length, 1);
 }
 console.log("Continuous meeting, device reuse, automatic answers and cancellation cases passed");
 
@@ -576,3 +579,127 @@ console.log("Recorder errors retain the original fragment for explicit recovery"
   ];
   assert.equal(f.flow.recordingLimit(p, {kind: "answer", index: 3}), 60);
 }
+
+// Slow local persistence and remote uploads overlap capture, rather than holding the next question.
+{
+  let releaseWrite;
+  const writeGate = new Promise(resolve => { releaseWrite = resolve; });
+  const f = fixture({answer: true, writeGate});
+  const uploads = [];
+  f.api.upload = (id, blob, kind, index, _session, _chunks, clientKey) =>
+    new Promise(resolve => uploads.push({index, blob, clientKey, resolve}));
+  await f.flow.beginMeeting();
+  f.flow.stopRecording();
+  assert.equal(f.flow.state.recording, true, "Question two records in the same completion turn");
+  assert.equal(f.events.filter(e => e.type === "recorder").length, 2);
+  await settle();
+  assert.equal(uploads.length, 1, "Upload starts without waiting for the local write");
+  assert.equal(f.accountDrafts.size, 0);
+  assert.match(f.flow.questionChat(f.flow.state.practice, {kind:"answer",index:2}, null), /Question two/);
+  assert.doesNotMatch(f.node("#record-status").textContent, /через|3 с/);
+  f.flow.stopRecording();
+  assert.equal(f.flow.state.recording, true, "Question three also starts while answer one uploads");
+  const recorder = f.flow.state.recorder;
+  const meetingRenders = f.events.filter(e => e.type === "meeting").length;
+  uploads[0].resolve({id:"answer-1",kind:"answer",index:1,client_key:uploads[0].clientKey});
+  await settle();
+  assert.equal(uploads.length, 2);
+  assert.equal(f.flow.state.recorder, recorder);
+  assert.equal(f.flow.state.recording, true);
+  assert.equal(f.events.filter(e => e.type === "meeting").length, meetingRenders, "Acknowledgement must not rerender an active meeting");
+  f.flow.stopRecording();
+  await settle();
+  assert.equal(f.flow.state.recording, false);
+  assert.equal(f.events.filter(e => e.type === "job").length, 0, "Report waits for real acknowledgement of every answer");
+  uploads[1].resolve({id:"answer-2",kind:"answer",index:2,client_key:uploads[1].clientKey});
+  await settle();
+  assert.equal(uploads.length, 3);
+  releaseWrite();
+  await settle();
+  assert.equal(f.accountDrafts.size, 1, "Only the unacknowledged third answer remains recoverable");
+  uploads[2].resolve({id:"answer-3",kind:"answer",index:3,client_key:uploads[2].clientKey});
+  await settle();
+  assert.equal(f.flow.state.answerQueue.length, 0);
+  assert.equal(f.accountDrafts.size, 0);
+  assert.equal(f.events.filter(e => e.type === "job" && e.kind === "report").length, 1);
+}
+// Reload drains all three drafts oldest stage first and preserves their capture identities.
+{
+  const f = fixture({answer:true, failUpload:true});
+  await f.flow.beginMeeting();
+  for (let index=1; index<=3; index++) { f.flow.stopRecording(); await settle(); }
+  assert.equal(f.accountDrafts.size, 3);
+  const originals = [...f.accountDrafts.values()].sort((a,b)=>a.index-b.index);
+  const restored = fixture({answer:true, accountDrafts:f.accountDrafts});
+  await restored.flow.restorePending(restored.flow.state.practice);
+  assert.equal(restored.flow.state.pending.index, 1);
+  await restored.flow.saveRecording();
+  assert.deepEqual(restored.events.filter(e=>e.type==="upload").map(e=>e.index), [1,2,3]);
+  assert.deepEqual(restored.events.filter(e=>e.type==="upload").map(e=>e.clientKey), originals.map(e=>e.clientKey));
+  assert.equal(f.accountDrafts.size, 0);
+  assert.equal(restored.events.filter(e=>e.type==="job" && e.kind==="report").length, 1);
+}
+// A lost acknowledgement reuses the original bytes/key and reconciles the owned server record.
+{
+  const f = fixture({answer:true});
+  let failedKey;
+  f.api.upload = async (id,blob,kind,index,_session,_chunks,clientKey) => {
+    failedKey = clientKey;
+    throw Object.assign(new Error("Already accepted"), {status:409,code:"SEGMENT_EXISTS"});
+  };
+  f.api.practice = async () => ({segments:[{id:"accepted",kind:"answer",index:1,client_key:failedKey}]});
+  await f.flow.beginMeeting(); f.flow.stopRecording(); await settle();
+  assert.equal(f.flow.state.answerQueue.length, 0);
+  assert.equal(f.flow.state.practice.segments[1].id, "accepted");
+  assert.equal(f.flow.state.recording, true);
+  assert.equal(f.accountDrafts.size, 0);
+}
+// Authentication loss does not drop either the uploading answer or the answer still being spoken.
+{
+  const f = fixture({answer:true});
+  f.api.upload = async () => { f.flow.sessionExpired(); throw Object.assign(new Error("Expired"),{status:401}); };
+  await f.flow.beginMeeting(); f.flow.stopRecording(); await settle();
+  assert.equal(f.flow.state.recording, true);
+  f.flow.stopRecording(); await settle();
+  assert.equal(f.flow.state.recording, false);
+  assert.equal(f.accountDrafts.size, 2);
+  assert.match(f.flow.questionChat(f.flow.state.practice, {kind:"answer",index:3}, null), /Войти и продолжить/);
+  f.flow.state.user={id:"another-account"};
+  const attempted=[];
+  f.api.upload=async (...args)=>{attempted.push(args);};
+  await f.flow.pumpAnswerUploads(f.flow.state.practice);
+  assert.equal(attempted.length,0);
+  assert.equal(f.accountDrafts.size,2);
+}
+console.log("Optimistic answer capture, deferred persistence, ordered recovery and ownership cases passed");
+
+// Speech upload and question generation do not wait for local backup cleanup either.
+{
+  let releaseWrite;
+  const f = fixture({writeGate:new Promise(resolve=>{releaseWrite=resolve;})});
+  f.flow.startRecording(); f.flow.stopRecording(); await settle();
+  assert.equal(f.accountDrafts.size,0);
+  assert.equal(f.events.filter(e=>e.type==="upload").length,1);
+  assert.equal(f.events.filter(e=>e.type==="job" && e.kind==="questions").length,1);
+  releaseWrite(); await settle();
+  assert.equal(f.accountDrafts.size,0);
+}
+// Explicit reauthentication can reopen the queued practice without bypassing ownership.
+{
+  const f = fixture({answer:true,failUpload:true});
+  await f.flow.beginMeeting(); f.flow.stopRecording(); await settle();
+  f.flow.sessionExpired(); f.flow.stopRecording(); await settle();
+  const remote = structuredClone(f.flow.state.practice);
+  remote.segments = remote.segments.filter(segment=>!segment.local_pending);
+  f.api.practice=async()=>structuredClone(remote);
+  f.allowUpload();
+  f.flow.state.user={id:"account"};
+  f.context.location.hash="#/practice/practice";
+  await f.flow.navigate(); await settle();
+  assert.equal(f.flow.state.answerQueue.length,0);
+  assert.equal(f.accountDrafts.size,0);
+  assert.equal(f.flow.state.recording,false,"Reopened meeting still needs a fresh ready action");
+  assert.deepEqual(f.events.filter(e=>e.type==="upload").map(e=>e.index),[1,1,2]);
+  assert.equal(f.events.filter(e=>e.type==="job" && e.kind==="report").length,0);
+}
+console.log("Parallel speech admission and explicit queued reauthentication cases passed");

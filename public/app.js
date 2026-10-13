@@ -42,8 +42,8 @@ const state = {
   routeVersion: 0,
   uploading: false,
   meetingPracticeId: null,
-  answerCountdown: null,
-  answerTimer: null,
+  answerQueue: [],
+  answerPump: null,
   seenQuestionChats: new Set(),
   questionsJustReady: null,
 };
@@ -289,6 +289,11 @@ async function clearAcceptedDraft(pending) {
 async function restorePending(p) {
   if (!state.user) return;
   const ownerId = state.user.id;
+  for (const answer of queuedAnswers(p)) {
+    if (!p.segments.some((segment) => Number(segment.index) === answer.index))
+      p.segments.push({id: `local:${answer.clientKey}`, kind: "answer", index: answer.index,
+        duration_seconds: answer.durationSeconds, client_key: answer.clientKey, local_pending: true});
+  }
   if (
     state.pending?.ownerId !== state.user.id ||
     state.pending?.practiceId !== p.id
@@ -297,7 +302,19 @@ async function restorePending(p) {
     const drafts = await loadRecordingDrafts(ownerId).catch(() => []);
     if (state.user?.id !== ownerId || state.practice?.id !== p.id) return;
     const boundGuest = state.guest;
-    const accountDraft = drafts.find((d) => d.practiceId === p.id);
+    let accountDraft;
+    let accepted = false;
+    for (const draft of drafts.filter((d) => d.practiceId === p.id).sort((a, b) => a.index - b.index)) {
+      const saved = p.segments.find((segment) => segment.kind === draft.kind &&
+        Number(segment.index) === draft.index && !segment.local_pending);
+      if (saved?.client_key === draft.clientKey) {
+        await clearAcceptedDraft(draft);
+        accepted = true;
+      } else if (!state.answerQueue.some((answer) => answer.clientKey === draft.clientKey)) {
+        accountDraft = draft;
+        break;
+      }
+    }
     const draft =
       accountDraft ||
       (boundGuest?.ownerId === ownerId && boundGuest.serverPracticeId === p.id
@@ -311,9 +328,9 @@ async function restorePending(p) {
           }
         : null);
     if (draft) {
-      state.pending = { ...draft, url: URL.createObjectURL(draft.blob) };
+      state.pending = { ...draft, restored: true, url: URL.createObjectURL(draft.blob) };
       state.pendingPersisted = !!accountDraft || state.guestPersisted;
-    }
+    } else if (accepted) return true;
   }
   const pending = state.pending;
   if (!pending) return;
@@ -364,7 +381,6 @@ function sessionExpired() {
     rememberReturn(state.practice.id, ownerId);
   state.user = null;
   state.meetingPracticeId = null;
-  cancelAnswerCountdown();
   state.liveCapture?.cancel();
   state.liveCapture = null;
   clearTimeout(state.poll);
@@ -372,6 +388,13 @@ function sessionExpired() {
     notify(
       "Нужно войти снова. Закончи запись — она останется доступна после входа.",
     );
+    return;
+  }
+  if (queuedAnswers().length) {
+    if (!state.recording) {
+      meetingPage(state.practice);
+      document.querySelector(".chat-next").innerHTML = answerQueueMessage(state.practice);
+    }
     return;
   }
   if (state.pending || state.uploading) {
@@ -725,7 +748,7 @@ function questionChat(p, segment, job) {
       const answer = p.segments.find(
         (s) => s.kind === "answer" && Number(s.index) === i + 1,
       );
-      return `<li class="chat-message${segment?.index === i + 1 ? " is-current" : ""}" style="--message-delay:${i * 60}ms"><span class="chat-author">${["Мария", "Алексей", "Ирина"][i] || "Участник"}</span><p>${escape(question)}</p>${answer ? `<div class="chat-reply"><span class="chat-answer-state">Ты · Ответ сохранён</span></div>` : ""}</li>`;
+      return `<li class="chat-message${segment?.index === i + 1 ? " is-current" : ""}" style="--message-delay:${i * 60}ms"><span class="chat-author">${["Мария", "Алексей", "Ирина"][i] || "Участник"}</span><p>${escape(question)}</p>${answer ? `<div class="chat-reply"><span class="chat-answer-state" data-answer-index="${i + 1}">Ты · ${answer.local_pending ? "Ответ записан" : "Ответ сохранён"}</span></div>` : ""}</li>`;
     })
     .join("");
   const failed =
@@ -739,7 +762,7 @@ function questionChat(p, segment, job) {
   if (p.id === "guest" && p.blob) {
     return `<aside class="meeting-chat" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><div class="chat-next"><p role="status">${p.interrupted ? "Запись прервалась. Восстановили сохранённый фрагмент." : `Выступление записано.`}</p>${p.interrupted ? playback(p.segments[0].media_url, p.blob.type.startsWith("video/")) : ""}<p>${state.user ? "Продолжи в своём аккаунте, чтобы получить вопросы и полный разбор." : "Создай аккаунт, чтобы получить вопросы по этой речи и полный разбор. Записывать заново не нужно."}</p>${state.guestNotice ? errorBox(state.guestNotice) : ""}${button(state.user ? "Продолжить тренировку" : "Регистрация", "guest-analyze")}${!state.user ? '<a href="#/login">Уже есть аккаунт? Войти</a>' : ""}${button("Перезаписать", "guest-again", "secondary")}<a href="${escape(p.segments[0].media_url)}" download="моя-запись">Скачать копию записи</a>${!state.guestPersisted ? "<p>Не удалось сохранить запись. Не закрывай страницу до сохранения.</p>" : ""}</div></aside>`;
   }
-  return `<aside class="meeting-chat${arrival ? " chat-arrival" : ""}" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><ol class="chat-messages" role="log" aria-label="Чат встречи" aria-live="polite" aria-relevant="additions">${messages}</ol><div class="chat-next">${job ? `<p id="job-status" role="status">${jobStage(job.stage, job.kind)}</p><p class="caption">Вопросы появятся здесь, когда будут готовы.</p><div id="poll-error" role="alert"></div>` : !p.questions?.length ? `<p>${state.providerReady ? "Выступление сохранено. Осталось подготовить вопросы." : "Вопросы пока недоступны. Выступление сохранено."}</p>${failed ? errorBox(errorText(p.latest_job?.error)) : ""}${button("Подготовить вопросы", "questions", "primary", state.providerReady ? "" : "disabled")}` : `<p>Вопрос ${segment?.index || currentIndex} из ${p.questions.length}</p>`}</div></aside>`;
+  return `<aside class="meeting-chat${arrival ? " chat-arrival" : ""}" aria-label="Вопросы по выступлению"><header><h2>Чат</h2></header><ol class="chat-messages" role="log" aria-label="Чат встречи" aria-live="polite" aria-relevant="additions">${messages}</ol><div class="chat-next">${job ? `<p id="job-status" role="status">${jobStage(job.stage, job.kind)}</p><p class="caption">Вопросы появятся здесь, когда будут готовы.</p><div id="poll-error" role="alert"></div>` : !p.questions?.length ? `<p>${state.providerReady ? "Выступление сохранено. Осталось подготовить вопросы." : "Вопросы пока недоступны. Выступление сохранено."}</p>${failed ? errorBox(errorText(p.latest_job?.error)) : ""}${button("Подготовить вопросы", "questions", "primary", state.providerReady ? "" : "disabled")}` : (!segment || !state.user) && queuedAnswers(p).length ? answerQueueMessage(p) : `<p>Вопрос ${segment?.index || currentIndex} из ${p.questions.length}</p>`}</div></aside>`;
 }
 function meetingPage(p, guest = false, job = null) {
   const pendingRecording = state.pending?.practiceId === p.id;
@@ -750,7 +773,7 @@ function meetingPage(p, guest = false, job = null) {
     (p.config.questions && p.segments?.some((s) => s.kind === "speech"))
   );
   const devicesAvailable = true;
-  const canRecord = !!segment && !job && !state.uploading;
+  const canRecord = !!segment && !job && !state.uploading && (!!state.user || guest);
   const ready = canRecord && state.meetingPracticeId !== p.id;
   const content = `<div class="meeting-topbar"><a class="quiet-link" href="#${guest ? "/guest" : "/app"}">К тренировке</a><h1>${heading(p.config.topic || "Твоя речь")}</h1>${canRecord ? `<span class="meeting-time" id="record-timer" aria-label="Осталось времени">${time(recordingLimit(p, segment))}</span>` : '<span class="meeting-time">Вопросы</span>'}</div><div class="meeting-body${chat ? " has-chat" : ""}"><div class="meeting-scene"><img class="meeting-audience" src="/audience-meeting-v1.png" alt="Слушатели в переговорной"><div class="self-view" hidden><video id="camera-preview" autoplay muted playsinline aria-label="Твоё видео" hidden></video><span class="self-name">Ты</span></div></div>${chat ? questionChat(p, segment, job) : ""}</div><div class="meeting-toolbar"><div class="meeting-devices">${devicesAvailable ? `<button class="device-control" type="button" data-action="toggle-mic" aria-pressed="false" title="Включить микрофон" ${state.uploading ? "disabled" : ""}>${deviceIcon("mic")}<span>Микрофон</span></button><button class="device-control" type="button" data-action="toggle-camera" aria-pressed="false" title="Включить камеру">${deviceIcon("camera")}<span>Камера</span></button>` : ""}</div><div class="meeting-controls" id="record-controls">${ready ? button("Я готов приступать", "start-record") : ""}</div><p class="meeting-status" id="record-status" role="status">${pendingRecording ? (state.uploading ? "Сохраняем запись…" : "Запись ещё не сохранена") : ready ? "Начни, когда будешь готов" : canRecord ? "Следующий вопрос" : "Выступление сохранено"}</p><div id="record-error" role="alert"></div><p id="camera-status" role="status"></p></div>`;
   const current = document.querySelector("#main.meeting");
@@ -792,6 +815,10 @@ function practicePage(p, guest = false) {
   const active = p.active_job || p.latest_job;
   if (active && ["pending", "running"].includes(active.status))
     return processingPage(p, active);
+  if (queuedAnswers(p).length && !nextSegment(p)) {
+    meetingPage(p, guest);
+    return;
+  }
   const segment = nextSegment(p);
   const needQuestions =
     p.config.questions &&
@@ -799,7 +826,7 @@ function practicePage(p, guest = false) {
     !p.questions?.length;
   if (segment || needQuestions) {
     meetingPage(p, guest);
-    if (segment?.kind === "answer") scheduleAnswer(p);
+    if (segment?.kind === "answer") startNextAnswer(p);
     return;
   }
   frame(
@@ -981,13 +1008,12 @@ async function toggleMic() {
     t.enabled = enabled;
   });
   updateMicUI();
-  if (!enabled) cancelAnswerCountdown();
   document.querySelector("#record-status").textContent = enabled
     ? state.recording
       ? "Идёт запись"
       : "Можно начинать"
     : "Микрофон выключен";
-  if (enabled && !state.recording) scheduleAnswer(state.practice);
+  if (enabled && !state.recording) startNextAnswer(state.practice);
 }
 function updateCameraUI() {
   const start = document.querySelector('[data-action="start-record"]');
@@ -1095,7 +1121,6 @@ function closeMedia({
   keepLive = false,
   keepStream = false,
 } = {}) {
-  cancelAnswerCountdown();
   if (!keepStream && !keepLive) state.meetingPracticeId = null;
   if (!keepCamera) closeCamera();
   clearInterval(state.timer);
@@ -1116,11 +1141,6 @@ function microphoneReady() {
     ?.getAudioTracks()
     .some((t) => t.readyState === "live" && t.enabled);
 }
-function cancelAnswerCountdown() {
-  clearInterval(state.answerTimer);
-  state.answerTimer = null;
-  state.answerCountdown = null;
-}
 async function beginMeeting() {
   if (state.recording || state.pending || state.uploading || state.cameraBusy) return;
   const p = state.practice, version = state.routeVersion;
@@ -1130,48 +1150,107 @@ async function beginMeeting() {
   else await checkMic();
   if (version !== state.routeVersion || state.practice?.id !== p.id || !microphoneReady()) return;
   state.meetingPracticeId = p.id;
-  if (nextSegment(p)?.kind === "answer") scheduleAnswer(p);
+  if (nextSegment(p)?.kind === "answer") startNextAnswer(p);
   else startRecording();
 }
-function scheduleAnswer(p) {
+function startNextAnswer(p) {
   const segment = nextSegment(p);
   if (
     state.meetingPracticeId !== p.id || segment?.kind !== "answer" ||
     state.recording || state.pending || state.uploading || !state.user
   ) return;
-  const key = `${p.id}:${segment.index}`;
-  if (state.answerCountdown?.key === key) return;
-  cancelAnswerCountdown();
   if (!microphoneReady()) {
     document.querySelector("#record-status").textContent = "Включи микрофон, чтобы продолжить ответ";
     document.querySelector("#record-controls").innerHTML = button("Продолжить тренировку", "start-record");
     return;
   }
-  const countdown = { key, version: state.routeVersion, remaining: 3 };
-  state.answerCountdown = countdown;
-  document.querySelector("#record-controls").innerHTML = "";
-  const show = () => {
-    document.querySelector("#record-status").textContent = `Запись ответа начнётся через ${countdown.remaining} с`;
-  };
   document.querySelector(".chat-message.is-current")?.scrollIntoView({ block: "nearest", behavior: "instant" });
-  show();
-  state.answerTimer = setInterval(() => {
-    if (
-      state.answerCountdown !== countdown || countdown.version !== state.routeVersion ||
-      state.practice?.id !== p.id || state.meetingPracticeId !== p.id || !state.user ||
-      state.pending || state.uploading || state.recording || !microphoneReady()
-    ) {
-      cancelAnswerCountdown();
-      if (
-        countdown.version === state.routeVersion &&
-        state.practice?.id === p.id && !microphoneReady()
-      ) scheduleAnswer(p);
-      return;
+  startRecording();
+}
+
+function queuedAnswers(p = state.practice) {
+  return state.answerQueue.filter((answer) => answer.practiceId === p?.id &&
+    (!state.user || answer.ownerId === state.user.id));
+}
+function answerQueueMessage(p) {
+  const answers = queuedAnswers(p);
+  if (!answers.length) return "";
+  if (!state.user)
+    return `<p>Ответы записаны. Войди снова, чтобы сохранить их и получить разбор.</p>${button("Войти и продолжить", "reauth-answers")}`;
+  if (answers.some((answer) => answer.error))
+    return `<p role="alert">Не удалось сохранить все ответы. Записи остаются доступными; повтори сохранение.</p>${button("Повторить сохранение", "retry-answers")}`;
+  return '<p role="status">Ответы записаны. Сохраняем их и готовим разбор…</p>';
+}
+function updateAnswerProgress(p) {
+  if (state.practice !== p) return;
+  for (const segment of p.segments.filter((s) => s.kind === "answer")) {
+    const label = document.querySelector(`[data-answer-index="${segment.index}"]`);
+    if (label) label.textContent = segment.local_pending ? "Ты · Ответ записан" : "Ты · Ответ сохранён";
+  }
+  // A background acknowledgement must never replace an active recorder's DOM.
+  if (state.recording || state.pending || (state.user && nextSegment(p))) return;
+  const panel = document.querySelector(".chat-next");
+  if (panel) panel.innerHTML = answerQueueMessage(p);
+}
+function enqueueAnswer(p, answer) {
+  answer.persisted = false;
+  answer.persistence = writeRecordingDraft(answer, p.config).then((saved) => {
+    answer.persisted = saved;
+    if (!saved && state.practice === p && queuedAnswers(p).includes(answer))
+      document.querySelector("#record-error").innerHTML = errorBox("Не закрывай страницу, пока ответы не сохранятся.");
+    return saved;
+  });
+  state.answerQueue.push(answer);
+  p.segments.push({ id: `local:${answer.clientKey}`, kind: "answer", index: answer.index,
+    duration_seconds: answer.durationSeconds, client_key: answer.clientKey, local_pending: true });
+  meetingPage(p);
+  startNextAnswer(p);
+  void pumpAnswerUploads(p);
+}
+async function pumpAnswerUploads(p) {
+  if (state.answerPump || !state.user || !queuedAnswers(p).length) return;
+  const ownerId = state.user.id, version = state.routeVersion;
+  // Publish the promise before the first request so repeated clicks cannot create another uploader.
+  const run = async () => {
+    while (state.user?.id === ownerId) {
+      const answer = queuedAnswers(p)[0];
+      if (!answer || answer.error) break;
+      let saved;
+      try {
+        try {
+          saved = await api.upload(p.id, answer.blob, "answer", answer.index,
+            undefined, undefined, answer.clientKey);
+        } catch (error) {
+          if (error.status !== 409 || error.code === "UPLOAD_KEY_CONFLICT") throw error;
+          const remote = await api.practice(p.id);
+          saved = remote.segments.find((segment) => segment.kind === "answer" &&
+            Number(segment.index) === answer.index && segment.client_key === answer.clientKey);
+          if (!saved) throw error;
+        }
+        const index = p.segments.findIndex((segment) => segment.client_key === answer.clientKey);
+        if (index !== -1) p.segments[index] = saved;
+        state.answerQueue = state.answerQueue.filter((entry) => entry !== answer);
+        // Wait for the local write before deleting it, while the next upload/answer proceeds.
+        void answer.persistence.then(() => clearAcceptedDraft(answer));
+        URL.revokeObjectURL(answer.url);
+        if (version === state.routeVersion && state.practice === p && state.user?.id === ownerId)
+          updateAnswerProgress(p);
+      } catch (error) {
+        answer.error = error;
+        break;
+      }
     }
-    if (--countdown.remaining > 0) return show();
-    cancelAnswerCountdown();
-    startRecording();
-  }, 1000);
+  };
+  state.answerPump = Promise.resolve().then(run);
+  try { await state.answerPump; }
+  finally {
+    state.answerPump = null;
+    if (version !== state.routeVersion || state.practice !== p) return;
+    updateAnswerProgress(p);
+    if (state.user?.id === ownerId && !state.recording && !state.pending &&
+        !nextSegment(p) && !queuedAnswers(p).length)
+      await continueAfterSave(p);
+  }
 }
 function startRecording() {
   if (state.recording || state.pending || state.uploading) return;
@@ -1291,10 +1370,19 @@ function startRecording() {
         keepStream: p.config.questions,
         keepLive: !!state.pending.liveCompletion,
       });
-      await persistPending();
-      if (version !== state.routeVersion || state.practice?.id !== p.id) return;
-      if (!state.recordingError) void saveRecording();
-      else showPending();
+      if (segment.kind === "answer" && !state.recordingError && p.id !== "guest") {
+        const answer = state.pending;
+        state.pending = null;
+        if (version === state.routeVersion && state.practice?.id === p.id) enqueueAnswer(p, answer);
+        else void writeRecordingDraft(answer, p.config);
+        return;
+      }
+      if (!state.recordingError && version === state.routeVersion && state.practice?.id === p.id)
+        void saveRecording();
+      else {
+        await persistPending();
+        if (version === state.routeVersion && state.practice?.id === p.id) showPending();
+      }
     };
     recorder.start(1000);
     state.recording = true;
@@ -1329,14 +1417,22 @@ function stopRecording(automatic = false) {
     state.recorder.stop();
   }
 }
-async function continueAfterSave(p) {
+async function continueAfterSave(p, { restoreDrafts = false } = {}) {
   if (!state.user && p.id !== "guest") {
     rememberReturn(p.id);
     go("/login");
     return;
   }
   const version = state.routeVersion;
+  if (queuedAnswers(p).length) { practicePage(p); return; }
+  if (restoreDrafts) await restorePending(p);
+  if (version !== state.routeVersion || state.practice?.id !== p.id) return;
   practicePage(p);
+  if (state.pending) {
+    if (state.pending.autoSave && !state.pending.interrupted && !state.pending.conflict)
+      await saveRecording();
+    return;
+  }
   const kind =
     p.config.questions && !p.questions?.length
       ? "questions"
@@ -1406,10 +1502,11 @@ async function saveRecording() {
     !pending.autoSave || !state.pendingPersisted || pending.interrupted;
   pending.autoSave = true;
   pending.interrupted = false;
-  if (needsPersist) await persistPending(pending);
+  const persistence = needsPersist ? persistPending(pending) : Promise.resolve(state.pendingPersisted);
   meetingPage(p, p.id === "guest");
   try {
     if (p.id === "guest") {
+      await persistence;
       p.blob = pending.blob;
       p.durationSeconds = pending.durationSeconds;
       p.createdAt = pending.createdAt;
@@ -1446,12 +1543,12 @@ async function saveRecording() {
     if (!p.segments.some((s) => s.id === saved.id)) p.segments.push(saved);
     p.status = "draft";
     p.latest_job = null;
-    await clearAcceptedDraft(pending);
+    const cleanup = persistence.then(() => clearAcceptedDraft(pending));
     discardPending();
     const keepDevices = p.config.questions && (!!nextSegment(p) || !p.questions?.length);
     closeMedia({ keepCamera: keepDevices, keepStream: keepDevices });
     state.uploading = false;
-    await continueAfterSave(p);
+    await Promise.all([cleanup, continueAfterSave(p, {restoreDrafts: !!pending.restored})]);
   } catch (error) {
     if (error.status === 409 && error.code !== "UPLOAD_KEY_CONFLICT") {
       try {
@@ -1467,11 +1564,12 @@ async function saveRecording() {
           await clearAcceptedDraft(pending);
           discardPending();
           state.uploading = false;
-          await continueAfterSave(saved);
+          await continueAfterSave(saved, {restoreDrafts: !!pending.restored});
           return;
         }
       } catch {}
     }
+    await persistence;
     state.uploading = false;
     showPending();
     document.querySelector("#record-error").innerHTML = errorBox(
@@ -1483,6 +1581,13 @@ async function saveRecording() {
 }
 async function navigate() {
   const path = route();
+  const resumingAnswers = path === `/practice/${encodeURIComponent(state.practice?.id)}` &&
+    !state.recording && !state.answerPump;
+  if (queuedAnswers().length && !resumingAnswers && !["/login", "/register", "/reset"].includes(path)) {
+    notify("Сначала сохрани ответы, чтобы продолжить.");
+    window.history.replaceState(null, "", `#/practice/${encodeURIComponent(state.practice.id)}`);
+    return;
+  }
   if (state.recording || state.pending || state.uploading) {
     if (state.uploading) {
       notify("Дождись сохранения записи.");
@@ -1561,6 +1666,10 @@ async function navigate() {
       if (version !== state.routeVersion || !state.user) return;
       forgetReturn();
       practicePage(p);
+      if (queuedAnswers(p).length) {
+        queuedAnswers(p).forEach((answer) => { answer.error = null; });
+        void pumpAnswerUploads(p);
+      }
       if (
         state.pending?.autoSave &&
         !state.pending.interrupted &&
@@ -1743,7 +1852,7 @@ async function action(event) {
         if (
           state.recording ||
           (state.pending && !state.pendingPersisted) ||
-          state.uploading
+          state.uploading || queuedAnswers().length
         ) {
           notify("Сначала сохрани или отмени текущую запись.");
           return;
@@ -1813,6 +1922,17 @@ async function action(event) {
       case "save-record":
         await saveRecording();
         break;
+      case "retry-answers":
+        queuedAnswers().forEach((answer) => { answer.error = null; });
+        updateAnswerProgress(state.practice);
+        await pumpAnswerUploads(state.practice);
+        break;
+      case "reauth-answers":
+        await state.answerPump;
+        await Promise.all(queuedAnswers().map((answer) => answer.persistence));
+        rememberReturn(state.practice.id, queuedAnswers()[0]?.ownerId);
+        go("/login");
+        break;
       case "discard-record":
         if (state.pending) await clearRecordingDraft(state.pending);
         discardPending();
@@ -1850,6 +1970,7 @@ async function action(event) {
         break;
       case "questions":
       case "report": {
+        if (queuedAnswers().length) return;
         target.disabled = true;
         const p = state.practice;
         const version = state.routeVersion;
@@ -1977,6 +2098,7 @@ window.addEventListener("beforeunload", (event) => {
     state.recording ||
     (state.pending && !state.pendingPersisted) ||
     state.uploading ||
+    state.answerQueue.some((answer) => !answer.persisted) ||
     (state.guest?.blob && !state.guestPersisted)
   ) {
     event.preventDefault();

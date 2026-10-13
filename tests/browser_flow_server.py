@@ -3,6 +3,7 @@
 Run: .venv/bin/python tests/browser_flow_server.py
 All data is temporary and removed on shutdown. Fault endpoints are test-only.
 """
+import asyncio
 import os
 import sys
 import tempfile
@@ -45,7 +46,7 @@ def create_fixture(directory, origin='http://localhost:8094'):
                                'transcript_revision': ai.build_context('questions', config, [{'index': 0, 'kind': 'speech', 'text': transcript}])['transcript_revision'],
                                'chat_model': 'fixture', 'items': items}}
 
-    faults = {'fail': False, 'lose': False, 'report': 'normal'}
+    faults = {'fail': False, 'lose': False, 'report': 'normal', 'upload_delay': 0}
 
     async def analyze(config, segments, **kwargs):
         # Synthetic contract fixtures: these test UI states, not coaching quality.
@@ -117,6 +118,8 @@ def create_fixture(directory, origin='http://localhost:8094'):
     @app.middleware('http')
     async def fault(request, call_next):
         upload = request.method == 'POST' and request.url.path.endswith('/segments')
+        if upload and faults['upload_delay']:
+            await asyncio.sleep(faults['upload_delay'])
         if upload and faults['fail']:
             faults['fail'] = False
             return JSONResponse({'error': {'code': 'TEST_NETWORK', 'message': 'Тестовый обрыв загрузки'}}, status_code=503)
@@ -131,6 +134,13 @@ def create_fixture(directory, origin='http://localhost:8094'):
         if kind not in {'normal', 'sparse', 'unknown', 'legacy'}:
             return JSONResponse({'error': 'Unknown synthetic report state'}, status_code=400)
         faults['report'] = kind
+        return {'ok': True}
+
+    @app.post('/__test__/upload-delay/{seconds}')
+    async def upload_delay(seconds: int):
+        if not 0 <= seconds <= 15:
+            return JSONResponse({'error': 'Invalid delay'}, status_code=400)
+        faults['upload_delay'] = seconds
         return {'ok': True}
 
     @app.post('/__test__/fail')
