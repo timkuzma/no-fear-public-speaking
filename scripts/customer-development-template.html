@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#faf9f3">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Результаты интервью · Сцена без страха</title>
+  <link rel="icon" href="data:,">
+  <style>
+    @font-face { font-family:Golos; src:url('/fonts/golostext-variable.ttf') format('truetype'); font-weight:100 900; font-display:swap; }
+    :root { color-scheme:light; --paper:#faf9f3; --ink:#202a25; --muted:#5d665e; --surface:#f0f1eb; --accent:#c9e98a; font-family:Golos,Arial,sans-serif; color:var(--ink); background:var(--paper); }
+    * { box-sizing:border-box; }
+    body { margin:0; line-height:1.6; font-size:16px; }
+    header, main, footer { width:min(100% - 64px,1160px); margin-inline:auto; }
+    header { display:flex; justify-content:space-between; align-items:center; padding-block:28px; gap:20px; }
+    header span, footer { color:var(--muted); font-size:14px; }
+    a { color:inherit; text-underline-offset:5px; }
+    button, input { font:inherit; color:inherit; }
+    a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline:3px solid #538824; outline-offset:5px; }
+    .skip { position:absolute; top:-100px; left:24px; background:var(--paper); padding:12px; z-index:2; }.skip:focus { top:12px; }
+    main { padding-block:clamp(36px,7vh,80px) 80px; min-height:calc(100vh - 180px); }
+    .eyebrow { margin:0 0 20px; color:var(--muted); font-size:13px; font-weight:600; letter-spacing:.11em; text-transform:uppercase; }
+    h1 { max-width:900px; margin:0; font-size:clamp(36px,5.2vw,64px); line-height:1.1; letter-spacing:-.045em; font-weight:600; outline:none; }
+    .lead { max-width:650px; margin:28px 0 0; font-size:clamp(18px,2vw,22px); color:var(--muted); }
+    .folders { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:56px; }
+    .folder { display:flex; flex-direction:column; padding:32px; min-height:275px; border-radius:24px; background:var(--surface); text-decoration:none; transition:background .18s,transform .18s; }
+    .folder:hover { background:#e7ecdf; transform:translateY(-3px); }
+    .folder-top { display:flex; align-items:center; justify-content:space-between; gap:20px; }
+    .folder svg { width:58px; height:48px; fill:none; stroke:var(--ink); stroke-width:1.4; }
+    .count { color:var(--muted); font-size:15px; }
+    .folder h2 { margin:38px 0 16px; font-size:clamp(25px,3vw,34px); font-weight:600; letter-spacing:-.03em; line-height:1.2; }
+    .folder-label { margin-top:auto; font-size:16px; font-weight:500; text-decoration:underline; text-underline-offset:5px; }
+    .crumbs { display:flex; flex-wrap:wrap; gap:10px 20px; margin:0 0 36px; color:var(--muted); font-size:15px; }
+    .crumbs a { text-decoration:none; }.crumbs a:hover { text-decoration:underline; }
+    .library-header { display:flex; align-items:baseline; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+    .library-header h1 { font-size:clamp(36px,4vw,52px); }
+    .search { margin-top:36px; max-width:560px; }
+    .search label { display:block; font-size:16px; font-weight:500; margin-bottom:10px; }
+    .search input { width:100%; background:#fffefb; border:1px solid #c9cec5; border-radius:12px; padding:14px 16px; font-size:16px; }
+    .results-count { margin:18px 0 24px; color:var(--muted); font-size:15px; }
+    .documents { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+    .document { display:block; padding:26px; background:var(--surface); border-radius:18px; text-decoration:none; transition:background .18s; min-width:0; }
+    .document:hover { background:#e7ecdf; }
+    .document h2 { margin:0 0 12px; font-size:23px; line-height:1.25; letter-spacing:-.025em; font-weight:600; }
+    .document p { margin:0; color:var(--muted); font-size:16px; line-height:1.6; overflow-wrap:anywhere; }
+    .no-results { padding:32px; border-radius:18px; background:var(--surface); max-width:620px; }
+    .reader-header h1 { font-size:clamp(34px,4.5vw,54px); }
+    .reader-layout { display:grid; grid-template-columns:210px minmax(0,760px); gap:64px; align-items:start; margin-top:48px; }
+    .contents { position:sticky; top:28px; font-size:16px; }
+    .contents p { margin:0 0 16px; font-weight:600; }.contents a { display:block; margin:0 0 14px; color:var(--muted); text-decoration:none; line-height:1.4; }.contents a:hover { color:var(--ink); text-decoration:underline; }
+    article { min-width:0; font-size:18px; line-height:1.75; overflow-wrap:anywhere; }
+    article h2 { margin:64px 0 24px; font-size:32px; line-height:1.2; font-weight:600; letter-spacing:-.035em; scroll-margin-top:28px; }article h2:first-child { margin-top:0; }
+    article h3 { margin:40px 0 18px; font-size:24px; line-height:1.3; letter-spacing:-.02em; font-weight:600; }
+    article h4 { margin:28px 0 12px; font-size:19px; font-weight:600; line-height:1.5; }
+    article p { margin:0 0 20px; }article ul { padding-left:24px; margin:0 0 24px; }article li { padding-left:4px; margin:0 0 10px; }
+    article .speaker { color:var(--muted); font-weight:500; }
+    .source-links { margin-top:32px; padding:24px; background:var(--surface); border-radius:16px; font-size:16px; }
+    .reader-end { margin-top:48px; }.back-folder { display:inline-block; padding:14px 22px; border-radius:12px; background:var(--accent); text-decoration:none; font-weight:600; font-size:16px; }
+    footer { padding-block:20px 32px; }
+    @media(max-width:850px) { .reader-layout { grid-template-columns:1fr; gap:36px; }.contents { position:static; display:flex; flex-wrap:wrap; gap:12px 24px; }.contents p { flex-basis:100%; margin:0; }.contents a { margin:0; }.reader-layout article { max-width:760px; } }
+    @media(max-width:600px) { header,main,footer { width:calc(100% - 40px); }header { padding-block:22px; }header span { font-size:13px; }main { padding-top:28px; }.folders { grid-template-columns:1fr; gap:16px; margin-top:36px; }.folder { padding:26px; min-height:245px; }.documents { grid-template-columns:1fr; }.document { padding:24px; }.crumbs { margin-bottom:28px; }.reader-layout { margin-top:32px; }article { font-size:17px; }article h2 { font-size:28px; margin-top:48px; }article h3 { font-size:22px; }.library-header { gap:16px; } }
+    @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; }.folder:hover { transform:none; } }
+    @media print { header,footer,.crumbs,.contents,.reader-end { display:none; }main { width:100%; padding:0; }.reader-layout { display:block; }article { font-size:12pt; }h2,h3,h4 { break-after:avoid; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">К содержанию</a>
+  <header><a href="/#/landing">Главная</a><span>Исследование пользователей</span></header>
+  <main id="main" tabindex="-1"><p class="eyebrow">Customer development</p><h1>Результаты интервью</h1><p class="lead">Как люди готовятся к выступлениям, что им мешает и какая помощь нужна.</p></main>
+  <footer>Сцена без страха · Материалы исследования</footer>
+  <script type="application/json" id="research-data"><!-- CUSTOMER_DEVELOPMENT_DATA --></script>
+  <script>
+  (() => {
+    'use strict';
+    const data = JSON.parse(document.getElementById('research-data').textContent);
+    const main = document.getElementById('main');
+    document.querySelector('.skip').addEventListener('click', event => {
+      event.preventDefault(); main.focus(); main.scrollIntoView();
+    });
+    const queries = new Map();
+    const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const shortWords = /(?<![\p{L}\p{N}_])(а|и|в|во|к|ко|с|со|у|о|об|обо|от|до|за|из|по|на|не|ни|но|да|ли|же|бы|без|для|над|под|при|про|или|как|что|чем|я|ты|он|мы|вы|их|её|его|это)[ \t]+(?=[\p{L}\p{N}«„“"'(])/giu;
+    function typography(root) {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) walker.currentNode.data = walker.currentNode.data.replace(shortWords,'$1\u00a0');
+    }
+    const count = n => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'материал' : [2,3,4].includes(n % 10) && ![12,13,14].includes(n % 100) ? 'материала' : 'материалов'}`;
+    const folderIcon = '<svg viewBox="0 0 60 48" aria-hidden="true"><path d="M5 13V8a3 3 0 0 1 3-3h14l7 7h23a3 3 0 0 1 3 3v26a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V13Z"/><path d="M5 15h50"/></svg>';
+    let currentDocument = null;
+    function home() {
+      main.innerHTML = '<p class="eyebrow">Customer development</p><h1 tabindex="-1">Результаты интервью</h1><p class="lead">Как люди готовятся к выступлениям, что им мешает и какая помощь нужна.</p><div class="folders">' + data.folders.map(folder => `<a class="folder" href="#folder/${folder.id}"><div class="folder-top">${folderIcon}<span class="count">${count(data.documents.filter(d=>d.folder===folder.id).length)}</span></div><h2>${escape(folder.name)}</h2><span class="folder-label">Открыть папку</span></a>`).join('') + '</div>';
+    }
+    function cards(documents) {
+      return documents.map(doc => `<a class="document" href="#document/${doc.id}"><h2>${escape(doc.title)}</h2><p>${escape(doc.preview)}</p></a>`).join('');
+    }
+    function library(folder) {
+      const documents = data.documents.filter(d => d.folder === folder.id);
+      main.innerHTML = `<nav class="crumbs" aria-label="Навигация"><a href="#">Все материалы</a><a href="#folder/${data.folders.find(f=>f.id!==folder.id).id}">${escape(data.folders.find(f=>f.id!==folder.id).name)}</a></nav><div class="library-header"><h1 tabindex="-1">${escape(folder.name)}</h1><span class="count">${count(documents.length)}</span></div><div class="search"><label for="search">Поиск по материалам папки</label><input type="search" id="search" placeholder="Название, тема или фраза" autocomplete="off"></div><p class="results-count" aria-live="polite"></p><div class="documents"></div>`;
+      const input = main.querySelector('input');
+      const searchable = documents.map(doc => ({doc,text:(doc.title+' '+doc.blocks.map(b=>b.text).join(' ')).toLocaleLowerCase('ru')}));
+      const update = () => {
+        const query = input.value.trim().toLocaleLowerCase('ru');
+        queries.set(folder.id,input.value);
+        const found = searchable.filter(item => item.text.includes(query)).map(item=>item.doc);
+        main.querySelector('.results-count').textContent = query ? `Найдено: ${count(found.length)}` : 'Выбери документ, чтобы прочитать';
+        const list = main.querySelector('.documents');
+        list.innerHTML = found.length ? cards(found) : '<p class="no-results">Ничего не найдено. Попробуй другую тему или фразу.</p>';
+        typography(list);
+      };
+      input.value = queries.get(folder.id) || '';
+      input.addEventListener('input',update);
+      update();
+    }
+    function reader(doc) {
+      const folder = data.folders.find(f => f.id === doc.folder);
+      let section = 0, inList = false;
+      const toc = [];
+      let html = '';
+      for (const block of doc.blocks) {
+        if (inList && block.type !== 'li') { html += '</ul>'; inList = false; }
+        const text = escape(block.text);
+        if (block.type === 'li') { if (!inList) { html += '<ul>'; inList = true; }html += `<li>${text}</li>`; }
+        else if (block.type === 'h2') {
+          toc.push({id:++section,text:block.text.replace(/\.$/,'')});
+          html += `<h2 tabindex="-1" id="section-${section}">${escape(toc.at(-1).text)}</h2>`;
+        } else if (['h3','h4'].includes(block.type)) html += `<${block.type}>${escape(block.text.replace(/\.$/,''))}</${block.type}>`;
+        else html += `<p>${text.replace(/^((?:\d+\. )?(?:Интервьюер|Респондент(?: [RM]\d{3})?)(?::)?)(?=\s)/,'<strong class="speaker">$1</strong>')}</p>`;
+      }
+      if (inList) html += '</ul>';
+      if (doc.links.length) html += `<div class="source-links">${doc.links.map((url,i)=>`<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">${doc.links.length===1?'Связанный источник':`Связанный источник ${i+1}`}</a>`).join('<br>')}</div>`;
+      main.innerHTML = `<nav class="crumbs" aria-label="Навигация"><a href="#">Все материалы</a><a href="#folder/${folder.id}">${escape(folder.name)}</a></nav><div class="reader-header"><p class="eyebrow">${escape(folder.name)}</p><h1 tabindex="-1">${escape(doc.title)}</h1></div><div class="reader-layout"><nav class="contents" aria-label="Разделы документа"><p>В документе</p>${toc.map(s=>`<a href="#document/${doc.id}/${s.id}">${escape(s.text)}</a>`).join('')}</nav><article aria-label="Содержание документа">${html}<div class="reader-end"><a class="back-folder" href="#folder/${folder.id}">Вернуться в папку</a></div></article></div>`;
+    }
+    function render(initial = false) {
+      const [kind,id,section] = location.hash.slice(1).split('/');
+      const doc = kind === 'document' && data.documents.find(d=>d.id===id);
+      if (!(doc && currentDocument === doc.id)) {
+        currentDocument = doc ? doc.id : null;
+        const folder = kind === 'folder' && data.folders.find(f=>f.id===id);
+        if (doc) reader(doc);else if(folder) library(folder);else home();
+        typography(main);
+        document.title = `${doc ? doc.title : folder ? folder.name : 'Результаты интервью'} · Сцена без страха`;
+        if (!initial) { window.scrollTo(0,0);main.querySelector('h1').focus({preventScroll:true}); }
+      }
+      if (doc && /^\d+$/.test(section || '')) main.querySelector(`#section-${section}`)?.focus();
+    }
+    window.addEventListener('hashchange',()=>render());
+    render(true);
+  })();
+  </script>
+</body>
+</html>
