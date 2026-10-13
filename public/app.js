@@ -506,19 +506,24 @@ function practiceProgress(p, stage) {
         : 0;
   return `<nav aria-label="Этапы тренировки"><ol class="practice-progress">${labels.map((label, i) => `<li${i === index ? ' aria-current="step"' : ""}>${label}</li>`).join("")}</ol></nav>`;
 }
+function primaryRecommendation(report) {
+  const items = report.recommendations || [];
+  if (Number(report.schema_version) >= 2) {
+    const index = report.primary_recommendation_index;
+    return Number.isInteger(index) && index >= 0 ? items[index] || null : null;
+  }
+  return items[0] || null;
+}
 function repeatChoices(report) {
-  return [
-    { title: "Главное в этой попытке", text: report.insight },
-    ...(report.recommendations || []),
-  ].filter(
-    (item, index, all) =>
-      item.text &&
-      !all.slice(0, index).some((previous) => previous.text === item.text),
-  );
+  return (report.recommendations || []).map((item, index) => ({
+    ...item, text: item.action || item.text || "", recommendationIndex: index,
+  })).filter((item) => item.text);
 }
 function repeatPanel(p) {
   const recommendations = repeatChoices(p.report);
-  return `<section class="next-attempt"><div><h2>Примени рекомендацию в новой попытке</h2><p>Выбери, что хочешь улучшить. Сохраним тему, продолжительность и выбранный фокус.</p>${recommendations.length ? `<fieldset><legend>Фокус следующей попытки</legend><div class="focus-options">${recommendations.map((item, index) => `<label class="focus-option"><input type="radio" name="repeat-focus" value="${index}"${index === 0 ? " checked" : ""}><span><strong>${heading(item.title)}</strong><span class="focus-description">${escape(item.text)}</span></span></label>`).join("")}</div></fieldset>` : ""}<div class="actions">${button("Записать повторную попытку", "repeat")}${button("Выбрать другую тему", "new-topic", "secondary")}</div></div></section>`;
+  if (!recommendations.length) return "";
+  const chosen = recommendations.findIndex((item) => item.recommendationIndex === (p.report.recommendations || []).indexOf(primaryRecommendation(p.report)));
+  return `<details class="next-attempt"><summary>Выбрать фокус повторной попытки</summary><p>Выбери одну рекомендацию. Тема, настройки и твои критерии сохранятся; выбранный фокус добавим отдельно.</p><fieldset><legend>Фокус следующей попытки</legend><div class="focus-options">${recommendations.map((item, index) => `<label class="focus-option"><input type="radio" name="repeat-focus" value="${index}"${index === chosen ? " checked" : ""}><span><strong>${heading(item.title)}</strong><span class="focus-description">${escape(item.text)}</span></span></label>`).join("")}</div></fieldset><div class="actions">${button("Повторить с выбранным фокусом", "repeat-selected", "secondary")}</div></details>`;
 }
 async function history(offset = 0) {
   frame(
@@ -538,42 +543,68 @@ async function history(offset = 0) {
       );
   }
 }
+function evidenceOrigin(item) {
+  const rawIndex = item.segment_index ?? item.index;
+  const index = rawIndex === undefined || rawIndex === null || rawIndex === "" ? null : Number(rawIndex);
+  if (item.origin === "answer" || (index !== null && index > 0))
+    return index > 0 ? `Ответ на вопрос ${index}` : "Ответ";
+  return item.origin === "speech" || index === 0 ? "Выступление" : "Фрагмент записи";
+}
+function evidenceMarkup(item) {
+  return item.evidence ? `<figure class="report-evidence"><figcaption>${escape(evidenceOrigin(item))}</figcaption><blockquote>${escape(item.evidence)}</blockquote></figure>` : "";
+}
+function findingMarkup(item, actionFirst = false) {
+  const observation = item.observation || "";
+  const explanation = !observation && item.text ? item.text : "";
+  const action = item.action ? `<p class="report-action"><strong>Что попробовать</strong> ${escape(item.action)}</p>` : "";
+  return `${actionFirst ? action : ""}${observation ? `<p>${escape(observation)}</p>` : ""}${explanation ? `<p>${escape(explanation)}</p>` : ""}${evidenceMarkup(item)}${actionFirst ? "" : action}${item.example ? `<div class="report-example"><strong>Возможная формулировка</strong><p>${escape(item.example)}</p></div>` : ""}`;
+}
+function criterionStatus(status, basis) {
+  return { met: "Есть в записи", partial: "Частично", not_met: basis === "present" ? "Есть несоответствие критерию" : "Не найдено в расшифровке", unknown: "По этой записи нельзя оценить" }[status] || "По этой записи нельзя оценить";
+}
+function transcriptMarkup(report) {
+  if (report.transcript_segments?.length)
+    return report.transcript_segments.map((segment) => `<section class="transcript-segment"><h3>${escape(segment.kind === "speech" ? "Выступление" : `Ответ на вопрос ${segment.index}`)}</h3>${segment.question ? `<p class="transcript-question"><strong>Вопрос</strong> ${escape(segment.question)}</p>` : ""}<p>${escape(segment.text)}</p></section>`).join("");
+  return `<p>${escape(report.transcript || "Расшифровка недоступна")}</p>`;
+}
 function reportMarkup(report) {
-  return `<section class="report-insight"><h2>Главное в этой попытке</h2><p class="insight-copy">${escape(report.insight)}</p></section><div class="report-columns"><section><h2>Уже получается</h2>${(report.strengths || []).map((item) => reportItem(item, "strength")).join("") || "<p>Для вывода не хватило данных.</p>"}</section><section><h2>Что попробовать в следующей попытке</h2>${(report.recommendations || []).map((item) => reportItem(item, "recommendation")).join("") || "<p>Конкретных рекомендаций пока нет.</p>"}</section></div>${report.metrics?.length ? `<section class="report-metrics"><h2>Наблюдения</h2>${report.metrics.map((m) => `<article><span class="eyebrow">${escape(m.label)}</span><h3>${heading(m.title)}</h3><p>${escape(m.text)}</p></article>`).join("")}</section>` : ""}${report.criteria?.length ? `<section class="report-section"><h2>Выбранные критерии</h2>${report.criteria.map((c) => `<article class="criterion"><strong>${escape(c.criterion)}</strong><span class="tag">${{ met: "Есть в речи", partial: "Частично", not_met: "Не найдено", unknown: "Недостаточно данных" }[c.status] || "Недостаточно данных"}</span><p>${escape(c.evidence)}</p></article>`).join("")}</section>` : ""}${report.limitations?.length ? `<div class="notice"><strong>Границы разбора</strong><ul>${report.limitations.map((l) => `<li>${escape(l)}</li>`).join("")}</ul></div>` : ""}<details class="transcript"><summary>Расшифровка речи</summary><p>${escape(report.transcript)}</p></details>`;
+  const primary = primaryRecommendation(report);
+  const legacy = Number(report.schema_version || 1) < 2;
+  const main = primary
+    ? `<h2>Фокус следующей попытки</h2><h3 class="insight-copy">${heading(primary.title)}</h3>${legacy && report.insight ? `<p>${escape(report.insight)}</p>` : ""}${findingMarkup(primary, !legacy)}`
+    : `<h2>${legacy && report.insight ? "Главное в этой попытке" : "Эта попытка сохранена"}</h2><p class="insight-copy">${escape(legacy && report.insight ? report.insight : "Обоснованного фокуса для повтора пока нет. Можно прослушать запись и попробовать ещё раз.")}</p>`;
+  const observations = [...(report.strengths || []).map((item) => reportItem(item, "strength")), ...(report.recommendations || []).filter((item) => item !== primary).map((item) => reportItem(item, "recommendation"))].join("");
+  return `<section class="report-insight">${main}<div class="actions">${button(primary ? "Записать повторную попытку" : "Записать ещё одну попытку", "repeat")}</div></section>${observations ? `<section class="report-observations"><h2>Наблюдения по твоей речи</h2>${observations}</section>` : ""}${report.criteria?.length ? `<section class="report-section"><h2>Твои критерии</h2>${report.criteria.map((c) => `<article class="criterion"><h3>${heading(c.criterion)}</h3><p class="criterion-status">${criterionStatus(c.status, c.basis)}</p>${c.reason || c.text ? `<p>${escape(c.reason || c.text)}</p>` : ""}${evidenceMarkup(c)}</article>`).join("")}</section>` : ""}`;
+}
+function reportText(p) {
+  const report = p.report;
+  const primary = primaryRecommendation(report);
+  const sections = ["Сцена без страха", p.config.topic || "Твоя тренировка", date(p.created_at)];
+  const findingLines = (item) => [item.title, item.observation || item.text || "", item.evidence ? `${evidenceOrigin(item)}: «${item.evidence}»` : "", item.action ? `Что попробовать: ${item.action}` : "", item.example ? `Возможная формулировка: ${item.example}` : ""];
+  if (primary) sections.push("", "Фокус следующей попытки", ...findingLines(primary));
+  if (Number(report.schema_version || 1) < 2 && report.insight) sections.push("", "Главное в этой попытке", report.insight);
+  else if (!primary) sections.push("", "Обоснованного фокуса для повтора пока нет.");
+  for (const [label, items] of [["Уже получается", report.strengths], ["Что попробовать", (report.recommendations || []).filter((item) => item !== primary)]]) {
+    if (!items?.length) continue;
+    sections.push("", label);
+    for (const item of items) sections.push(...findingLines(item));
+  }
+  if (report.criteria?.length) {
+    sections.push("", "Твои критерии");
+    for (const c of report.criteria) sections.push(c.criterion, criterionStatus(c.status, c.basis), c.reason || c.text || "", c.evidence ? `${evidenceOrigin(c)}: ${c.evidence}` : "");
+  }
+  if (report.metrics?.length) {
+    sections.push("", "О записи");
+    for (const item of report.metrics) sections.push(item.label || "", item.title, item.text);
+  }
+  sections.push("", "Как читать разбор", "Разбор относится к тексту расшифровки. Голос, жесты и эмоции здесь не оцениваются.", ...(report.limitations || []), "", "Расшифровка");
+  if (report.transcript_segments?.length) {
+    for (const segment of report.transcript_segments) sections.push(segment.kind === "speech" ? "Выступление" : `Ответ на вопрос ${segment.index}`, segment.question ? `Вопрос: ${segment.question}` : "", segment.text);
+  } else sections.push(report.transcript || "");
+  return sections.filter((part) => part !== null && part !== undefined).join("\n");
 }
 function downloadReport(p) {
-  const report = p.report;
-  const sections = [
-    "Сцена без страха",
-    p.config.topic,
-    date(p.created_at),
-    "",
-    report.insight,
-  ];
-  for (const [label, items] of [
-    ["Уже получается", report.strengths],
-    ["Что попробовать", report.recommendations],
-    ["Наблюдения", report.metrics],
-  ]) {
-    sections.push("", label);
-    for (const item of items || [])
-      sections.push(
-        item.title,
-        item.text,
-        item.evidence ? `Фрагмент речи: ${item.evidence}` : "",
-      );
-  }
-  sections.push(
-    "",
-    "Границы разбора",
-    ...(report.limitations || []),
-    "",
-    "Расшифровка",
-    report.transcript || "",
-  );
-  const url = URL.createObjectURL(
-    new Blob([sections.join("\n")], { type: "text/plain;charset=utf-8" }),
-  );
+  const url = URL.createObjectURL(new Blob([reportText(p)], { type: "text/plain;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
   link.download = "разбор-выступления.txt";
@@ -581,16 +612,12 @@ function downloadReport(p) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function reportItem(item, cls) {
-  return `<article class="report-item ${cls}"><h3>${heading(item.title)}</h3>${item.evidence ? `<blockquote>${escape(item.evidence)}</blockquote>` : ""}<p>${escape(item.text)}</p></article>`;
+  return `<article class="report-item ${cls}"><p class="eyebrow">${cls === "strength" ? "Уже получается" : "Можно попробовать"}</p><h3>${heading(item.title)}</h3>${findingMarkup(item)}</article>`;
 }
 function reportPage(p) {
-  if (!state.user) {
-    go("/login");
-    return;
-  }
-  frame(
-    `${practiceProgress(p, "report")}<div class="page-heading"><p class="eyebrow">Разбор · ${escape(date(p.created_at))}</p><h1>${heading(p.config.topic || "Твоя тренировка")}</h1></div><p class="page-description">Прочитай наблюдения и рекомендации, затем выбери один фокус для повторной попытки.</p><div class="actions report-actions">${button("Выбрать фокус следующей попытки", "choose-focus")}${button("Скачать разбор", "download-report", "secondary")}</div>${reportMarkup(p.report)}<section class="report-section"><h2>Твои записи</h2>${mediaMarkup(p)}</section>${repeatPanel(p)}<form id="feedback-form" class="feedback-form"><h2>Был ли разбор полезен?</h2><fieldset><legend>Оценка от 1 до 5</legend><div class="ratings">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join("")}</div></fieldset><label><span class="label-title">Что стоит улучшить? <span class="optional">необязательно</span></span><textarea name="text" rows="3" maxlength="2000"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button secondary">Отправить отзыв</button></form>`,
-  );
+  if (!state.user) { go("/login"); return; }
+  const report = p.report;
+  frame(`<div class="report-reading">${practiceProgress(p, "report")}<div class="page-heading"><p class="eyebrow">Разбор · ${escape(date(p.created_at))}</p><h1>${heading(p.config.topic || "Твоя тренировка")}</h1></div><p class="page-description">Обратная связь по расшифровке твоей речи и сохранённых ответов.</p>${reportMarkup(report)}${repeatPanel(p)}<details class="report-detail transcript"><summary>Расшифровка и записи</summary>${transcriptMarkup(report)}<h3>Твои записи</h3>${mediaMarkup(p)}</details><details class="report-detail"><summary>О записи и границах разбора</summary>${report.metrics?.length ? `<div class="report-metrics">${report.metrics.map((m) => `<article><span class="eyebrow">${escape(m.label)}</span><h3>${heading(m.title)}</h3><p>${escape(m.text)}</p></article>`).join("")}</div>` : ""}<p>Разбор относится к тексту расшифровки. Голос, жесты и эмоции здесь не оцениваются.</p>${report.limitations?.length ? `<ul>${report.limitations.map((l) => `<li>${escape(l)}</li>`).join("")}</ul>` : ""}</details><div class="actions report-actions">${button("Скачать разбор", "download-report", "secondary")}${button("Выбрать другую тему", "new-topic", "text")}</div><details class="report-detail"><summary>Оставить отзыв о разборе</summary><form id="feedback-form" class="feedback-form"><h2>Был ли разбор полезен?</h2><fieldset><legend>Оценка от 1 до 5</legend><div class="ratings">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join("")}</div></fieldset><label><span class="label-title">Что стоит улучшить? <span class="optional">необязательно</span></span><textarea name="text" rows="3" maxlength="2000"></textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button secondary">Отправить отзыв</button></form></details></div>`);
 }
 function playback(url, video = false) {
   const tag = video ? "video" : "audio";
@@ -1772,19 +1799,22 @@ async function action(event) {
         await history();
         break;
       }
+      case "repeat-selected":
       case "repeat": {
-        const selected = Number(
-          document.querySelector('input[name="repeat-focus"]:checked')?.value ||
-            0,
-        );
-        const recommendation = repeatChoices(state.practice.report)[selected];
+        const selected = document.querySelector('input[name="repeat-focus"]:checked')?.value;
+        if (name === "repeat-selected" && selected === undefined) {
+          notify("Выбери рекомендацию для повторной попытки.");
+          break;
+        }
+        const recommendation = selected === undefined ? null : repeatChoices(state.practice.report)[Number(selected)];
         if (!state.user.onboarding_completed) {
           const data = await api.completeOnboarding();
           state.user = data.user;
         }
         const p = await api.createPractice({
           ...state.practice.config,
-          criteria: recommendation?.text || state.practice.config.criteria,
+          repeat_source_id: state.practice.id,
+          repeat_recommendation_index: recommendation?.recommendationIndex ?? null,
         });
         go(`/practice/${encodeURIComponent(p.id)}`);
         break;

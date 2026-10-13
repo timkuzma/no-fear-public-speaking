@@ -29,24 +29,75 @@ def create_fixture(directory, origin='http://localhost:8094'):
     async def transcribe(*args, **kwargs):
         return {'text': text, 'duration_seconds': 1, 'usage': usage}
 
-    async def questions(*args, **kwargs):
-        return {'questions': ['Как проект помогает студенту подготовиться к защите?',
-                              'Какой пример объясняет решение задачи?',
-                              'Как студент проверяет свои аргументы?'], 'usage': usage}
+    async def questions(config, transcript, **kwargs):
+        texts = ['Как проект помогает студенту подготовиться к защите?',
+                 'Какой пример объясняет решение задачи?',
+                 'Как студент проверяет свои аргументы?']
+        candidates = ai._quote_candidates([{'index': 0, 'kind': 'speech', 'text': transcript}])
+        items = []
+        for index, question in enumerate(texts):
+            quote = candidates[min(index, len(candidates) - 1)]
+            items.append({'text': question, 'evidence': quote['text'], 'evidence_id': quote['id'],
+                          **{key: quote[key] for key in ('segment_index', 'origin', 'transcript_revision', 'start_char', 'end_char')}})
+        return {'questions': texts, 'usage': usage,
+                'provenance': {'context_schema_version': ai.feedback_prompts.CONTEXT_VERSION,
+                               'prompt_version': ai.feedback_prompts.QUESTIONS_VERSION,
+                               'transcript_revision': ai.build_context('questions', config, [{'index': 0, 'kind': 'speech', 'text': transcript}])['transcript_revision'],
+                               'chat_model': 'fixture', 'items': items}}
 
-    async def analyze(*args, **kwargs):
-        return {'report': {'demo': False, 'insight': 'Подкрепи главную мысль конкретным примером',
-                'metrics': [{'title': 'Структура', 'text': 'Идея и пример сохранены в расшифровке', 'label': 'По тексту'}],
-                'strengths': [{'title': 'Понятная задача', 'text': 'Ты объясняешь, кому помогает проект',
-                               'evidence': 'Мой проект помогает студентам готовиться к защите.'}],
-                'recommendations': [{'title': 'Раскрой пример', 'text': 'Опиши одну задачу студента и результат подготовки',
-                                    'evidence': 'Например, он объясняет решение задачи и проверяет, понятны ли аргументы.'}],
-                'criteria': [], 'limitations': ['Тестовый провайдер: проверяется путь пользователя, а не качество AI'],
-                'transcript': text}, 'usage': usage}
+    faults = {'fail': False, 'lose': False, 'report': 'normal'}
+
+    async def analyze(config, segments, **kwargs):
+        # Synthetic contract fixtures: these test UI states, not coaching quality.
+        candidates = ai._quote_candidates(segments)
+        first = candidates[0]
+        provenance = lambda q: {'evidence': q['text'], 'evidence_id': q['id'],
+                                'segment_index': q['segment_index'], 'origin': q['origin'],
+                                'transcript_revision': q['transcript_revision'],
+                                'start_char': q['start_char'], 'end_char': q['end_char']}
+        recommendations = [{'title': 'Уточни связь идеи и применения',
+                            'observation': 'Ты называешь, кому помогает проект.',
+                            'action': 'Повтори эту мысль в одной фразе, сохранив смысл.',
+                            'example': None, **provenance(first)}]
+        answer = next((q for q in candidates if q['origin'] == 'answer'), None)
+        if answer:
+            recommendations.append({'title': 'Сделай ответ короче',
+                                    'observation': 'В ответе есть самостоятельная мысль.',
+                                    'action': 'Повтори эту мысль отдельно от остальных деталей.',
+                                    'example': None, **provenance(answer)})
+        for item in recommendations:
+            item['text'] = f"{item['observation']} {item['action']}"
+        report = {'schema_version': 2, 'demo': False,
+                  'primary_recommendation_index': len(recommendations) - 1,
+                  'insight': recommendations[-1]['action'],
+                  'metrics': [{'title': 'Объём расшифровки', 'text': 'Тестовые данные', 'label': 'По распознанному тексту'}],
+                  'strengths': [{'title': 'Назван адресат', 'observation': 'В этой фразе назван студент.',
+                                 'text': 'В этой фразе назван студент.', **provenance(first)}],
+                  'recommendations': recommendations,
+                  'criteria': [],
+                  'provenance': {'publisher_policy': 'withhold_unreviewed_rewrites-v1',
+                                 'report_prompt_version': ai.feedback_prompts.REPORT_VERSION},
+                  'limitations': ['Тестовый провайдер: проверяется путь пользователя, а не качество AI'],
+                  'transcript': '\n\n'.join(s['text'] for s in segments),
+                  'transcript_segments': [{**s, 'origin': 'speech' if s['index'] == 0 else 'answer',
+                                           'transcript_revision': ai.transcript_revision(s['text'])} for s in segments]}
+        if faults['report'] == 'sparse':
+            report.update(strengths=[], recommendations=[], primary_recommendation_index=None, insight=None)
+        if faults['report'] == 'unknown' or config.get('criteria'):
+            report['criteria'] = [{'criterion': config.get('criteria') or 'Жесты', 'status': 'unknown',
+                                   'basis': 'unknown', 'reason': 'В разборе доступна только расшифровка.',
+                                   'evidence': ''}]
+        if faults['report'] == 'legacy':
+            report.pop('schema_version')
+            report.pop('primary_recommendation_index')
+            report.pop('transcript_segments')
+            report.pop('provenance')
+            report['insight'] = 'Сохранённый главный вывод старого отчёта'
+            report['recommendations'][0]['example'] = first['text']
+        return {'report': report, 'usage': usage}
 
     ai.transcribe, ai.generate_questions, ai.analyze = transcribe, questions, analyze
     app = create_app()
-    faults = {'fail': False, 'lose': False}
 
     @app.middleware('http')
     async def fault(request, call_next):
@@ -59,6 +110,13 @@ def create_fixture(directory, origin='http://localhost:8094'):
             faults['lose'] = False
             return JSONResponse({'error': {'code': 'TEST_LOST_RESPONSE', 'message': 'Тестовая потеря ответа после сохранения'}}, status_code=502)
         return response
+
+    @app.post('/__test__/report-kind/{kind}')
+    async def report_kind(kind: str):
+        if kind not in {'normal', 'sparse', 'unknown', 'legacy'}:
+            return JSONResponse({'error': 'Unknown synthetic report state'}, status_code=400)
+        faults['report'] = kind
+        return {'ok': True}
 
     @app.post('/__test__/fail')
     async def fail():
