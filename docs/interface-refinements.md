@@ -39,3 +39,11 @@ The final regression suite passed 125 tests; a subsequent focused backend/auth c
 The HTTPS browser redirected `#/guest` to registration, with no guest/privacy links or consent control. The corrected registration heading and invitation field were visible. Temporary viewport/reduced-motion overrides were reset after screenshots. Production invitations remain required; this release changes anonymous practice entry, not invitation issuance.
 
 The default previous image is the `e4193e1` release, which already supports false historical consent values. A separate older-interface rollback image with compatible server behavior is also available as `no-fear-stage:e4193e1-rollback-ui` (`sha256:fe7a77037ec5a4c7458b4eecdcb0c94689f1bb3412c9e579fa3bacb82bc07afe`). Very old server images predating consent-control removal still need the compatibility procedure above. No Git push was performed.
+
+## Product FAQ publication, 13 October 2026
+
+The seven preparation-focused FAQ pairs from source `bf1be1f` are published in image `sha256:81c735e02bed6dc1352964d8bf3036d78eea4a9b062e4870c96fb16a2d4bbc31`. This image reuses the exact verified `a8ce99a` backend image above and replaces only public assets; the previous image retained for rollback is `sha256:2f28d5d14140d2c8bf2a7a9aaf4be76cf2fbd7b05114394307de1ab4106a0335`. Registration, historical consent handling, data and runtime settings are unchanged.
+
+The controller reported success with a verified backup. External readiness returned 200 with both workers alive and maintenance disabled. Public HTML and app.js hashes matched `bf1be1f`; HTML references `app.js?v=20261013-product-faq`. The public source and rendered page contained all seven new questions.
+
+HTTPS browser checks verified Enter disclosure, readable 16px answers, 1440 and 375 CSS-pixel layouts without horizontal overflow, and working disclosure under reduced motion with zero active animations. No browser console errors were reported. The landing still had no guest or privacy links. Screenshots are ignored artifacts under `outputs/test-artifacts/product-faq/`. Node syntax checks and diff whitespace checks passed; this copy-only release did not repeat backend/provider testing or make AI calls. No Git push was performed.
