@@ -165,9 +165,9 @@ function landing() {
       <div class="landing-feature-copy"><p class="landing-kicker">Знакомая обстановка</p><h2 id="meeting-title">Говори так, как будешь говорить на встрече</h2><p>Микрофон, камера по желанию и слушатели перед тобой. После выступления вопросы появляются в чате этой же встречи.</p><ul class="landing-feature-list"><li><strong>Запись сохраняется</strong><span>После завершения выступления можно вернуться к своей попытке.</span></li><li><strong>Вопросы по твоим словам</strong><span>Вопросы относятся к тому, что ты рассказал.</span></li><li><strong>Один фокус для повторения</strong><span>В разборе выбираешь рекомендацию для следующей тренировки.</span></li></ul></div>
     </section>
     <section class="landing-method" aria-labelledby="method-title">
-      <div class="landing-section-heading"><p class="landing-kicker">Путь тренировки</p><h2 id="method-title">От первой минуты к следующей попытке</h2></div>
+      <div class="landing-section-heading"><p class="landing-kicker">Путь тренировки</p><h2 id="method-title">От выступления к разбору и новой попытке</h2></div>
       <ol class="landing-process">
-        <li><span class="landing-step">1</span><h3>Запиши выступление</h3><p>Начни с минуты речи. Для своей задачи можно выбрать тему, сценарий и продолжительность.</p></li>
+        <li><span class="landing-step">1</span><h3>Запиши выступление</h3><p>Выбери тему и время выступления, затем запиши свою речь. Можно закончить раньше.</p></li>
         <li><span class="landing-step">2</span><h3>Ответь на вопросы</h3><p>Три вопроса по содержанию появятся в чате. Запиши ответы и получи разбор речи с цитатами.</p></li>
         <li><span class="landing-step">3</span><h3>Попробуй ещё раз</h3><p>Выбери одну рекомендацию. Тема и фокус перейдут в новую тренировку.</p></li>
       </ol>
@@ -185,7 +185,7 @@ function landing() {
         <details><summary>Как понять, что следующая попытка стала лучше?</summary><div><p>Выбери одну рекомендацию и проверь конкретное изменение. Если решишь добавить пример, сравни, легче ли теперь понять твой аргумент. Если уточнишь вывод, проверь, ясно ли, какую мысль должен запомнить слушатель. Записи и разборы сохраняются в истории, чтобы ты мог вернуться к предыдущей попытке.</p></div></details>
       </div>
     </section>
-    <section class="landing-final" aria-labelledby="final-title"><div><p class="landing-kicker">Перед важным днём есть время попробовать</p><h2 id="final-title">Начни с одной минуты своей речи</h2><p>Первое упражнение уже подготовлено. Можно закончить раньше или настроить тренировку под себя.</p>${startLink("Начать тренировку", "primary landing-cta")}</div></section>`,
+    <section class="landing-final" aria-labelledby="final-title"><div><p class="landing-kicker">Перед важным днём есть время попробовать</p><h2 id="final-title">Отрепетируй своё выступление</h2><p>Время выступления выбираешь ты. Запиши речь на свою тему и получи разбор.</p>${startLink("Начать тренировку", "primary landing-cta")}</div></section>`,
     "landing",
   );
   landingCleanup = mountLandingMotion(document.querySelector(".landing"));
