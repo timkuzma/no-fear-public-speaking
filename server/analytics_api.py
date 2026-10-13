@@ -204,6 +204,11 @@ def install(app,store,auth,check_origin,practice_json):
         counts={}
         for a in data['accounts']:counts[a['source']]=counts.get(a['source'],0)+1
         data['accounts_by_source']=counts
+        def choices():
+            sources=store.all("SELECT source FROM acquisition_touches UNION SELECT platform source FROM marketing_stats UNION SELECT 'unknown' source ORDER BY source LIMIT 200")
+            campaigns=store.all("SELECT id,MAX(name) name FROM (SELECT coalesce(nullif(campaign_id,''),campaign) id,campaign name FROM acquisition_touches UNION ALL SELECT campaign_id id,campaign_name name FROM marketing_stats) WHERE id<>'' GROUP BY id ORDER BY name,id LIMIT 500")
+            return {'sources':[r['source'] for r in sources],'campaigns':campaigns}
+        data['filter_options']=await asyncio.to_thread(choices)
         data.pop('practices',None);data.pop('accounts',None);data.pop('account_roster',None);data.pop('active_account_ids',None);data.pop('observed_memberships',None)
         return data
 

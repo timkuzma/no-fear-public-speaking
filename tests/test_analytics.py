@@ -308,3 +308,14 @@ def test_optional_analytics_flags_do_not_block_product(setup,monkeypatch):
     assert owner.get('/api/admin/analytics/report').status_code==403
     assert owner.get('/api/auth/me').json()['user']['analytics_access'] is False
     assert owner.post('/api/practices',headers=h,json={'scenario':'speech','duration':1,'questions':False}).status_code==200
+
+
+def test_named_filter_choices_are_private_and_come_from_observed_data(setup):
+    app,owner,other,*_=setup;visitor=TestClient(app)
+    payload={'touch':{'source':'vk','medium':'cpc','campaign_id':'campaign-a','campaign':'Campaign A'},'events':[{'id':uuid.uuid4().hex,'kind':'page_viewed','data':{'route_id':'/landing'}}]}
+    assert visitor.post('/api/analytics/events',json=payload).status_code==200
+    result=owner.get('/api/admin/analytics/report').json()['filter_options']
+    assert 'vk' in result['sources'] and 'unknown' in result['sources']
+    assert {'id':'campaign-a','name':'Campaign A'} in result['campaigns']
+    assert 'owner@example.test' not in json.dumps(result)
+    assert other.get('/api/admin/analytics/report').status_code==403

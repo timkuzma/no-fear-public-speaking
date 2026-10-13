@@ -1,7 +1,7 @@
-import { track, trackPage, analyticsActor, observeReport, flush } from "./analytics.js?v=20261013-analytics-3";
+import { track, trackPage, analyticsActor, observeReport, flush } from "./analytics.js?v=20261013-analytics-5";
 import { installTypography } from "./typography.js?v=20261013-type";
 import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-stable-scroll";
-import { api } from "./api.js?v=20261013-analytics-3";
+import { api } from "./api.js?v=20261013-analytics-5";
 import { LiveAudioCapture } from "./live-audio.js?v=20261013-asr-5s";
 import {
   saveDraft,
@@ -1677,7 +1677,7 @@ async function navigate() {
   }
   if (path === "/admin/analytics") {
     if(!state.user.analytics_access){frame('<h1>Доступ не предоставлен</h1><p>Аналитика доступна владельцу платформы.</p>');return}
-    const module=await import("./admin-analytics.js?v=20261013-analytics-3");
+    const module=await import("./admin-analytics.js?v=20261013-analytics-5");
     if(version===state.routeVersion)await module.mountAdmin(frame);return;
   }
   if (path === "/app") {if(typeof trackPage==="function")trackPage(path);return setup()}
