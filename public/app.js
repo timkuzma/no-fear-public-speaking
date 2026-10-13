@@ -1,5 +1,5 @@
 import { installTypography } from "./typography.js?v=20261013-type";
-import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-refine";
+import { mountLandingMotion, animateContextChange } from "./landing-motion.js?v=20261013-stable-scroll";
 import { api } from "./api.js?v=20261013-wording-24";
 import { LiveAudioCapture } from "./live-audio.js?v=20261013-asr-5s";
 import {
@@ -142,16 +142,16 @@ function landing() {
   frame(
     `<section class="landing-hero" aria-labelledby="landing-title">
       <div class="landing-hero-copy">
-        <p class="landing-kicker" data-enter>Сцена без страха · Репетиция выступлений</p>
-        <h1 id="landing-title" data-enter>Отрепетируй речь до встречи с аудиторией</h1>
-        <p class="landing-lead" data-enter>Запиши выступление, ответь на вопросы по сказанному и выбери, что улучшить в следующей попытке.</p>
-        <p class="landing-start-note" data-enter>${state.user ? "Твоя следующая попытка останется в истории тренировок." : `Зарегистрируйся или войди, чтобы записать выступление и получить разбор.${state.inviteRequired ? " Для регистрации нужен код приглашения от организатора." : ""}`}</p>
-        <div class="landing-hero-actions" data-enter>${startLink("Начать тренировку", "primary landing-cta")}</div>
+        <p class="landing-kicker">Сцена без страха · Репетиция выступлений</p>
+        <h1 id="landing-title">Отрепетируй речь до встречи с аудиторией</h1>
+        <p class="landing-lead">Запиши выступление, ответь на вопросы по сказанному и выбери, что улучшить в следующей попытке.</p>
+        ${state.user ? "" : `<p class="landing-start-note">Зарегистрируйся или войди, чтобы записать выступление и получить разбор.${state.inviteRequired ? " Для регистрации нужен код приглашения от организатора." : ""}</p>`}
+        <div class="landing-hero-actions">${startLink("Начать тренировку", "primary landing-cta")}</div>
       </div>
     </section>
     <section class="landing-contexts landing-light" id="landing-contexts" aria-labelledby="contexts-title">
-      <div class="landing-section-heading" data-reveal><p class="landing-kicker">Под твою задачу</p><h2 id="contexts-title">Когда важно объяснить свою мысль</h2><p>Выбери ситуацию и посмотри, на чём можно сосредоточиться в тренировке.</p></div>
-      <div class="landing-context-grid" role="group" aria-label="Ситуация для тренировки" data-reveal>
+      <div class="landing-section-heading"><p class="landing-kicker">Под твою задачу</p><h2 id="contexts-title">Когда важно объяснить свою мысль</h2><p>Выбери ситуацию и посмотри, на чём можно сосредоточиться в тренировке.</p></div>
+      <div class="landing-context-grid" role="group" aria-label="Ситуация для тренировки">
         ${[
           ["speech", "Выступление", "Главная мысль и понятные аргументы"],
           ["defense", "Защита проекта", "Идея, решение и вопросы к ним"],
@@ -161,21 +161,21 @@ function landing() {
       <div class="landing-context-panel" id="landing-context-panel"><div class="landing-context-copy" id="landing-context-copy" aria-live="polite">${["speech", "defense", "free"].map((key) => `<div data-context-copy="${key}" aria-hidden="${key !== "speech"}">${landingContextCopy(key)}</div>`).join("")}</div>${startLink("Начать тренировку", "secondary")}</div>
     </section>
     <section class="landing-meeting landing-light" aria-labelledby="meeting-title">
-      <figure class="landing-meeting-visual" data-reveal><div class="landing-meeting-frame"><div class="landing-meeting-caption"><span>Пространство для репетиции</span><span>Твоё выступление</span></div><img src="/audience-meeting-v1.png" width="1536" height="1024" alt="Иллюстрация виртуальной аудитории в переговорной" loading="lazy"><div class="landing-meeting-tools" aria-hidden="true">${deviceIcon("mic")}${deviceIcon("camera")}</div></div></figure>
-      <div class="landing-feature-copy" data-reveal><p class="landing-kicker">Знакомая обстановка</p><h2 id="meeting-title">Говори так, как будешь говорить на встрече</h2><p>Микрофон, камера по желанию и слушатели перед тобой. После выступления вопросы появляются в чате этой же встречи.</p><ul class="landing-feature-list"><li><strong>Запись сохраняется</strong><span>После завершения выступления можно вернуться к своей попытке.</span></li><li><strong>Вопросы по твоим словам</strong><span>Вопросы относятся к тому, что ты рассказал.</span></li><li><strong>Один фокус для повторения</strong><span>В разборе выбираешь рекомендацию для следующей тренировки.</span></li></ul></div>
+      <figure class="landing-meeting-visual"><div class="landing-meeting-frame"><div class="landing-meeting-caption"><span>Пространство для репетиции</span><span>Твоё выступление</span></div><img src="/audience-meeting-v1.png" width="1536" height="1024" alt="Иллюстрация виртуальной аудитории в переговорной" loading="lazy"><div class="landing-meeting-tools" aria-hidden="true">${deviceIcon("mic")}${deviceIcon("camera")}</div></div></figure>
+      <div class="landing-feature-copy"><p class="landing-kicker">Знакомая обстановка</p><h2 id="meeting-title">Говори так, как будешь говорить на встрече</h2><p>Микрофон, камера по желанию и слушатели перед тобой. После выступления вопросы появляются в чате этой же встречи.</p><ul class="landing-feature-list"><li><strong>Запись сохраняется</strong><span>После завершения выступления можно вернуться к своей попытке.</span></li><li><strong>Вопросы по твоим словам</strong><span>Вопросы относятся к тому, что ты рассказал.</span></li><li><strong>Один фокус для повторения</strong><span>В разборе выбираешь рекомендацию для следующей тренировки.</span></li></ul></div>
     </section>
     <section class="landing-method" aria-labelledby="method-title">
-      <div class="landing-section-heading" data-reveal><p class="landing-kicker">Путь тренировки</p><h2 id="method-title">От первой минуты к следующей попытке</h2></div>
+      <div class="landing-section-heading"><p class="landing-kicker">Путь тренировки</p><h2 id="method-title">От первой минуты к следующей попытке</h2></div>
       <ol class="landing-process">
-        <li data-reveal><span class="landing-step">1</span><h3>Запиши выступление</h3><p>Начни с минуты речи. Для своей задачи можно выбрать тему, сценарий и продолжительность.</p></li>
-        <li data-reveal><span class="landing-step">2</span><h3>Ответь на вопросы</h3><p>Три вопроса по содержанию появятся в чате. Запиши ответы и получи разбор речи с цитатами.</p></li>
-        <li data-reveal><span class="landing-step">3</span><h3>Попробуй ещё раз</h3><p>Выбери одну рекомендацию. Тема и фокус перейдут в новую тренировку.</p></li>
+        <li><span class="landing-step">1</span><h3>Запиши выступление</h3><p>Начни с минуты речи. Для своей задачи можно выбрать тему, сценарий и продолжительность.</p></li>
+        <li><span class="landing-step">2</span><h3>Ответь на вопросы</h3><p>Три вопроса по содержанию появятся в чате. Запиши ответы и получи разбор речи с цитатами.</p></li>
+        <li><span class="landing-step">3</span><h3>Попробуй ещё раз</h3><p>Выбери одну рекомендацию. Тема и фокус перейдут в новую тренировку.</p></li>
       </ol>
-      <div class="landing-method-action" data-reveal>${startLink("Начать тренировку", "primary landing-cta")}</div>
+      <div class="landing-method-action">${startLink("Начать тренировку", "primary landing-cta")}</div>
     </section>
     <section class="landing-faq landing-light" aria-labelledby="faq-title">
-      <div class="landing-faq-heading" data-reveal><p class="landing-kicker">Перед важным выступлением</p><h2 id="faq-title">Как репетиция поможет тебе подготовиться</h2><p>О том, что попробовать до выступления и как использовать обратную связь.</p></div>
-      <div class="landing-faq-list" data-reveal>
+      <div class="landing-faq-heading"><p class="landing-kicker">Перед важным выступлением</p><h2 id="faq-title">Как репетиция поможет тебе подготовиться</h2><p>О том, что попробовать до выступления и как использовать обратную связь.</p></div>
+      <div class="landing-faq-list">
         <details><summary>До выступления мало времени. С чего начать?</summary><div><p>Начни с короткой репетиции любого фрагмента своего выступления. После вопросов и разбора выбери одну рекомендацию для следующей попытки — например, уточнить вывод. Так у тебя будет понятная задача для оставшегося времени вместо попытки переделать всё выступление сразу.</p></div></details>
         <details><summary>Я знаю тему, но говорю сумбурно. Как это исправить?</summary><div><p>Запиши объяснение своими словами. При желании укажи, на что обратить внимание в разборе. Разбор даст замечания по содержанию и рекомендации с фрагментами твоей речи. Их можно использовать, чтобы перестроить объяснение, добавить недостающий пример и попробовать рассказать ещё раз.</p></div></details>
         <details><summary>Боюсь растеряться на вопросах. Как их отрепетировать?</summary><div><p>После выступления появятся три вопроса по тому, что ты рассказал. Ты сможешь проговорить ответы и получить разбор вместе с основной речью. Это возможность заранее потренироваться объяснять свою мысль и подкреплять её аргументами. Вопросы реальной аудитории могут отличаться.</p></div></details>
@@ -185,7 +185,7 @@ function landing() {
         <details><summary>Как понять, что следующая попытка стала лучше?</summary><div><p>Выбери одну рекомендацию и проверь конкретное изменение. Если решишь добавить пример, сравни, легче ли теперь понять твой аргумент. Если уточнишь вывод, проверь, ясно ли, какую мысль должен запомнить слушатель. Записи и разборы сохраняются в истории, чтобы ты мог вернуться к предыдущей попытке.</p></div></details>
       </div>
     </section>
-    <section class="landing-final" aria-labelledby="final-title"><div data-reveal><p class="landing-kicker">Перед важным днём есть время попробовать</p><h2 id="final-title">Начни с одной минуты своей речи</h2><p>Первое упражнение уже подготовлено. Можно закончить раньше или настроить тренировку под себя.</p>${startLink("Начать тренировку", "primary landing-cta")}</div></section>`,
+    <section class="landing-final" aria-labelledby="final-title"><div><p class="landing-kicker">Перед важным днём есть время попробовать</p><h2 id="final-title">Начни с одной минуты своей речи</h2><p>Первое упражнение уже подготовлено. Можно закончить раньше или настроить тренировку под себя.</p>${startLink("Начать тренировку", "primary landing-cta")}</div></section>`,
     "landing",
   );
   landingCleanup = mountLandingMotion(document.querySelector(".landing"));
