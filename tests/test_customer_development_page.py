@@ -51,7 +51,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(blocks[0]['text'],'1. Интервьюер Расскажите о последнем выступлении и ставках.')
         self.assertEqual(blocks[1]['text'],'Респондент M001 Это была защита моей работы.')
 
-    def test_rewritten_conclusion_preserves_answers_and_sources(self):
+    def test_rewritten_conclusion_preserves_answers_and_removes_related_sources(self):
         answer = 'Респондент M001 В самой работе это не проверялось.'
         doc = {'id':'M001', 'blocks':[
             {'type':'h2','text':'Вопрос-ответ'}, {'type':'p','text':answer},
@@ -65,7 +65,8 @@ class PublicationTests(unittest.TestCase):
         audit = builder.apply_conclusions([doc],editorial)
         texts = [b['text'] for b in doc['blocks']]
         self.assertIn(answer,texts)
-        self.assertIn('Источник',texts)
+        self.assertNotIn('Источник',texts)
+        self.assertNotIn('Связанные материалы',texts)
         self.assertIn('Интервьюер: Что это значит?',texts)
         self.assertNotIn('Это только одно интервью.',texts)
         self.assertEqual(len(audit[0]['finding_evidence']),4)
@@ -110,9 +111,9 @@ class PublicationTests(unittest.TestCase):
                     self.assertNotIn(block['text'],builder.ACTION_STARTS)
                     self.assertNotIn(block['text'],('Ограничения исследования','Что пока нельзя утверждать'))
                 self.assertFalse(builder.INLINE_ACTION.match(block['text']))
-            if doc['id'].startswith('M'):
-                self.assertEqual(len(doc['links']),1)
-                self.assertIn('Связанные материалы',[b['text'] for b in doc['blocks']])
+            self.assertNotIn('links',doc)
+            self.assertNotIn('Связанные материалы',texts)
+            self.assertFalse(any('https://' in text or 'http://' in text for text in texts))
         for id in ('R013','R017','R018'):
             self.assertIn('Расшифровка',[b['text'] for d in docs if d['id']==id for b in d['blocks']])
         self.assertNotIn('<',raw)

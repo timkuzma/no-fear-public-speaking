@@ -55,7 +55,6 @@
     article h4 { margin:28px 0 12px; font-size:19px; font-weight:600; line-height:1.5; }
     article p { margin:0 0 20px; }article ul { padding-left:24px; margin:0 0 24px; }article li { padding-left:4px; margin:0 0 10px; }
     article .speaker { color:var(--muted); font-weight:500; }
-    .source-links { margin-top:32px; padding:24px; background:var(--surface); border-radius:16px; font-size:16px; }
     .reader-end { margin-top:48px; }.back-folder { display:inline-block; padding:14px 22px; border-radius:12px; background:var(--accent); text-decoration:none; font-weight:600; font-size:16px; }
     footer { padding-block:20px 32px; }
     @media(max-width:850px) { .reader-layout { grid-template-columns:1fr; gap:36px; }.contents { position:static; display:flex; flex-wrap:wrap; gap:12px 24px; }.contents p { flex-basis:100%; margin:0; }.contents a { margin:0; }.reader-layout article { max-width:760px; } }
@@ -128,7 +127,6 @@
         else html += `<p>${text.replace(/^((?:\d+\. )?(?:Интервьюер|Респондент [RM]\d{3}|Респондент:)(?::)?)(?=\s)/,'<strong class="speaker">$1</strong>')}</p>`;
       }
       if (inList) html += '</ul>';
-      if (doc.links.length) html += `<div class="source-links">${doc.links.map((url,i)=>`<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">${doc.links.length===1?'Связанный источник':`Связанный источник ${i+1}`}</a>`).join('<br>')}</div>`;
       main.innerHTML = `<nav class="crumbs" aria-label="Навигация"><a href="#">Все материалы</a><a href="#folder/${folder.id}">${escape(folder.name)}</a></nav><div class="reader-header"><p class="eyebrow">${escape(folder.name)}</p><h1 tabindex="-1">${escape(doc.title)}</h1></div><div class="reader-layout"><nav class="contents" aria-label="Разделы документа"><p>В документе</p>${toc.map(s=>`<a href="#document/${doc.id}/${s.id}">${escape(s.text)}</a>`).join('')}</nav><article aria-label="Содержание документа">${html}<div class="reader-end"><a class="back-folder" href="#folder/${folder.id}">Вернуться в папку</a></div></article></div>`;
     }
     function render(initial = false) {

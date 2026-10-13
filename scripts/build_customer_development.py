@@ -96,7 +96,7 @@ def apply_conclusions(documents, editorial):
                     continue
             if replacing:
                 if block['type'] == 'h3':
-                    preserved_subsection = block['text'] in ('Связанные материалы', 'Важные цитаты')
+                    preserved_subsection = block['text'] == 'Важные цитаты'
                 if preserved_subsection:
                     result.append(block)
                 continue
@@ -182,10 +182,9 @@ def extract_archive(archive):
             group = next((key for key, label in GROUPS if label == parts[-2]), None)
             if group is None:
                 raise ValueError(f'Unexpected archive folder: {name}')
-            lines, links = [], []
+            lines = []
             with pdfplumber.open(io.BytesIO(z.read(name))) as pdf:
                 for pi, page in enumerate(pdf.pages):
-                    links.extend(a['uri'] for a in page.hyperlinks if a.get('uri','').startswith('https://'))
                     for line in page.extract_text_lines():
                         chars = line['chars']
                         size = max(round(c['size'], 1) for c in chars)
@@ -216,8 +215,7 @@ def extract_archive(archive):
                 preview = preview[:177].rsplit(' ', 1)[0] + '…'
             documents.append({'id':code, 'folder':group, 'title':f'Интервью {number}',
                               'catalog_number':number, 'source_title':title,
-                              'filename':parts[-1], 'preview':preview, 'blocks':blocks,
-                              'links':list(dict.fromkeys(links))})
+                              'filename':parts[-1], 'preview':preview, 'blocks':blocks})
             audit.append({'file':name, 'removed_blocks':removed,
                           'source_lines':len(lines), 'retained_lines':len(retained)})
     assert len({d['id'] for d in documents}) == len(documents)
