@@ -4,7 +4,7 @@
 
 - Public origin: `https://no-fear-stage.157.22.172.204.nip.io`.
 - Host: Ubuntu 24.04 at `157.22.172.204`; source `/opt/no-fear-stage`, private configuration/data/backups `/srv/no-fear-stage`.
-- Deployed application source revision: `6ed59a4`; immutable image ID `sha256:512b5572b2fb0cf7602836a8cf54e13d9f753f20ed4f05a3a6ddc7041b329588`.
+- Initial accepted application source revision: `6ed59a4`; immutable image ID `sha256:512b5572b2fb0cf7602836a8cf54e13d9f753f20ed4f05a3a6ddc7041b329588`.
 - One hardened application container publishes only `127.0.0.1:9080`. Dedicated Nginx backend listens on `127.0.0.1:9081`. The host's existing HAProxy TLS listener routes the exact new hostname to that backend. Existing project routes were retained. The separately owned `scena` site was not replaced; its Nginx configuration checksum remained unchanged.
 - Private provider/operator/Restic credentials are mode 0600 on the host, never in source, image or command arguments. Production registration requires invitations. A one-use owner invitation valid for 72 hours was saved privately at `/srv/no-fear-stage/owner-invite.txt`; retrieve it through the authorized SSH connection, not public HTTP or application logs.
 
@@ -26,10 +26,14 @@ Local monitor and daily backup timers are enabled/active. The backup is schedule
 
 The local regression suite passed **123 tests**, including the two added certificate-isolation/rollback tests. Python syntax checks cover the hook and `tests/deployed_flow_acceptance.py`. The latter is an explicit real-provider acceptance runner; it receives invitation/fixture settings on stdin and stores temporary fixture credentials mode 0600 outside Git. Ordinary pytest does not invoke this script or spend upstream quota.
 
-The application release remains `6ed59a4`; the subsequent source commit documents this deployment and adds operator/acceptance assets. Those assets are installed on the host separately from the container. No Git push was performed. Secrets, fixture state, server logs and backup repositories are excluded from the commit.
+The initial accepted backend baseline is `6ed59a4`; frontend-only releases can reuse its immutable image and replace only `public/`. The current immutable release is recorded in `/srv/no-fear-stage/release.json`. The subsequent source commit documents this deployment and adds operator/acceptance assets. Those assets are installed on the host separately from the container. No Git push was performed. Secrets, fixture state, server logs and backup repositories are excluded from the commit.
 
 ## Remaining external protections
 
 The user has not supplied offsite repository or notification-receiver settings. Backups currently use a LOCAL encrypted repository on this host; operator status explicitly reports `offsite_configured: false`. Monitoring writes incident codes to its journal; it does not deliver external notifications. An independent external monitor is not installed. These protections still require a separate repository/password-recovery location and receiver/monitor host. Existing application-host loss cannot be claimed recoverable from host-local copies alone.
 
 The public HTTPS application and real AI generation are verified. Continue to use invitations for the pilot and configure those external protections before relying on unattended production operation. Host throughput, remote repository recovery, real user microphone/browser combinations and upstream monetary limits remain separate deployment-specific checks.
+
+## Public example removal, 13 October 2026
+
+The public example report was removed from navigation, hero overlay/actions and the landing preview section. Its static payload and unused CSS were removed; old `#/example` URLs return to the landing page. Actual account reports and recording recovery are unchanged. Module/stylesheet versions were updated to invalidate browser caches. The frontend-only image is released through the existing backup/readiness/rollback controller; the initial accepted backend image remains its immutable base.

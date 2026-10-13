@@ -11,12 +11,14 @@
 
 ## Interface and Russian copy
 
+- The public interface has no example report or report preview. Old `#/example` links redirect to the landing page; account reports still use real saved recordings.
+
 - Apply these rules across every route and shared component, including generated report titles.
 - Use complete, connected headings and prose. Do not force line breaks or split one idea into a sequence of tiny sentences. Let text wrap naturally. Headings never end in a period; preserve question marks and meaningful source text outside headings.
 - CTA labels contain no decorative arrows. Do not use decorative online-status dots or padded numbering such as `01`, `02`, `03`. Use ordinary numbering only for a meaningful sequence.
 - Native single-select chevrons need an explicit inner right gutter and reserved text space. Keep keyboard interaction and native accessibility; do not replace selects with decorative divs.
 - Typography uses shared CSS tokens: distinguish page titles, section headings, field labels, input values and hints by size, weight, spacing and contrast. Keep optional-field labels inline and attach hints to their field group.
-- Main prose, questions and report content use `--text-body` (16px minimum); compact metadata uses `--text-small`. Keep the green accent for the main action and use neutral surfaces plus explicit checked/focus indicators for static content and choices. Hero result cards join document flow below 900px so longer copy cannot cover faces. Short, narrow meeting viewports use the stacked chat layout for zoom reflow.
+- Main prose, questions and report content use `--text-body` (16px minimum); compact metadata uses `--text-small`. Keep the green accent for the main action and use neutral surfaces plus explicit checked/focus indicators for static content and choices. Short, narrow meeting viewports use the stacked chat layout for zoom reflow.
 - Visuals must suit a contemporary Russian audience and recognizable local settings. Do not infer or claim real people's nationality from appearance. Record generated-asset provenance; never present an illustration as a real user or testimonial.
 - Keep imagery bright, naturally colored and welcoming. Do not equate Russian context with gloomy or desaturated photography. Avoid copy overlays across faces; landing cards must convey a specific product benefit or a clearly labeled example.
 
