@@ -1,0 +1,16 @@
+# Substitute the exact hostname and reserved edge IP before installation.
+# Append to every existing Compose override; never replace the shared stack.
+services:
+  edge:
+    networks:
+      no_fear_stage_private:
+        ipv4_address: 10.23.0.254
+    volumes:
+      - /etc/no-fear-stage/nginx/no-fear-stage.conf.template:/etc/nginx/templates/95-no-fear-stage.conf.template:ro
+      - /etc/no-fear-stage/letsencrypt/live/pilot.example.org:/etc/no-fear-stage/letsencrypt/live/pilot.example.org:ro
+      - /etc/no-fear-stage/letsencrypt/archive/pilot.example.org:/etc/no-fear-stage/letsencrypt/archive/pilot.example.org:ro
+      - /var/www/no-fear-stage-pages:/var/www/no-fear-stage-pages:ro
+networks:
+  no_fear_stage_private:
+    external: true
+    name: no-fear-stage-private

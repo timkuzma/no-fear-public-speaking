@@ -28,7 +28,7 @@ APP = 'no-fear-stage'
 SCHEMA = '1'
 # Official restic 0.19.1 image, resolved and tested by digest.
 RESTIC_IMAGE = 'restic/restic@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510'
-CONFIG_KEYS = {'ANALYTICS_ADMIN_ENABLED','ANALYTICS_CLIENT_ENABLED','ANALYTICS_EXPORT_ENABLED','APP_ORIGIN', 'LLM_BASE_URL', 'LLM_MODEL', 'FEEDBACK_EDITOR_MODEL', 'TRANSCRIPTION_MODEL', 'AI_ENABLED',
+CONFIG_KEYS = {'ANALYTICS_ADMIN_ENABLED','ANALYTICS_CLIENT_ENABLED','ANALYTICS_EXPORT_ENABLED','APP_ORIGIN', 'TRUSTED_PROXY_IPS', 'LLM_BASE_URL', 'LLM_MODEL', 'FEEDBACK_EDITOR_MODEL', 'TRANSCRIPTION_MODEL', 'AI_ENABLED',
     'AI_DAILY_ATTEMPTS', 'AI_USER_DAILY_ATTEMPTS', 'AI_REQUESTS_PER_MINUTE', 'AI_DAILY_AUDIO_SECONDS',
     'AI_DAILY_INPUT_CHARS', 'AI_DAILY_OUTPUT_TOKENS', 'AI_MAX_OUTPUT_TOKENS', 'MAX_PENDING_JOBS',
     'MAX_PENDING_LIVE_CHUNKS', 'JOB_TIMEOUT_SECONDS', 'LIVE_JOB_TIMEOUT_SECONDS', 'MIN_FREE_DISK_BYTES',
@@ -152,6 +152,13 @@ class Production:
                     raise RuntimeError('Invalid production setting: ' + key) from None
             if key == 'AI_ENABLED' and str(value) not in ('0', '1'):
                 raise RuntimeError('Invalid production setting: AI_ENABLED')
+            if key == 'TRUSTED_PROXY_IPS':
+                try:
+                    addresses = str(value).split(',')
+                    if not 1 <= len(addresses) <= 8 or any(not ipaddress.ip_address(address.strip()).is_private for address in addresses):
+                        raise ValueError()
+                except ValueError:
+                    raise RuntimeError('Trusted proxies must be exact private IP addresses') from None
         for key in ('APP_ORIGIN', 'LLM_BASE_URL'):
             parsed = urllib.parse.urlsplit(str(config.get(key, '')))
             if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or (key == 'APP_ORIGIN' and parsed.path not in ('', '/')):
@@ -229,6 +236,8 @@ class Production:
         config = release['config']
         uid, gid = self.prepare_data()
         network, gateway = self.network()
+        trusted = list(dict.fromkeys(['127.0.0.1', gateway, *str(config.get('TRUSTED_PROXY_IPS', '')).split(',')]))
+        trusted = ','.join(address.strip() for address in trusted if address.strip())
         if self.container():
             docker(['rm', self.name])
         arguments = ['run', '-d', '--name', self.name, '--label', 'io.nfs.application=' + APP,
@@ -240,7 +249,7 @@ class Production:
                      '--mount', f'type=bind,source={self.data},target=/data',
                      '--log-opt', 'max-size=10m', '--log-opt', 'max-file=3']
         for key, value in {**config, 'APP_ENV': 'production', 'DATA_DIR': '/data',
-                'APP_RELEASE': release['release'], 'TRUSTED_PROXY_IPS': '127.0.0.1,' + gateway}.items():
+                'APP_RELEASE': release['release'], 'TRUSTED_PROXY_IPS': trusted}.items():
             arguments.extend(['--env', f'{key}={value}'])
         child_env = dict(os.environ)
         for key in ('LLM_API_KEY', 'OPERATOR_TOKEN'):

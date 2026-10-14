@@ -1,6 +1,27 @@
-# Deployment acceptance, 13 October 2026
+# Production deployment and migration
 
-## Current deployment
+## Current deployment, 15 October 2026
+
+- Canonical origin: **https://no-fear-stage.72-56-96-17.nip.io** on `72.56.96.17` (`agency-planner-01`, Ubuntu 26.04 LTS). SSH uses the existing `deploy` account and its server-specific key; root password authentication is disabled.
+- Source/controller: `/opt/no-fear-stage`; private configuration, data, verified snapshots and encrypted repository: `/srv/no-fear-stage`. The host controller uses a Python 3.14 venv; the application retains the exact original Python 3.12 image `sha256:20e3b88e4a14b7fe1493df43499669b78212316a7db3dbae648494647bdc8bed` (application revision `7b6c496`). No application image rebuild, schema change, report regeneration or paid provider call was required.
+- The existing Agency Planner Nginx container owns ports 80/443. Its original image, environment, ports, mounts and networks were retained; only the edge was recreated. Every other existing application container retained its identity. Append `/etc/no-fear-stage/agency-planner-edge-no-fear-stage.override.yml` to **all five** pre-existing Compose files on future edge deployments; the running edge labels record the complete list.
+- The edge has reserved address `172.24.0.254` on `no-fear-stage-private` (`172.24.0.0/16`). Runtime `TRUSTED_PROXY_IPS` adds only that address; the controller still includes loopback and gateway `172.24.0.1`. The app publishes only `127.0.0.1:9080` and runs exactly one process with its two workers.
+- Exact site configuration: `/etc/no-fear-stage/nginx/no-fear-stage.conf.template`. The public research reader remains a separate read-only mount from `/var/www/no-fear-stage-pages`.
+- TLS is isolated under `/etc/no-fear-stage/letsencrypt`. The lineage directory remains `live/no-fear-stage.72.56.96.17.nip.io`; its certificate covers both that dotted-IP alias and the canonical hyphenated hostname, and expires on 12 January 2027. HTTP and the dotted HTTPS alias redirect to the canonical origin. Certificate renewal uses `no-fear-stage-certificate.timer`, separate work/log directories and `--no-directory-hooks`; the shared host's global hooks stop its edge for standalone validation and must not run for this site's webroot renewal. The scoped deploy hook restores the existing TLS reader group (981), validates Nginx, then reloads it.
+
+### Migration evidence and recovery boundary
+
+The original application had no queued/running final or incremental jobs when it entered maintenance and stopped. A verified offline snapshot and complete restore rehearsal preceded transport. The destination verified every media checksum, restored into a new directory and matched the canonical content hashes of **every database table before activation**. At cutover it contained **3 users, 7 practices, 14 saved media segments, 13 jobs, 3 reports and one analytics owner**. Existing report versions, questions, transcripts, sessions, accounting and analytics data were retained. Private invitation files were transferred separately without exposing their codes.
+
+The destination passed public HTTPS health/readiness with writable storage, both workers alive and maintenance disabled. The landing rendered in the actual browser; the research reader returned 200. Private practice APIs returned 401 and operator routes 404. Local regression validation passed 256 tests plus JavaScript syntax checks. No authenticated user password was requested or changed. Users must sign in at the new browser origin; origin-local IndexedDB drafts do not move with the server database.
+
+The daily backup and minute monitor timers are active; committed-release recovery is enabled at boot. A manual run of `no-fear-stage-backup.service` completed successfully, including Restic content verification and an encrypted restore rehearsal (snapshot `7ffcb14c6d96298db11563ef78c43375e81bf58098a2b06257152d2f74ad4c0c`). Local encrypted protection remains `offsite_configured:false`; external receiver/monitor configuration was not added by this migration.
+
+The original host `157.22.172.204` remains a **frozen migration source**, not a second active application. Its container is stopped with restart disabled; its boot recovery and application backup/monitor timers are disabled. Its exact Nginx virtual host redirects to the new canonical origin, including requests arriving through the existing port-10443 fallback. Original data, images, backup history and proxy configuration backups remain preserved there. Source manifest: `/srv/no-fear-stage/migration-to-72-56-96-17.json`; destination import verification: `/srv/no-fear-stage/migration-source-verification.json`.
+
+Do not resume the frozen source after the destination has accepted writes. A return migration must first stop destination writes and transfer a newly verified snapshot back; restarting the old database would discard newer activity. The observations below describe the historical original deployment and ingress fallback, not the current application host.
+
+## Original deployment, 13 October 2026
 
 - Public origin: `https://no-fear-stage.157.22.172.204.nip.io`.
 - Host: Ubuntu 24.04 at `157.22.172.204`; source `/opt/no-fear-stage`, private configuration/data/backups `/srv/no-fear-stage`.

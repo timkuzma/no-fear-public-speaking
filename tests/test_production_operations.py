@@ -62,6 +62,30 @@ def test_release_preflight_never_enters_maintenance_on_foreign_image(tmp_path):
         maintenance.assert_not_called()
 
 
+@pytest.mark.parametrize('addresses', ['*', '10.23.0.0/24', '8.8.8.8', '', '10.23.0.2,'])
+def test_extra_proxy_trust_rejects_wildcards_subnets_and_public_addresses(tmp_path, addresses):
+    manager = Production(tmp_path / 'root')
+    manager.bootstrap()
+    config = private_json(manager.root / 'runtime.json')
+    config['TRUSTED_PROXY_IPS'] = addresses
+    atomic_json(manager.root / 'runtime.json', config)
+    with pytest.raises(RuntimeError, match='exact private IP'):
+        manager.configuration()
+
+
+def test_container_proxy_keeps_gateway_trust_and_does_not_expose_secrets(tmp_path):
+    manager = Production(tmp_path / 'root')
+    config = {'TRUSTED_PROXY_IPS': '10.23.0.254', 'APP_ORIGIN': 'https://pilot.test'}
+    credentials = {'LLM_API_KEY': 'synthetic-provider-secret', 'OPERATOR_TOKEN': 'synthetic-operator-secret'}
+    release = {'config': config, 'release': 'synthetic', 'image': 'synthetic-image'}
+    with patch.object(manager, 'configuration', return_value=(config, credentials)), patch.object(manager, 'prepare_data', return_value=(10001, 10001)), patch.object(manager, 'network', return_value=('private', '10.23.0.1')), patch.object(manager, 'container', return_value=None), patch('scripts.production.docker') as run:
+        manager.start(release)
+    arguments = run.call_args.args[0]
+    assert 'TRUSTED_PROXY_IPS=127.0.0.1,10.23.0.1,10.23.0.254' in arguments
+    assert not any(secret in str(arguments) for secret in credentials.values())
+    assert run.call_args.kwargs['env']['LLM_API_KEY'] == credentials['LLM_API_KEY']
+
+
 def test_retention_never_removes_unrelated_directories_or_symlinks(tmp_path):
     manager=Production(tmp_path/'root')
     source=Store(tmp_path/'fixture')

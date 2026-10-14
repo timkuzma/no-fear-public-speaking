@@ -1,6 +1,6 @@
 # Public customer interview results page
 
-URL: https://no-fear-stage.157.22.172.204.nip.io/customer-development.html
+URL: https://no-fear-stage.72-56-96-17.nip.io/customer-development.html
 
 This standalone, anonymous page contains 39 documents from the user-approved `CustDev PDF.zip` archive. Folder membership and document identifiers match the archive: `Идеальный клиент` contains 28 documents; `Другие сегменты` contains 11. Counts describe documents, not independently verified interviews or people. Interview answers and transcripts are preserved. Related-source sections and external links are removed from the public content at the user's request. Each document now has four authored findings and a product implication grounded in its source material.
 
@@ -27,7 +27,7 @@ Review the audit and the rendered reader before publication. A different archive
 
 ## Publication
 
-The exact Nginx location `/customer-development.html` in `/etc/nginx/sites-available/no-fear-stage` serves `/var/www/no-fear-stage-pages/customer-development.html` with `Cache-Control: no-store`. The protected application checkout cannot be read by the Nginx worker, so this public copy is separate; do not loosen checkout permissions. The page stays `noindex, nofollow` but remains accessible to anyone with its URL.
+The exact Nginx location `/customer-development.html` in `/etc/no-fear-stage/nginx/no-fear-stage.conf.template` serves `/var/www/no-fear-stage-pages/customer-development.html` with `Cache-Control: no-store` through a read-only mount in the shared edge. The protected application checkout cannot be read by the Nginx worker, so this public copy is separate; do not loosen checkout permissions. The page stays `noindex, nofollow` but remains accessible to anyone with its URL. The original host's `/etc/nginx/sites-available/no-fear-stage` now redirects to the migrated origin; current deployment details are in `docs/production-deployment.md`.
 
 Upload the reviewed source to `/opt/no-fear-stage/public/customer-development.html` and refresh the public copy atomically:
 
