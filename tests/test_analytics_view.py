@@ -18,11 +18,12 @@ def login(client, password=PASSWORD, **kwargs):
     return client.post(PATH+'/session', json={'password': password}, headers=HEADERS, **kwargs)
 
 
-def test_viewer_password_only_exposes_aggregates_not_owner_data(setup):
+def test_viewer_has_full_read_access_without_owner_or_mutation_rights(setup):
     app, owner, _, _, user, *_ = setup; store=app.state.store
-    fixture_practice(store, user); configure(store, PASSWORD)
+    pid,sid=fixture_practice(store, user); configure(store, PASSWORD)
     viewer=TestClient(app)
-    assert viewer.get(PATH+'/report').status_code==401
+    for path in ['/report','/accounts','/practices','/practices/'+pid,'/export',f'/evidence/{pid}/segments/{sid}/media']:
+        assert viewer.get(PATH+path).status_code==401
     assert login(viewer,'wrong-password').status_code==401
     response=login(viewer); assert response.status_code==200
     assert 'httponly' in response.headers['set-cookie'].lower()
@@ -34,18 +35,32 @@ def test_viewer_password_only_exposes_aggregates_not_owner_data(setup):
     expected=owner.get('/api/admin/analytics/report').json()['overview']
     assert result.json()['overview']['llm_tokens']==expected['llm_tokens']
     assert result.json()['overview']['accounts']==expected['accounts']
-    raw=result.text
-    for forbidden in ('owner@example.test','other@example.test',user,'password','Synthetic source','account_roster','economy','marketing','participant'):
-        assert forbidden not in raw
     for url in ['/api/admin/analytics/report','/api/admin/analytics/accounts','/api/admin/analytics/export',
                 '/api/admin/analytics/practices','/api/practices']:
         assert viewer.get(url).status_code==401
-    assert viewer.get(PATH+'/accounts').status_code==404
-    assert viewer.get(PATH+'/export').status_code==404
+    accounts=viewer.get(PATH+'/accounts?kind=all').json()
+    assert any(row['email']=='other@example.test' and row['id']==user for row in accounts['items'])
+    practices=viewer.get(PATH+'/practices').json()
+    assert practices['items'][0]['id']==pid
+    detail=viewer.get(PATH+'/practices/'+pid).json()
+    assert detail['participant']['email']=='other@example.test' and detail['versions']
+    segment=detail['segments'][0]
+    assert segment['id']==sid and segment['transcript']=='Synthetic source'
+    assert segment['media_url'].startswith(PATH+'/evidence/')
+    media=viewer.get(segment['media_url']);assert media.status_code==200 and media.content==b'fixture-media'
+    assert viewer.get(segment['media_url'],headers={'Range':'bytes=0-2'}).status_code==206
+    assert viewer.get(PATH+f'/evidence/{pid}/segments/'+'0'*32+'/media').status_code==404
+    exported=viewer.get(PATH+'/export?dataset=accounts&format=json')
+    assert exported.status_code==200 and 'other@example.test' in exported.text
+    assert 'password' not in exported.text and 'csrf' not in exported.text
+    assert viewer.get(PATH+'/export?dataset=all&format=zip').status_code==200
+    for method,path in [('post','/report'),('patch','/accounts/'+user),('delete','/practices/'+pid),('post','/export')]:
+        assert getattr(viewer,method)(PATH+path,headers=HEADERS).status_code==401
+    assert viewer.post('/api/admin/analytics/snapshots',json={},headers=HEADERS).status_code==401
     assert viewer.post('/api/practices',json={},headers=HEADERS).status_code==401
     assert viewer.patch('/api/admin/analytics/account-classifications/'+user,json={'classification':'staff'},headers=HEADERS).status_code==401
-    assert viewer.get(PATH+'/report?actor_id='+user).status_code==422
-    assert viewer.get(PATH+'/report?include_staff=true').status_code==422
+    assert viewer.get(PATH+'/report?actor_id='+user).status_code==200
+    assert viewer.get(PATH+'/report?include_staff=true').status_code==200
     assert viewer.get(PATH+'/report?from=bad').status_code==422
     assert viewer.get('/api/auth/me').json()['user'] is None
     config=json.loads(store.one('SELECT value FROM operational_state WHERE key=?',(ACCESS,))['value'])

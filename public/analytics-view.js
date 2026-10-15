@@ -1,6 +1,7 @@
-import {mountAdmin} from './admin-analytics.js?v=20261015-view-6';
+import {mountAdmin,ensureAdminStyles} from './admin-analytics.js?v=20261015-full-view-7';
 
-export async function mountView(frame, isCurrent) {
+export async function mountView(frame, isCurrent, options={}) {
+ await ensureAdminStyles();if(!isCurrent())return;
  let authenticated=false;
  async function request(path,options={}) {
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
@@ -19,12 +20,12 @@ export async function mountView(frame, isCurrent) {
  async function show() {
   if(!isCurrent())return;
   authenticated=true;
-  await mountAdmin(frame,{readOnly:true,request:dates=>request('/report?'+new URLSearchParams(dates)),logout:async()=>{
+  await mountAdmin(frame,{readOnly:true,page:options.page,request,logout:async()=>{
    await request('/session',{method:'DELETE'});authenticated=false;if(isCurrent())login();
   }});
  }
  function login(enabled=true) {
-  frame('<h1>Аналитика</h1>'+(enabled?'<form id="analytics-view-login" class="auth-form"><div class="field"><label for="analytics-view-password">Пароль для просмотра</label><input id="analytics-view-password" name="password" type="password" autocomplete="current-password" maxlength="128" required></div><p id="analytics-view-error" role="alert"></p><button class="button primary" type="submit">Открыть аналитику</button></form>':'<p>Доступ по ссылке отключён.</p>'),'narrow');
+  frame('<section class="admin-login page-heading"><h1>Аналитика</h1>'+(enabled?'<form id="analytics-view-login" class="auth-form"><div class="field"><label for="analytics-view-password">Пароль для просмотра</label><input id="analytics-view-password" name="password" type="password" autocomplete="current-password" maxlength="128" required></div><p id="analytics-view-error" role="alert"></p><button class="button primary" type="submit">Открыть аналитику</button></form>':'<p>Доступ по ссылке отключён.</p>')+'</section>','admin');
   const form=document.querySelector('#analytics-view-login');if(!form)return;
   form.addEventListener('submit',async e=>{
    e.preventDefault();e.stopPropagation();const button=form.querySelector('button');button.disabled=true;const error=form.querySelector('#analytics-view-error');error.textContent='';
@@ -33,7 +34,7 @@ export async function mountView(frame, isCurrent) {
    finally{if(button.isConnected)button.disabled=false}
   });
  }
- frame('<p role="status">Открываем аналитику…</p>','narrow');
+ frame('<section class="admin-login"><p role="status">Открываем аналитику…</p></section>','admin');
  try {const status=await request('/session');if(!isCurrent())return;if(status.authenticated)await show();else login(status.enabled)}
  catch(e){if(isCurrent()){login();document.querySelector('#analytics-view-error').textContent=e.message}}
 }

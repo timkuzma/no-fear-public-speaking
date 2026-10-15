@@ -1693,9 +1693,9 @@ async function navigate() {
     authScreen(path.slice(1));
     return;
   }
-  if (path === "/analytics") {
-    const module=await import("./analytics-view.js?v=20261015-view-6");
-    if(version===state.routeVersion)await module.mountView(frame,()=>version===state.routeVersion);return;
+  if (path === "/analytics" || path === "/analytics/export") {
+    const module=await import("./analytics-view.js?v=20261015-full-view-7");
+    if(version===state.routeVersion)await module.mountView(frame,()=>version===state.routeVersion,{page:path.endsWith("/export")?"export":"analytics"});return;
   }
   if (path === "/guest") return go(state.user ? "/app" : "/register");
   if (!state.user) {
@@ -1720,7 +1720,7 @@ async function navigate() {
   if (path === "/recording-copies") return recordingCopies(version);
   if (path === "/admin/analytics" || path === "/admin/analytics/export") {
     if(!state.user.analytics_access){frame('<h1>Доступ не предоставлен</h1><p>Аналитика доступна владельцу платформы.</p>');return}
-    const module=await import("./admin-analytics.js?v=20261015-view-6");
+    const module=await import("./admin-analytics.js?v=20261015-full-view-7");
     if(version===state.routeVersion)await module.mountAdmin(frame,{page:path.endsWith("/export")?"export":"analytics"});return;
   }
   if (path === "/app") {if(typeof trackPage==="function")trackPage(path);return setup()}

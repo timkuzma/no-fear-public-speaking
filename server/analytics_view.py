@@ -1,4 +1,4 @@
-"""Password-only aggregate viewer; never an account or an analytics owner."""
+"""Password-only analytics reader; never an account or an analytics owner."""
 import asyncio
 import hashlib
 import json
@@ -17,10 +17,6 @@ COOKIE = 'nfs_analytics_view'
 PATH = '/api/analytics-view'
 TTL = 8 * 3600
 PASSWORDS = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
-OVERVIEW = {'accounts', 'started_practices', 'average_per_user', 'average_per_trainee',
-            'trainees', 'dau', 'dau_day', 'last_hour', 'retention_7d', 'churn_7d',
-            'activity_until', 'daily', 'llm_tokens', 'acquisition_funnel', 'training_funnel',
-            'questions_disabled'}
 
 
 def configure(store, password=None):
@@ -34,7 +30,7 @@ def configure(store, password=None):
             db.execute('INSERT INTO operational_state VALUES(?,?,?)', (ACCESS, json.dumps(value), time.time()))
 
 
-def install(app, store, check_origin, report):
+def install(app, store, check_origin):
     password_slots = asyncio.Semaphore(2)
 
     def fail(status, code, message):
@@ -117,15 +113,13 @@ def install(app, store, check_origin, report):
         response.delete_cookie(COOKIE, path=PATH, secure=app.state.production, httponly=True, samesite='strict')
         return response
 
-    @app.get(PATH+'/report')
-    async def overview(request: Request):
+    def authorize(request):
         check_origin(request)
         config = access()
         if not config:
             fail(404, 'VIEW_DISABLED', 'Доступ по ссылке отключён.')
         if not session(request, config):
             fail(401, 'VIEW_PASSWORD_REQUIRED', 'Введите пароль для просмотра аналитики.')
-        if set(request.query_params) - {'from', 'to'}:
-            fail(422, 'FILTER_INVALID', 'Доступен выбор периода.')
-        data = await report(dict(request.query_params))
-        return {'as_of': data['as_of'], 'overview': {k: v for k, v in data['overview'].items() if k in OVERVIEW}}
+        return {'id': None, 'analytics_view': True}
+
+    return authorize

@@ -158,9 +158,16 @@ HttpOnly session cookie; `DELETE` revokes that session. POST/DELETE require exac
 same-origin Origin even without a participant session. Password validation is bounded
 and rate-limited. No password/session data is included in telemetry or API results.
 
-`GET /api/analytics-view/report?from=YYYY-MM-DD&to=YYYY-MM-DD` returns only `{as_of,overview}`
-with allowlisted aggregate counts, rates, daily rows, token usage and funnel steps.
-The date interval follows existing owner semantics (exclusive `to`). Other filters
-return 422. Missing/expired viewer sessions return 401; disabled access returns 404.
-Viewer authentication never authorizes owner/admin, account, practice, export or
-media routes. Rotation/disable is operator CLI only and revokes all viewer sessions.
+`GET /api/analytics-view/report` uses the same report/filter contract as the owner
+view. Explicit authenticated GET aliases also expose `/accounts`, `/practices`,
+`/practices/{id}`, `/export` and `/evidence/{practice_id}/segments/{segment_id}/media`.
+At the user's request this includes stored account names/emails, full reports,
+transcripts and media playback/downloads, as well as CSV/JSON/ZIP exports. Pagination,
+filtering, export limits, media parent binding and Range support match the owner
+read handlers. Viewer details return media URLs in the viewer API namespace.
+
+Missing/expired viewer sessions return 401; disabled access returns 404. Viewer
+credentials do not authorize the `/api/admin/*` namespace, participant routes or any
+business mutation. Login/logout are the only viewer session mutations. Classification,
+imports, snapshots and all other writes remain owner-only with existing Origin/CSRF.
+Rotation/disable is operator CLI only and revokes all viewer sessions.

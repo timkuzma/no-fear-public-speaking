@@ -48,7 +48,7 @@ Registration/upload compatibility must survive a UI rollback. Current registrati
 
 ## Analytics viewer password
 
-The separate `/#/analytics` link permits aggregate viewing only. Configure or rotate
+The separate `/#/analytics` link permits full read-only analytics, including account/practice details and exports. Configure or rotate
 its password inside the active application container, supplying a 12–128 character
 password from a protected operator file on stdin:
 

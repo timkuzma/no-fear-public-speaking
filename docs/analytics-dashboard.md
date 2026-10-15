@@ -15,14 +15,16 @@ docker exec -i no-fear-stage python -m server.cli analytics-owner --email-stdin
 
 Existing sessions obtain the navigation permission on the next auth envelope / page reload. Revocation takes effect immediately on server requests. Ordinary participant media endpoints retain ownership isolation; administrative media uses a different owner-protected endpoint.
 
-### Password-protected aggregate viewer
+### Password-protected full reader
 
-`/#/analytics` is a separate read-only link requiring no user account. It reuses the
-compact dashboard's metric strip, LLM tokens, daily graph and conversion funnels.
-Only the date range can be changed. Its server response allowlists aggregate fields;
-no account/practice IDs, identities, topics, transcripts, reports, media, marketing
-details or raw event data are returned. Account/practice tables, exports and owner
-actions remain exclusive to the existing owner interface.
+`/#/analytics` and `/#/analytics/export` are separate read-only links requiring no
+user account. At the user's explicit request, the password grants full viewing of
+metrics, account identities/registration data, practices, saved reports, transcripts,
+recordings, trace details and current exports. It uses the same read handlers and
+filters as the owner interface through explicit GET aliases under `/api/analytics-view`.
+It never creates a user/owner identity or authorizes business mutations. Classification
+controls are hidden in this mode and all server mutation handlers still require owner
+account authentication and CSRF. Session login/logout remain its only allowed mutations.
 
 `GET /api/analytics-view/session` returns only enabled/authenticated booleans.
 `POST` verifies a bounded password body with Argon2; `DELETE` revokes the current
@@ -32,12 +34,24 @@ expires after eight hours. Only its digest is stored. All responses use no-store
 passwords/cookies are absent from request telemetry. Login attempts are limited to
 10 per IP and 100 globally per 15 minutes, with two concurrent password verifications.
 
-`GET /api/analytics-view/report` requires the current viewer session and accepts
-only `from`/`to`. It cannot authorize any admin, practice, export or media endpoint.
+Reader routes are `/report`, `/accounts`, `/practices`, `/practices/{id}`, `/export`
+and `/evidence/{practice_id}/segments/{segment_id}/media`. The standard `/api/admin/*`
+and participant routes continue to reject a viewer credential. Media URLs returned
+by viewer details use the reader namespace so the scoped cookie covers playback,
+Range requests and downloads. Exports retain existing size, CSV safety and privacy
+rules; owner snapshots and all modifying routes remain separate. Audit logging on
+reads does not change business data.
+
 Viewer access configuration and session digests use namespaced `operational_state`
 rows; there is no schema migration or synthetic account. Password rotation and
-disable revoke every viewer session. The CLI reads a password on stdin without
+disable revoke every viewer session. The existing password/session configuration is
+preserved when extending read permissions. The CLI reads a password on stdin without
 initializing/migrating Store; see `operations.md` for rotation and disable commands.
+
+Password entry loads the analytics CSS before display and uses `.admin-login`:
+a 24px title, 38px password field, 36px button and a 380px maximum-width form with
+explicit spacing. It does not inherit the landing/narrow page scale. Small viewports
+preserve readable fields and avoid horizontal overflow.
 
 ## Sources and semantics
 

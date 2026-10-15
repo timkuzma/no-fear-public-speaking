@@ -157,7 +157,11 @@ def install(app,store,auth,check_origin,practice_json):
         except asyncio.TimeoutError:reject('ANALYTICS_TIMEOUT','Расчёт занимает слишком много времени. Сократи период.',503)
 
     from .analytics_view import install as install_view
-    install_view(app,store,check_origin,report)
+    authorize_view=install_view(app,store,check_origin)
+
+    def reader(request):
+        # Explicit GET aliases below grant reading only; mutations still call owner.
+        return authorize_view(request) if request.url.path.startswith('/api/analytics-view/') else owner(request)
 
     @app.post('/api/analytics/events')
     async def ingest(request:Request):
@@ -202,8 +206,9 @@ def install(app,store,auth,check_origin,practice_json):
         cookies(response,visitor,session_id,app.state.production);return response
 
     @app.get('/api/admin/analytics/report')
+    @app.get('/api/analytics-view/report')
     async def analytics(request:Request):
-        owner(request);data=await report(dict(request.query_params))
+        reader(request);data=await report(dict(request.query_params))
         counts={}
         for a in data['accounts']:counts[a['source']]=counts.get(a['source'],0)+1
         data['accounts_by_source']=counts
@@ -216,8 +221,9 @@ def install(app,store,auth,check_origin,practice_json):
         return data
 
     @app.get('/api/admin/analytics/accounts')
+    @app.get('/api/analytics-view/accounts')
     async def accounts(request:Request,kind:str='registrations',offset:int=0,limit:int=50):
-        owner(request);data=await report(dict(request.query_params))
+        reader(request);data=await report(dict(request.query_params))
         items=account_rows(data,kind)
         items.sort(key=lambda a:(a['created'],a['id']),reverse=True)
         return {'items':items[max(0,offset):max(0,offset)+min(100,max(1,limit))],'total':len(items)}
@@ -232,8 +238,9 @@ def install(app,store,auth,check_origin,practice_json):
                      onboarding_completed=bool(identities[a['id']]['onboarding_completed'])) for a in roster]
 
     @app.get('/api/admin/analytics/export')
+    @app.get('/api/analytics-view/export')
     async def export_data(request:Request,dataset:str='summary',format:str='csv'):
-        user=owner(request)
+        user=reader(request)
         if os.getenv('ANALYTICS_EXPORT_ENABLED','1')=='0':reject('EXPORT_PAUSED','Выгрузка временно отключена.',503)
         if dataset not in ('summary','accounts','practices','daily','funnel','all') or format not in ('csv','json','zip') or (dataset=='all')!=(format=='zip'):
             reject('FORMAT_INVALID','Проверь раздел и формат выгрузки.')
@@ -268,8 +275,9 @@ def install(app,store,auth,check_origin,practice_json):
         return Response(output.getvalue(),media_type='application/zip',headers={'Content-Disposition':'attachment; filename="analytics.zip"'})
 
     @app.get('/api/admin/analytics/practices')
+    @app.get('/api/analytics-view/practices')
     async def practices(request:Request,offset:int=0,limit:int=50,stage:str=''):
-        owner(request);data=await report(dict(request.query_params));items=data['practices']
+        reader(request);data=await report(dict(request.query_params));items=data['practices']
         if stage in data['observed_memberships']:
             ids=set(data['observed_memberships'][stage]);items=[r for r in items if r['id'] in ids]
         elif stage in ('completed','failed'):
@@ -278,14 +286,16 @@ def install(app,store,auth,check_origin,practice_json):
         return {'items':items[max(0,offset):max(0,offset)+min(100,max(1,limit))],'total':len(items),'as_of':data['as_of']}
 
     @app.get('/api/admin/analytics/practices/{pid}')
+    @app.get('/api/analytics-view/practices/{pid}')
     async def detail(pid:str,request:Request):
-        user=owner(request);p=store.one('SELECT * FROM practices WHERE id=?',(pid,))
+        user=reader(request);p=store.one('SELECT * FROM practices WHERE id=?',(pid,))
         if not p:reject('NOT_FOUND','Тренировка не найдена.',404)
         audit(store,user['id'],'admin_evidence_opened',practice=pid)
         result=practice_json(p)
         u=store.one('SELECT id,name,email,role,created FROM users WHERE id=?',(p['user_id'],));result['participant']=u
         for segment in result['segments']:
-            segment['media_url']=f'/api/admin/evidence/{pid}/segments/{segment["id"]}/media'
+            base='/api/analytics-view/evidence' if user.get('analytics_view') else '/api/admin/evidence'
+            segment['media_url']=f'{base}/{pid}/segments/{segment["id"]}/media'
             row=store.one('SELECT filename FROM segments WHERE id=?',(segment['id'],));segment['available']=bool(row and (store.media/row['filename']).is_file())
         def integrity():
             for segment in result['segments']:
@@ -305,8 +315,9 @@ def install(app,store,auth,check_origin,practice_json):
         return result
 
     @app.get('/api/admin/evidence/{pid}/segments/{sid}/media')
+    @app.get('/api/analytics-view/evidence/{pid}/segments/{sid}/media')
     async def media(pid:str,sid:str,request:Request,download:bool=False):
-        user=owner(request);row=store.one('SELECT filename FROM segments WHERE id=? AND practice_id=?',(sid,pid))
+        user=reader(request);row=store.one('SELECT filename FROM segments WHERE id=? AND practice_id=?',(sid,pid))
         if not row or not (store.media/row['filename']).is_file():reject('NOT_FOUND','Запись недоступна.',404)
         audit(store,user['id'],'admin_media_download' if download else 'admin_media_view',{'segment_id':sid},pid)
         return FileResponse(store.media/row['filename'],media_type=mimetypes.guess_type(row['filename'])[0] or 'application/octet-stream',filename='recording'+Path(row['filename']).suffix if download else None,content_disposition_type='attachment' if download else 'inline',headers={'Cache-Control':'no-store'})
