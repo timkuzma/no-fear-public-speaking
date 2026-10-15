@@ -85,6 +85,14 @@ asset hashes match source. Unauthenticated report/account/export requests return
 200. No production authentication was fabricated or account credential changed.
 Source commits remain local; no Git push was requested or performed.
 
+### Local recording-copy recovery, 15 October 2026
+
+Application revision `fb62dfe` is deployed as immutable image `sha256:654317a9994a7c26962114146b5b3623b2a401581eccbe81a5678ab8937c3515`, extending the expense-reconciliation image above. Only `public/app.js`, `public/guest-draft.js` and `public/index.html` changed; all previous file hashes matched committed source before the build. Runtime settings, providers, schemas and media validation remain unchanged.
+
+The authenticated `/#/recording-copies` view reads owner-scoped local drafts without retrying uploads or deleting entries. It can be opened separately while an original meeting remains open. Failed answer queues identify the failed stage and offer original Blob downloads. See [incident evidence and recovery limits](recording-save-incident.md): this release supplies diagnosis/recovery access, not a confirmed Safari codec fix or proof that rejected recordings can be repaired.
+
+Both queues were idle before the normal controller completed its verified offline backup/restore rehearsal, readiness and activation. Canonical users/practices/segments/jobs row hashes and all 47 referenced media-file hashes match across deployment. Public source hashes match all three local assets. HTTPS readiness confirms writable storage, both workers and maintenance disabled; private practices return 401 and public operator status returns 404. A production browser required sign-in for the copy route. Local checks passed 287 Python tests and final focused frontend auth/recording/syntax checks; the separate browser fixture on port 8095 rendered the authenticated copy view. No user credentials, real recording copies or new provider calls were used for validation. Source commits remain local; no Git push was requested or performed.
+
 ### Migration evidence and recovery boundary
 
 The original application had no queued/running final or incremental jobs when it entered maintenance and stopped. A verified offline snapshot and complete restore rehearsal preceded transport. The destination verified every media checksum, restored into a new directory and matched the canonical content hashes of **every database table before activation**. At cutover it contained **3 users, 7 practices, 14 saved media segments, 13 jobs, 3 reports and one analytics owner**. Existing report versions, questions, transcripts, sessions, accounting and analytics data were retained. Private invitation files were transferred separately without exposing their codes.
