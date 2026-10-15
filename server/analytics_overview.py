@@ -93,6 +93,8 @@ def overview(db, result, all_practices):
     payers = {p['user_id'] for p in charged}
     economy = {'unit': 'gateway_unit', 'total': total if all_priced else None,
                'known_total': total, 'practices': len(charged), 'priced_practices': len(priced), 'users': len(payers),
+               'known_per_practice': total / len(charged) if charged else None,
+               'known_per_user': total / len(payers) if payers else None,
                'per_practice': total / len(charged) if all_priced else None,
                'per_user': total / len(payers) if all_priced else None,
                'attempts': sum(c['attempts'] for c in costs.values()),

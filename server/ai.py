@@ -67,6 +67,10 @@ def _response_cost(value):
         return None
 
 
+def _request_id(value):
+    return value if isinstance(value,str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,200}',value) else None
+
+
 def _usage(model, operation, attempts, audio_seconds=0):
     def total(field):
         values = [attempt[field] for attempt in attempts]
@@ -125,6 +129,7 @@ async def _request(endpoint, model, operation, *, payload=None, audio=None, audi
             response = None
             oversized = False
             response_cost = None
+            response_request_id = None
             try:
                 arguments = {"headers": {"Authorization": "Bearer " + key}}
                 if audio is not None:
@@ -135,6 +140,7 @@ async def _request(endpoint, model, operation, *, payload=None, audio=None, audi
                 async with client.stream("POST", base + endpoint, **arguments) as incoming:
                     status = incoming.status_code
                     response_cost = _response_cost(incoming.headers.get('x-litellm-response-cost'))
+                    response_request_id = _request_id(incoming.headers.get('x-litellm-call-id'))
                     response_bytes = bytearray()
                     body_limit = 1024 * 1024 if 200 <= status < 300 else 4096 if status in (400, 404) else 0
                     if body_limit:
@@ -151,8 +157,9 @@ async def _request(endpoint, model, operation, *, payload=None, audio=None, audi
             attempt = {"status": status, "latency_ms": round((time.monotonic() - start) * 1000),
                        "input_tokens": None, "output_tokens": None,
                        "gateway_cost": response_cost, "cost_unit": "gateway_unit",
+                       "provider_request_id": response_request_id,
                        "attempt_id": reservation[1] if reservation else None}
-            limits.finish_attempt(reservation, status, attempt['latency_ms'], response_cost)
+            limits.finish_attempt(reservation, status, attempt['latency_ms'], response_cost, response_request_id)
             attempts.append(attempt)
             if response is not None and 200 <= status < 300:
                 if oversized:
@@ -167,6 +174,7 @@ async def _request(endpoint, model, operation, *, payload=None, audio=None, audi
                     raise _failed_response("Сервис разбора вернул ответ в неподходящем формате. Попробуйте ещё раз.",
                                            _usage(model, operation, attempts, audio_seconds))
                 counts = body.get("usage")
+                attempt['provider_request_id'] = _request_id(body.get('id')) or response_request_id
                 if isinstance(counts, dict):
                     attempt["input_tokens"] = _tokens(counts.get("prompt_tokens", counts.get("input_tokens")))
                     attempt["output_tokens"] = _tokens(counts.get("completion_tokens", counts.get("output_tokens")))

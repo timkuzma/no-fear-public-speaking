@@ -65,6 +65,16 @@ class AIContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report['metrics'][2]['text'], '70 слов/мин')
         self.assertNotIn('Уверенность', json.dumps(report['metrics'], ensure_ascii=False))
 
+    async def test_price_and_safe_request_id_are_retained_per_attempt(self):
+        for body_id, expected in [('chatcmpl-test', 'chatcmpl-test'), ('invalid id', 'gateway-test')]:
+            body = completion(report_response()) | {'id': body_id}
+            with self.provider(lambda request: httpx.Response(200, json=body, headers={
+                    'x-litellm-response-cost': '0.125', 'x-litellm-call-id': 'gateway-test'})):
+                result = await ai.analyze({}, SEGMENTS)
+            attempt = result['usage']['attempts'][0]
+            self.assertEqual(attempt['provider_request_id'], expected)
+            self.assertEqual(attempt['gateway_cost'], .125)
+
     async def test_closed_provider_shape_and_unknown_evidence_fail(self):
         invalid = []
         for extra in ('insight', 'metrics', 'score'):

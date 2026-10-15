@@ -113,7 +113,7 @@ def reserve_attempt(operation, audio_seconds=0, input_chars=0, output_tokens=0):
     return store, attempt_id
 
 
-def finish_attempt(reservation, status, latency_ms, gateway_cost=None):
+def finish_attempt(reservation, status, latency_ms, gateway_cost=None, provider_request_id=None):
     if reservation:
         store, attempt_id = reservation
         with store.connect() as db:
@@ -123,7 +123,8 @@ def finish_attempt(reservation, status, latency_ms, gateway_cost=None):
             from .analytics_events import record
             record(db, 'provider_cost_recorded', attempt['user_id'], practice[0] if practice else None,
                    {'attempt_id': attempt_id, 'job_id': attempt['job_id'], 'operation': attempt['operation'],
-                    'gateway_cost': gateway_cost, 'cost_unit': 'gateway_unit'}, event_id='cost:'+attempt_id)
+                    'gateway_cost': gateway_cost, 'cost_unit': 'gateway_unit',
+                    'provider_request_id': provider_request_id}, event_id='cost:'+attempt_id)
 
 
 def queue_capacity(db, kind):

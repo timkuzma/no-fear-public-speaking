@@ -144,6 +144,8 @@ def install(app,store,auth,check_origin,practice_json):
         return user
 
     async def report(query):
+        from .analytics_costs import sync_costs
+        await sync_costs(store)
         def read():
             with store.connect() as db:
                 deadline=time.monotonic()+18

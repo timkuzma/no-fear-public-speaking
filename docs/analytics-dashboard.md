@@ -131,7 +131,18 @@ is written alongside the quota outcome, before provider-body validation. The dur
 journal keeps the practice binding for final jobs and incremental ASR chunks; usage
 records and start events identify attempts with missing prices. Quota-row pruning
 must not erase recorded prices. Cancellation or an unknown outcome remains unpriced.
-No extra real provider calls are made to measure or backfill cost.
+No extra generation or recognition calls are made to measure or backfill cost.
+Successful usage retains a validated provider response ID; the immediate durable
+price event also retains the gateway call header ID when supplied.
+
+Owner analytics reads in production refresh the configured key's read-only spend
+ledger at most once per 30 seconds, with a three-second network deadline and an
+8 MiB response cap. Only a unique provider request ID or a unique model/token match
+inside the durable attempt interval can bind a price to an existing practice.
+Duplicate/ambiguous rows, conflicts with known header prices and calls belonging to
+other work are excluded. One gateway call cannot be charged to two local attempts.
+Reconciliation only updates price facts and its refresh timestamp; it never changes
+accounts, recordings, questions or reports. Failed refreshes retain saved prices.
 
 Totals include all recorded operations of selected practices (questions, assessment,
 wording, recognition and their retries/refreshes). Currency is unknown: UI and exports
@@ -139,7 +150,10 @@ use `gateway_unit` / `уч. ед.` rather than RUB or USD. A known zero is a pro
 observation, not proof of zero upstream cost. The 12 October recognition-accounting
 limitation in `observability-cost.md` still applies. Only fully priced practices can
 have a total; any missing attempt/legacy price makes aggregate total and means null.
-The known subtotal and coverage remain available. Per-user cost divides total by
+The known subtotal and coverage remain available. The UI displays known subtotals
+and corresponding means with `≥` while coverage is partial; exact export fields
+stay null and separate `known_per_practice` / `known_per_user` fields carry the lower
+bounds. No formula explanations are added to the UI. Per-user cost divides total by
 accounts with provider work; per-practice cost divides by practices with provider work.
 Event retention (180 days) and historical missing billing still limit coverage.
 
