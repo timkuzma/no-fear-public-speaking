@@ -164,6 +164,45 @@ and participant APIs; invalid extra filters receive 422. Health/readiness return
 remains 404 and the independent research reader remains 200. No account login,
 provider generation, ASR or report refresh was invoked for release verification.
 
+### Full analytics reading and compact entry, 15 October 2026
+
+Application revision `be780c1` is deployed as immutable image
+`sha256:793c1f09f5c29443bf50b0ec50188f8afc76b82c28dd1beebba5f2e1dcfc107d`,
+extending the password-viewer release. Seven public/server files changed. All 48
+tracked server/public source hashes and all five published asset hashes match.
+Dependencies, schema, provider configuration, password configuration and the shared
+edge were retained.
+
+At the user's explicit request, the existing password link now provides full
+read-only analytics: account registration data, practice lists and details,
+saved reports/transcripts, media playback/downloads and CSV/JSON/ZIP exports.
+Explicit viewer GET aliases share the owner read handlers and existing filters.
+Owner/admin and participant authentication remain separate; viewer credentials
+cannot authorize business mutations. The classification controls are omitted from
+the read-only detail view. The same password and session configuration continue
+to work; no password rotation or owner-membership change occurred.
+
+The entry page loads scoped analytics styles before rendering. Its form is limited
+to 380px, with a 24px heading, 38px password field, 36px button and explicit spacing.
+Desktop and 390px-wide browser checks confirmed the dimensions and no horizontal
+overflow. The actual HTTPS production browser confirmed the same control sizes.
+
+The normal controller completed verified offline backup/restore rehearsal (snapshot
+`1792096874819243947-69c40f`), readiness and activation with idle queues beforehand.
+Every prior row in eight immutable business tables, including owner membership,
+was retained; all 394 snapshotted media files retained their hashes. All 15
+unrelated running containers retained their identities.
+
+Validation passed 297 Python tests, final focused reader/access checks and frontend
+syntax checks. The synthetic browser verified account/practice tables, report/media
+details, export navigation and absence of classification actions. External HTTPS
+checks confirmed the previous password, account/practice lists, report detail,
+media Range responses, account export and revoked access after logout. Viewer
+credentials still return 401 from owner/admin and participant APIs. Public readiness
+confirms both workers, writable storage and maintenance disabled; operator status
+remains 404 and the research reader remains 200. Verification sent no provider,
+ASR or report-refresh requests and changed no participant business data.
+
 ### Migration evidence and recovery boundary
 
 The original application had no queued/running final or incremental jobs when it entered maintenance and stopped. A verified offline snapshot and complete restore rehearsal preceded transport. The destination verified every media checksum, restored into a new directory and matched the canonical content hashes of **every database table before activation**. At cutover it contained **3 users, 7 practices, 14 saved media segments, 13 jobs, 3 reports and one analytics owner**. Existing report versions, questions, transcripts, sessions, accounting and analytics data were retained. Private invitation files were transferred separately without exposing their codes.
