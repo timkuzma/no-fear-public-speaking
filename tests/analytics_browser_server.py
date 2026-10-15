@@ -29,6 +29,9 @@ def seed(app):
             jid=uuid.uuid4().hex;db.execute("INSERT INTO jobs(id,practice_id,kind,status,stage,created) VALUES(?,?,?,?,?,?)",(jid,pid,'report','pending','queued',at+30))
             db.execute("UPDATE jobs SET status='succeeded',finished=?,result=? WHERE id=?",(at+35,json.dumps(report,ensure_ascii=False),jid))
             db.execute("UPDATE practices SET status='ready',report=? WHERE id=?",(json.dumps(report,ensure_ascii=False),pid))
+            usage={'model':'synthetic-text-model','operation':'report','attempts':[
+                {'input_tokens':100*(n+1),'output_tokens':None if n==0 else 10*(n+1)}]}
+            db.execute('INSERT INTO usage VALUES(?,?,?,?,?)',(uuid.uuid4().hex,jid,participant,at+35,json.dumps(usage)))
     grant_owner(store,'analytics-owner@example.test')
 
 

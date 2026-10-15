@@ -135,7 +135,7 @@ No extra generation or recognition calls are made to measure or backfill cost.
 Successful usage retains a validated provider response ID; the immediate durable
 price event also retains the gateway call header ID when supplied.
 
-Owner analytics reads in production refresh the configured key's read-only spend
+Explicit operator reconciliation can refresh the configured key's read-only spend
 ledger at most once per 30 seconds, with a six-second network deadline and an
 8 MiB response cap. Only a unique provider request ID or a unique model/token match
 inside the durable attempt interval can bind a price to an existing practice.
@@ -145,17 +145,40 @@ Reconciliation only updates price facts and its refresh timestamp; it never chan
 accounts, recordings, questions or reports. Failed refreshes retain saved prices.
 
 Totals include all recorded operations of selected practices (questions, assessment,
-wording, recognition and their retries/refreshes). Currency is unknown: UI and exports
-use `gateway_unit` / `уч. ед.` rather than RUB or USD. A known zero is a provider-meter
+wording, recognition and their retries/refreshes). Currency is unknown: raw accounting
+retains `gateway_unit`; current UI and exports show text tokens instead. A known zero is a provider-meter
 observation, not proof of zero upstream cost. The 12 October recognition-accounting
 limitation in `observability-cost.md` still applies. Only fully priced practices can
 have a total; any missing attempt/legacy price makes aggregate total and means null.
-The known subtotal and coverage remain available. The UI displays known subtotals
-and corresponding means with `≥` while coverage is partial; exact export fields
-stay null and separate `known_per_practice` / `known_per_user` fields carry the lower
-bounds. No formula explanations are added to the UI. Per-user cost divides total by
+The raw known subtotal and coverage remain available through the legacy report
+accounting object. Exact accounting fields stay null when coverage is partial.
+Per-user cost divides total by
 accounts with provider work; per-practice cost divides by practices with provider work.
 Event retention (180 days) and historical missing billing still limit coverage.
+
+### Visible LLM consumption (15 October 2026)
+
+The dashboard expense row and practice table now show `Токены LLM`, with totals and
+means per practice and account with text-model work. `llm_tokens` carries these values
+in the API and current CSV/JSON/ZIP exports. Legacy `economy`/`cost` accounting fields
+remain in the report/practice API for compatibility but are excluded from current
+owner exports. Opening analytics no longer makes a billing network request.
+
+Count provider-reported input plus output tokens for questions, report assessment
+and both wording operations, including retries and failed attempts with reported
+usage. Deduplicate persisted attempts by their durable ID; legacy rows without IDs
+remain separate usage facts. Transcription calls/audio seconds are excluded.
+Unknown, invalid or absent token counts are never zero; a reported zero is valid.
+Durable text-call start events retain coverage gaps after quota expiry or an
+interrupted request. Partial totals and their means display `≥`; separate known
+input/output subtotals and call coverage are exported. Usage retention is 90 days,
+so missing historical counts remain unavailable. No formula explanations are added
+to the interface.
+
+The live configured key and selected models were rechecked on 15 October. Although
+some unrelated catalog entries declare RUB, `gpt-5.4`, `gpt-5.4-mini` and
+`whisper-large-v3` and the key do not declare a currency. Neither a guessed exchange
+rate nor another model's tariff can turn these recorded spend values into RUB.
 
 Reference: [LiteLLM response headers](https://docs.litellm.ai/docs/proxy/response_headers).
 

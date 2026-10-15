@@ -144,8 +144,6 @@ def install(app,store,auth,check_origin,practice_json):
         return user
 
     async def report(query):
-        from .analytics_costs import sync_costs
-        await sync_costs(store)
         def read():
             with store.connect() as db:
                 deadline=time.monotonic()+18
@@ -240,13 +238,13 @@ def install(app,store,auth,check_origin,practice_json):
         if len(data['practices'])>10000 or len(data['account_roster'])>10000:
             reject('EXPORT_LIMIT','В выгрузку можно включить до 10 000 аккаунтов и тренировок. Сократи период.')
         overview=data['overview']
-        practices=[dict(p,cost_total=p['cost']['total'],cost_unit='gateway_unit',priced_attempts=p['cost']['priced_attempts'],provider_attempts=p['cost']['attempts']) for p in data['practices']]
-        sets={'summary':[{k:v for k,v in overview.items() if k not in ('daily','acquisition_funnel','training_funnel')}],
+        practices=[{k:v for k,v in p.items() if k!='cost'} for p in data['practices']]
+        sets={'summary':[{k:v for k,v in overview.items() if k not in ('daily','acquisition_funnel','training_funnel','economy')}],
               'accounts':account_rows(data),'practices':practices,'daily':overview['daily'],
               'funnel':[dict(r,scope=scope) for scope,key in [('visits','acquisition_funnel'),('practices','training_funnel')] for r in overview[key]]}
         audit(store,user['id'],'admin_data_export',{'dataset':dataset,'format':format})
         metadata={'as_of':data['as_of'],'period':data['period'],'filters':data['filters'],'timezone':data['timezone'],
-                  'cost_unit':'gateway_unit','cost_currency':None,'accounts_scope':'registered before period end; practice counts in selected period',
+                  'llm_unit':'tokens','cost_currency':None,'accounts_scope':'registered before period end; practice counts in selected period',
                   'activity':'confirmed saved recording','retention':'previous seven-day active accounts returning in next seven days',
                   'identity_fields':'full_name is verbatim; separate name parts and masked IP were not collected'}
         if format=='json':return dict(metadata=metadata,rows=sets[dataset])

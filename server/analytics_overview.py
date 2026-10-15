@@ -13,6 +13,50 @@ def ratio(numerator, denominator):
             'value': round(100 * numerator / denominator, 2) if denominator else None}
 
 
+TEXT_OPERATIONS = {'questions', 'report', 'questions_wording', 'report_wording'}
+
+
+def practice_tokens(db, practices):
+    """Provider-reported text tokens, including retries; audio is not a token estimate."""
+    tokens = {p['id']: {'calls': 0, 'reported_calls': 0, 'observed_calls': 0,
+                      'known_input': 0, 'known_output': 0, 'unit': 'tokens'} for p in practices}
+    starts = Counter()
+    for event in db.execute("SELECT practice_id,correlation_id,data FROM analytics_events WHERE kind='provider_attempt_started'"):
+        pid = event['practice_id'] or event['correlation_id']
+        if pid in tokens and json.loads(event['data']).get('operation') in TEXT_OPERATIONS:
+            starts[pid] += 1
+    attempts = {}
+    for row in db.execute('''SELECT u.id,u.data,coalesce(j.practice_id,l.practice_id) practice_id
+                            FROM usage u LEFT JOIN jobs j ON j.id=u.job_id
+                            LEFT JOIN live_chunks l ON l.id=u.job_id ORDER BY u.created,u.id'''):
+        pid = row['practice_id']
+        if pid not in tokens:
+            continue
+        usage = json.loads(row['data'])
+        if usage.get('operation') not in TEXT_OPERATIONS:
+            continue
+        for index, attempt in enumerate(usage.get('attempts') or [usage]):
+            key = (pid, attempt.get('attempt_id') or f"{row['id']}:{index}")
+            attempts.setdefault(key, attempt)
+    for (pid, _), attempt in attempts.items():
+        item = tokens[pid]; item['calls'] += 1
+        values = [attempt.get(field) for field in ('input_tokens', 'output_tokens')]
+        known = [type(v) is int and v >= 0 for v in values]
+        item['reported_calls'] += all(known)
+        item['observed_calls'] += any(known)
+        for field, value, valid in zip(('known_input', 'known_output'), values, known):
+            if valid:
+                item[field] += value
+    for practice in practices:
+        item = tokens[practice['id']]
+        item['calls'] = max(item['calls'], starts[practice['id']])
+        item['known_total'] = item['known_input'] + item['known_output']
+        item['complete'] = item['calls'] > 0 and item['reported_calls'] == item['calls']
+        item['total'] = item['known_total'] if item['complete'] else None
+        practice['llm_tokens'] = item
+    return tokens
+
+
 def practice_costs(db, practices):
     """Journal survives quota/usage pruning; missing response prices stay unknown."""
     costs = {p['id']: {'attempts': 0, 'priced_attempts': 0, 'known_cost': 0.0} for p in practices}
@@ -64,6 +108,7 @@ def overview(db, result, all_practices):
         if p['speech_at']:
             speeches_by_user[p['user_id']].append((p['id'], p['speech_at']))
     costs = practice_costs(db, rows)
+    tokens = practice_tokens(db, rows)
     for account in accounts:
         account['practices'] = counts[account['id']]
     # Confirmed saved recordings, deduplicated by owner and Moscow calendar day.
@@ -99,6 +144,22 @@ def overview(db, result, all_practices):
                'per_user': total / len(payers) if all_priced else None,
                'attempts': sum(c['attempts'] for c in costs.values()),
                'priced_attempts': sum(c['priced_attempts'] for c in costs.values())}
+    text_practices = [p for p in rows if tokens[p['id']]['calls'] or p['report_at'] or p['questions_at']]
+    text_users = {p['user_id'] for p in text_practices}
+    token_total = sum(c['known_total'] for c in tokens.values())
+    token_complete = bool(text_practices) and all(tokens[p['id']]['complete'] for p in text_practices)
+    token_summary = {'unit': 'tokens', 'known_total': token_total,
+                     'total': token_total if token_complete else None,
+                     'known_input': sum(c['known_input'] for c in tokens.values()),
+                     'known_output': sum(c['known_output'] for c in tokens.values()),
+                     'calls': sum(c['calls'] for c in tokens.values()),
+                     'reported_calls': sum(c['reported_calls'] for c in tokens.values()),
+                     'observed_calls': sum(c['observed_calls'] for c in tokens.values()),
+                     'practices': len(text_practices), 'users': len(text_users)}
+    for suffix, denominator in [('practice', len(text_practices)), ('user', len(text_users))]:
+        value = token_total / denominator if denominator else None
+        token_summary['known_per_' + suffix] = value
+        token_summary['per_' + suffix] = value if token_complete else None
     # Acquisition is visit-based; training conversion is practice-based.
     # Multiplying these funnels would mix denominators.
     sessions = {r['id']: dict(r) for r in db.execute('SELECT id,actor_id,created,last_activity FROM analytics_sessions')}
@@ -150,7 +211,7 @@ def overview(db, result, all_practices):
                           'last_hour': len(active(moment - 3600, moment)),
                           'retention_7d': ratio(len(retained), len(previous)),
                           'churn_7d': ratio(len(previous - current), len(previous)),
-                          'activity_until': cutoff, 'daily': daily, 'economy': economy,
+                          'activity_until': cutoff, 'daily': daily, 'economy': economy, 'llm_tokens': token_summary,
                           'acquisition_funnel': acquisition, 'training_funnel': training,
                           'questions_disabled': sum(not p['questions'] for p in started)}
     return result

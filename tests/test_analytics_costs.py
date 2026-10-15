@@ -98,6 +98,9 @@ def test_cost_sync_is_scoped_get_cached_and_keeps_prices_on_failure(setup,monkey
     with patch('server.analytics_costs.httpx.AsyncClient',side_effect=lambda **kw:original(transport=httpx.MockTransport(handler),**kw)):
         assert other.get('/api/admin/analytics/report').status_code==403
         assert not requests
+        assert owner.get('/api/admin/analytics/report').status_code==200
+        assert not requests  # Token dashboards do not depend on a billing network request.
+        asyncio.run(sync_costs(s))
         assert owner.get('/api/admin/analytics/report').json()['overview']['economy']['total']==.5
         asyncio.run(sync_costs(s));assert len(requests)==1
     s.execute("DELETE FROM analytics_meta WHERE key='cost_sync_at'")
