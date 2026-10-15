@@ -1678,7 +1678,7 @@ async function navigate() {
   }
   if (path === "/admin/analytics" || path === "/admin/analytics/export") {
     if(!state.user.analytics_access){frame('<h1>Доступ не предоставлен</h1><p>Аналитика доступна владельцу платформы.</p>');return}
-    const module=await import("./admin-analytics.js?v=20261015-dense-2");
+    const module=await import("./admin-analytics.js?v=20261015-release-3");
     if(version===state.routeVersion)await module.mountAdmin(frame,{page:path.endsWith("/export")?"export":"analytics"});return;
   }
   if (path === "/app") {if(typeof trackPage==="function")trackPage(path);return setup()}

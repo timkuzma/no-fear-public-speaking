@@ -160,8 +160,8 @@ Existing snapshot formats remain pseudonymous and must never acquire identity fi
 
 The owner view follows the supplied BI references: a single KPI strip with vertical
 rules, compact inline date controls, a horizontal expense row, a daily chart beside
-the conversion table, and the selected records table below. KPI descriptions are
-available on hover and through the expandable definitions. Colors distinguish chart
+the conversion table, and the selected records table below. KPI labels carry their units and period; calculation explainers, formula tooltips
+and definition disclosures are intentionally absent at the user request. Colors distinguish chart
 series; unknown values remain em dashes and price coverage stays available beside
 expenses. There are no individual rounded KPI cards, shadows or decorative gauges.
 The export page uses the same compact controls and table scale. Narrow viewports

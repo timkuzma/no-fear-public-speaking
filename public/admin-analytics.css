@@ -73,20 +73,14 @@ body[data-view="admin"] footer {
 .admin-stat:last-child { border-right: 0; }
 .admin-stat>span { min-height: 2.7em; font-size: 13px; line-height: 1.35; color: var(--muted); }
 .admin-stat>strong { font-size: 28px; line-height: 1.15; font-weight: 500; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.admin .admin-definition { margin: 0; }
 .admin details>summary { cursor: pointer; }
-.admin-definition>summary { width: fit-content; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.admin-definition p { max-width: 100ch; color: var(--muted); line-height: 1.6; margin: 10px 0; }
-.admin-overview-definition { padding: 2px 14px 5px; }
-.admin-overview-definition>summary { margin-left: auto; }
 .admin-economy { display: flex; align-items: center; gap: 20px; padding: 10px 14px; background: var(--admin-bg); border: 1px solid var(--admin-border); border-top: 0; }
 .admin-economy h2 { font-size: 13px; font-weight: 600; white-space: nowrap; }
 .admin-costs { display: flex; align-items: center; flex: 1; gap: 24px; }
 .admin-costs .admin-stat { flex-direction: row; align-items: baseline; justify-content: flex-start; padding: 0; border: 0; gap: 8px; }
 .admin-costs .admin-stat>span { min-height: 0; white-space: nowrap; font-size: 12px; }
 .admin-costs .admin-stat>strong { font-size: 16px; white-space: nowrap; font-weight: 500; }
-.admin-cost-definition { position: relative; flex-shrink: 0; }
-.admin-cost-definition[open] p { position: absolute; z-index: 3; top: 20px; right: 0; width: min(360px,80vw); padding: 12px; background: var(--admin-bg); border: 1px solid var(--admin-border); box-shadow: 0 4px 12px #1726350d; color: var(--ink); }
+.admin-cost-coverage { flex-shrink: 0; font-size: 12px; color: var(--muted); }
 .admin-two-columns { display: grid; grid-template-columns: minmax(0,1.65fr) minmax(360px,1fr); gap: 12px; margin: 12px 0; }
 .admin-block { min-width: 0; background: var(--admin-bg); border: 1px solid var(--admin-border); padding: 12px 16px; }
 .admin-block-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 24px; margin-bottom: 8px; }
@@ -105,7 +99,7 @@ body[data-view="admin"] footer {
 .chart-line.registered { stroke: var(--admin-second); stroke-dasharray: 5 3; }
 .chart-point.registered { fill: var(--admin-second); }
 .admin-daily-table>summary { width: fit-content; font-size: 12px; color: var(--muted); }
-.admin-funnel-heading,.admin-funnel li { display: grid; grid-template-columns: minmax(0,1fr) 52px 54px; align-items: center; gap: 12px; }
+.admin-funnel-heading,.admin-funnel li { display: grid; grid-template-columns: minmax(0,1fr) 52px 88px; align-items: center; gap: 12px; }
 .admin-funnel-heading { padding: 3px 0; margin-top: 5px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--admin-border); }
 .admin-funnel-heading>span+span { text-align: right; }
 .admin-funnel { list-style: none; padding: 0; margin: 0 0 5px; }
@@ -189,7 +183,7 @@ body[data-view="admin"][data-admin-theme="dark"] {
   .admin-toolbar { align-items: flex-start; }
   .admin-status { margin-left: 0; }
   .admin-economy { flex-wrap: wrap; gap: 12px; }
-  .admin-cost-definition { margin-left: auto!important; }
+  .admin-cost-coverage { margin-left: auto; }
   .admin-two-columns { grid-template-columns: 1fr; }
   .admin-chart text { font-size: 16px; }
 }
@@ -214,12 +208,11 @@ body[data-view="admin"][data-admin-theme="dark"] {
   .admin-costs { width: 100%; gap: 12px; justify-content: space-between; align-items: flex-start; }
   .admin-costs .admin-stat>span { white-space: normal; font-size: 12px; }
   .admin-costs .admin-stat>strong { font-size: 15px; white-space: normal; }
-  .admin-cost-definition { margin-left: 0!important; }
-  .admin-cost-definition[open] p { left: 0; right: auto; }
+  .admin-cost-coverage { margin-left: 0; }
   .admin-block { padding: 12px; }
   .admin-chart text { font-size: 27px; }
   .admin-chart .chart-date:nth-last-child(2n) { display: none; }
-  .admin-funnel-heading,.admin-funnel li { gap: 8px; grid-template-columns: minmax(0,1fr) 40px 48px; }
+  .admin-funnel-heading,.admin-funnel li { gap: 8px; grid-template-columns: minmax(0,1fr) 40px 82px; }
   .admin-records-heading { padding: 0 10px; }
   .admin-record-switch { gap: 16px; }
   .admin-records-period { display: none; }
