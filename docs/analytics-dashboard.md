@@ -85,7 +85,8 @@ The maintained UI now has exactly two routes: `/#/admin/analytics` and
 `/#/admin/analytics/export`. Only the inclusive Moscow date range and the
 staff/test-account switch are visible. Advanced calculation, journal, marketing
 and legacy snapshot APIs remain owner-authorized; they are not navigation tabs.
-Accounts and practices are lazy-loaded, paginated tables within expandable sections.
+The records region switches between practices (default) and accounts, lazily loading
+one table at a time with 10 rows per page.
 A practice opens its real saved recordings, reports and feedback. These are
 completion and report-usefulness observations, not evidence of speech improvement.
 
@@ -154,3 +155,16 @@ fail explicitly. Every request rechecks owner access, honors `ANALYTICS_EXPORT_E
 and records a content-free audit event. Unlike legacy pseudonymous snapshots, the
 explicitly requested **private owner account export includes name and email**.
 Existing snapshot formats remain pseudonymous and must never acquire identity fields.
+
+### Dense presentation (15 October 2026)
+
+The owner view follows the supplied BI references: a single KPI strip with vertical
+rules, compact inline date controls, a horizontal expense row, a daily chart beside
+the conversion table, and the selected records table below. KPI descriptions are
+available on hover and through the expandable definitions. Colors distinguish chart
+series; unknown values remain em dashes and price coverage stays available beside
+expenses. There are no individual rounded KPI cards, shadows or decorative gauges.
+The export page uses the same compact controls and table scale. Narrow viewports
+stack analytical sections and retain local horizontal scrolling for wide tables.
+Report prose, quotations and recordings retain the normal readable product scale.
+Calculations, filtering, ownership and export contents are unchanged by this pass.
