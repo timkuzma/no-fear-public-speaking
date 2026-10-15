@@ -702,14 +702,17 @@ async def _edited_fields(kind, fields):
         originals = {f['id']: f for f in fields}
         edited = {}
         for item in items:
-            if not isinstance(item, dict) or set(item) not in ({'id', 'text'}, {'id', 'text', 'max_chars'}):
+            if (not isinstance(item, dict) or not {'id', 'text'} <= set(item)
+                    or set(item) - {'id', 'text', 'max_chars', 'source'}):
                 raise ValueError()
             key = item['id']
             if not isinstance(key, str) or key not in originals or key in edited:
                 raise ValueError()
             original = originals[key]
-            # Some adapters echo the read-only input cap. It cannot change policy.
+            # Discard exact read-only input echoes; never accept edited source/caps.
             if 'max_chars' in item and (type(item['max_chars']) is not int or item['max_chars'] != original['max_chars']):
+                raise ValueError()
+            if 'source' in item and item['source'] != original['source']:
                 raise ValueError()
             text = _string(item['text'], original['max_chars'])
             numbers = r'[+-]?\d+(?:[.,]\d+)?%?'
@@ -725,7 +728,9 @@ async def _edited_fields(kind, fields):
         if kind == 'questions' and len({v.casefold() for v in edited.values()}) != len(edited):
             raise ValueError()
     except (KeyError, TypeError, ValueError):
-        error = ProviderError('AI_WORDING_INVALID', 'Не удалось подготовить текст обратной связи. Запись сохранена; попробуйте ещё раз.')
+        message = ('Не удалось подготовить вопросы. Выступление сохранено; попробуйте ещё раз.' if kind == 'questions'
+                   else 'Не удалось подготовить текст обратной связи. Запись сохранена; попробуйте ещё раз.')
+        error = ProviderError('AI_WORDING_INVALID', message)
         error.usage = usage
         raise error from None
     return edited, usage

@@ -24,10 +24,10 @@ def report(monkeypatch):
     return asyncio.run(ai.analyze({}, SEGMENTS))['report']
 
 
-def editorial(monkeypatch, mutate=None):
+def editorial(monkeypatch, mutate=None, echo=False):
     async def reply(operation, system, data, *, model):
         assert model == 'deepseek-fixture'
-        fields = [{'id': f['id'], 'text': f['text']} for f in data['fields']]
+        fields = copy.deepcopy(data['fields']) if echo else [{'id': f['id'], 'text': f['text']} for f in data['fields']]
         if mutate:
             mutate(fields)
         return {'fields': fields}, EDITOR_USAGE
@@ -60,6 +60,7 @@ def test_editor_preserves_assessment_and_derives_compatibility_fields(report, mo
     lambda f: f[-1].update(text='Скажи «выдуманная цитата».'),
     lambda f: f[0].update(text='x' * 181),
     lambda f: f[0].update(max_chars=9999),
+    lambda f: f[0].update(source='Другая цитата'),
     lambda f: f[0].update(text='**Новый заголовок**'),
 ])
 def test_invalid_editor_output_is_not_published(report, monkeypatch, mutate):
@@ -81,10 +82,12 @@ def test_existing_report_requires_matching_revision_and_exact_evidence(report, m
     assert not ai.can_reword_report({}, [{**SEGMENTS[0], 'text': TEXT + ' Ещё мысль.'}], report)
 
 
-def test_exact_readonly_cap_echo_is_ignored(report, monkeypatch):
-    editorial(monkeypatch, lambda f: f[0].update(max_chars=180))
+@pytest.mark.parametrize('echo', [{'max_chars': 180}, {'source': 'Новый срок — пятница.'}, {'source': 'Новый срок — пятница.', 'max_chars': 180}])
+def test_exact_readonly_echo_is_ignored(report, monkeypatch, echo):
+    editorial(monkeypatch, lambda f: f[0].update(echo))
     edited = asyncio.run(ai.reword_report(report))['report']
     assert 'max_chars' not in edited['recommendations'][0]
+    assert 'source' not in edited['recommendations'][0]
 
 
 def test_signed_number_cannot_change_during_wording(monkeypatch):
@@ -93,15 +96,17 @@ def test_signed_number_cannot_change_during_wording(monkeypatch):
         asyncio.run(ai._edited_fields('report', [{'id': 'field', 'text': 'Изменение составляет -10%', 'source': '', 'max_chars': 700}]))
 
 
-def test_question_edit_keeps_source_binding_and_saved_text_aligned(monkeypatch):
+@pytest.mark.parametrize('echo', [False, True])
+def test_question_edit_keeps_source_binding_and_saved_text_aligned(monkeypatch, echo):
     quote = ai._provenance(ai.build_context('questions', {}, SEGMENTS)['evidence'][1])
     old = ['Почему выбрана пятница?', 'При каком условии вы измените срок?', 'Что важно учесть при переносе?']
     original = {'questions': old, 'provenance': {'items': [{'text': q, **quote} for q in old]}, 'usage': USAGE}
-    editorial(monkeypatch, lambda f: f[0].update(text='Почему ты выбрал пятницу?'))
+    editorial(monkeypatch, lambda f: f[0].update(text='Почему ты выбрал пятницу?'), echo=echo)
     edited = asyncio.run(ai.reword_questions(original))
     assert original['questions'][0] == old[0]
     assert edited['questions'][0] == edited['provenance']['items'][0]['text']
     assert ai.question_provenance_matches(edited['provenance']['items'][0], edited['questions'][0], TEXT)
+    assert 'source' not in edited['provenance']['items'][0]
 
 
 @pytest.mark.parametrize('bad', ['Почему пятница? Что дальше?', 'Почему пятница', 'Новый вопрос?'])
@@ -112,6 +117,35 @@ def test_question_editor_rejects_compound_incomplete_or_duplicate_questions(monk
     editorial(monkeypatch, lambda f: f[0].update(text=bad))
     with pytest.raises(ai.ProviderError):
         asyncio.run(ai.reword_questions(response))
+
+
+@pytest.mark.parametrize('bad_source', [False, True])
+def test_worker_question_editor_readonly_echo_preserves_sources(tmp_path, monkeypatch, bad_source):
+    store = Store(tmp_path)
+    store.execute('INSERT INTO practices VALUES(?,?,?,?,?,?,?,?)', ('p', 'u', '{}', now(), 'processing', '[]', None, None))
+    store.execute('INSERT INTO segments VALUES(?,?,?,?,?,?,?,?)', ('s', 'p', 'speech', 0, 'speech.wav', 12, TEXT, now()))
+    store.execute('INSERT INTO jobs(id,practice_id,kind,status,stage,created) VALUES(?,?,?,?,?,?)', ('j', 'p', 'questions', 'pending', 'queued', now()))
+    questions = ['Почему выбрана пятница?', 'При каком условии ты изменишь срок?', 'Что важно учесть при переносе?']
+    quote = ai._provenance(ai.build_context('questions', {}, SEGMENTS)['evidence'][1])
+    response = {'questions': questions, 'provenance': {'items': [{'text': q, **quote} for q in questions]}, 'usage': USAGE}
+    editorial(monkeypatch, (lambda f: f[0].update(source='Другая цитата')) if bad_source else None, echo=True)
+    monkeypatch.setattr(ai, 'generate_questions', AsyncMock(return_value=response))
+    transcribe = AsyncMock(); monkeypatch.setattr(ai, 'transcribe', transcribe)
+    asyncio.run(process(store, store.claim_job()))
+    transcribe.assert_not_awaited()
+    job = store.one('SELECT * FROM jobs WHERE id="j"')
+    practice = store.one('SELECT * FROM practices WHERE id="p"')
+    assert len(store.all('SELECT * FROM usage')) == 2
+    assert store.one('SELECT transcript FROM segments WHERE id="s"')['transcript'] == TEXT
+    if bad_source:
+        assert job['status'] == 'failed'
+        assert json.loads(practice['questions']) == []
+        assert 'подготовить вопросы' in json.loads(job['error'])['message']
+    else:
+        assert job['status'] == 'succeeded'
+        assert json.loads(practice['questions']) == questions
+        saved = json.loads(practice['question_provenance'])['items']
+        assert all(ai.question_provenance_matches(item, text, TEXT) for item, text in zip(saved, questions))
 
 
 @pytest.mark.parametrize('failure', [False, True])
