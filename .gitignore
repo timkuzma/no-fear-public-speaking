@@ -9,10 +9,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .DS_Store
-outputs/test-artifacts/
-outputs/*-actual.json
-outputs/*-actual.wav
-outputs/*-actual.mp3
+# Generated run reports, screenshots and private QA artifacts are not source.
+/outputs/
 node_modules/
 # Private deployment credentials and generated research content stay local.
 secrets.json

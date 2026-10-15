@@ -1,6 +1,6 @@
 # Closed contest analytics and event journal
 
-Implemented against the approved `contest-analytics-dashboard-plan.html`. The application remains one process with its existing two AI workers. Analytics does not trigger ASR or LLM calls.
+This document defines the maintained analytics behavior and measurement rules. The application remains one process with its existing two AI workers. Analytics does not trigger ASR or LLM calls.
 
 ## Access
 

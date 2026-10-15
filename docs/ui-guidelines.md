@@ -2,28 +2,28 @@
 
 These rules apply to every maintained route in `public/` and are summarized in root `AGENTS.md`.
 
-| Before                                                           | After                                                                                        | Why                                                            |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Native select arrow flush with the edge                          | Native keyboard-accessible select with an 18px chevron gutter and 52px reserved text padding | Consistent spacing without replacing the native control        |
-| Forced line breaks and fragmentary headings with periods         | Complete naturally wrapping headings without terminal periods                                | Readable Russian product copy                                  |
-| Decorative CTA arrows, status dot and padded numbering           | Text-only CTA labels and ordinary ordered step numbers                                       | Apply the user's interface preferences consistently            |
-| Optional hint on a separate row; adjoining fields visually merge | Inline optional label, grouped field hints and shared typography tokens                      | Keep label, value, description and action hierarchy clear      |
-| Long generated recommendations styled as headings                | Section heading followed by the complete recommendation as body text                         | Preserve substantive report text and correct heading semantics |
+## Maintained interface rules
+
+- The header has no logo/wordmark. Guests have separate login and registration links; authenticated users have practice/history navigation and a separate logout action. Account-creation CTA labels are `Регистрация`.
+- Starting a practice requires authentication. Legacy `#/guest` links lead to registration or authenticated setup; existing guest drafts remain importable after login. Old `#/example` and `#/privacy` links return to the landing. There is no public example report or consent step.
+- Preserve native keyboard-accessible selects, an 18px inner chevron gutter and 52px reserved text padding. Headings wrap naturally without terminal periods; CTA labels have no decorative arrows. Use shared typography tokens and inline optional-field labels with attached hints. Keep substantive recommendations as body text beneath a section heading.
+- `public/typography.js` formats rendered text nodes across route changes and late updates. It preserves explicit newlines and excludes form values, code, editable regions, stored transcripts and provider evidence.
+- Scenario descriptions share one CSS grid cell so the tallest text reserves space. The CTA is a persistent sibling outside the animated copy; context switching must not recreate or move it.
+- Landing sections, headings, images and large cards stay visible and static while scrolling. Keep motion tied to explicit interactions, honor reduced motion and clean up animations/listeners on route exit. Current guidance and primary sources are in [landing-motion-notes.md](landing-motion-notes.md).
+- Successful registration/login responses already contain provider/invitation flags and CSRF state; do not wait for a redundant session request. Bound auth and IndexedDB operations, preserve form values and keep original recording Blobs on failure. API behavior is in [api-contract.md](api-contract.md).
+
+## Fonts and design reference
+
+Golos Text and Manrope are self-hosted variable fonts sourced from the official Google Fonts repository (`ofl/golostext`, `ofl/manrope`). Their OFL licenses remain beside the files in `public/fonts/`.
+
+The supplied 13 October 2026 design-reference clip showed a HackerRank landing page. Its composition informed the redesign; the clip, reference screenshots, branding and testimonials are not application assets. The implemented page uses its own product copy, generated meeting imagery and native controls.
 
 ## Landing image
 
 - Asset: `public/audience-russian-campus-bright.jpg` (JPEG delivery copy of the generated PNG).
 - Generated with the built-in `image_gen` tool on 2026-10-11; no third-party photo was downloaded or used as an identity reference.
 - This is a fictional photographic illustration of a Russian university context. It does not document real students, identify anyone's nationality, or supply product testimonials. The image alt text explicitly identifies it as an illustration.
-- The imported legacy images remain unused by maintained routes.
-
-## Validation
-
-- Checked landing, registration, login, password reset, guest setup, example report, privacy, authenticated setup, history and a saved real AI report in the live browser.
-- No terminal heading periods, forced heading breaks, arrow CTA labels, decorative status dots or padded step numbers were found on the eight static routes and the saved report.
-- Landing, registration, authenticated setup and example report fit a 390 CSS-pixel viewport without horizontal overflow. Viewport overrides were reset after the check.
-- Native keyboard selection changed duration from 5 minutes to 3 minutes using Space, ArrowUp and Enter. Computed select padding is 52px; chevron gutter is 18px. Labels, values and hints use 14px, 16px and 13px respectively.
-- Both frontend modules pass Node syntax checks. Formatting and Git whitespace checks pass. No backend contract or stored practice content was changed.
+- The retained image files in `public/` include unused source variants. Root prototype copies are not part of the application.
 
 ### Generation prompt
 
@@ -32,9 +32,7 @@ Use case: photorealistic-natural. Asset type: website landing hero, vertical 4:5
 ## Bright hero revision
 
 - Edited the generated campus illustration with built-in `image_gen` on 2026-10-11 to use brighter daylight, natural colors, light blue/cream/green clothing and engaged, friendly expressions. The earlier generated asset remains available as an unused source. The delivery JPEG only changes format/compression.
-- Removed the desaturation filter, the dark overlay across faces and its context-free copy. The remaining card is explicitly labeled as an example recommendation. Shared background colors are lighter; text contrast and layout tokens remain intact.
-
-- Verified the final hero in the live browser: updated image loaded, no overlay caption, no image filter and no horizontal overflow at the current desktop viewport. Both JavaScript modules pass syntax checks; Git whitespace checks pass.
+- Keep the generated assets bright and naturally colored. Do not place copy across faces or introduce an example report or recommendation preview on the landing.
 
 ### Edit prompt
 
@@ -43,6 +41,6 @@ Use case: lighting-weather / photorealistic-natural. Edit this generated photogr
 ## Meeting scene and chat (2026-10-11)
 
 - `public/audience-meeting-v1.png`: separately generated with built-in image_gen, no downloaded photo or identity reference. Chat participant names are fictional labels for generated questions, never live people. Fictional listeners in a contemporary Russian university/workplace meeting room, directly facing the speaker. This is an illustration, never a testimonial. The landing image is unchanged.
-- Keep one immersive scene, a small optional self-video, and one microphone/camera/recording toolbar. No speech-coaching copy or audience caption. After confirmed upload, questions arrive in a side chat and answers are marked saved only after server confirmation.
-- Plain CSS: chat panel 220 ms ease-out; question messages 180 ms with 0/60/120 ms offsets only on completed generation, not on reload. Keep scene, preview and timer stable. Existing reduced-motion rule disables animations.
+- Keep one immersive scene, a small optional self-video, and one microphone/camera/recording toolbar. No speech-coaching copy or audience caption. Questions appear sequentially in the same chat; each answer starts immediately. Preserve the meeting DOM during background saves and label server persistence only after acknowledgement.
+- Keep scene, preview and timer stable during question generation, recording, upload and retries. Reduced motion disables decorative transitions.
 - Benchmarks: [Zoom in-meeting chat](https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0064400), [Prompt Motion UI states](https://prompt-motion.com/twoclipping-5cba86), [Prompt Motion chat walkthrough](https://prompt-motion.com/wani-shola-16ca7a), [Emil Kowalski on animation speed](https://emilkowal.ski/ui/you-dont-need-animations), [MDN log role](https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/log_role). Adapt timing and state continuity, not promotional montage. Scroll-world's scroll-linked video mechanics do not help this recording flow.

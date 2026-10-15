@@ -12,7 +12,7 @@ Incremental ASR stores one usage row per independently transcribed chunk; `job_i
 
 ## Verified bounded API load
 
-See `outputs/load-report.json`. Actual local HTTP test on macOS ARM, Python 3.12.14, one Uvicorn worker, disposable SQLite. Equal endpoint mix: authenticated current user, owned history, owned practice and health. Every request also persists a metric. No AI generation or upload in this load profile.
+Historical local HTTP measurement on macOS ARM, Python 3.12.14, one Uvicorn worker, disposable SQLite. Equal endpoint mix: authenticated current user, owned history, owned practice and health. Every request also persists a metric. No AI generation or upload in this load profile. The aggregate results are preserved below; generated raw run reports are not versioned. Rerun `.venv/bin/python scripts/load_test.py` to produce a new local `outputs/load-report.json`.
 
 | Target RPS | Scheduled duration | Requests | Errors | p95 ms | p99 ms |
 |---:|---:|---:|---:|---:|---:|
