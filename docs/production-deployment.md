@@ -93,6 +93,41 @@ The authenticated `/#/recording-copies` view reads owner-scoped local drafts wit
 
 Both queues were idle before the normal controller completed its verified offline backup/restore rehearsal, readiness and activation. Canonical users/practices/segments/jobs row hashes and all 47 referenced media-file hashes match across deployment. Public source hashes match all three local assets. HTTPS readiness confirms writable storage, both workers and maintenance disabled; private practices return 401 and public operator status returns 404. A production browser required sign-in for the copy route. Local checks passed 287 Python tests and final focused frontend auth/recording/syntax checks; the separate browser fixture on port 8095 rendered the authenticated copy view. No user credentials, real recording copies or new provider calls were used for validation. Source commits remain local; no Git push was requested or performed.
 
+### Provider-reported LLM tokens, 15 October 2026
+
+Application revision `ab16699` is deployed as immutable image
+`sha256:b572bf72006dde48f1494a9a195ad709d489472bf43ace7f06fb13db1e7aad71`,
+extending the recording-copy recovery release. Only `public/admin-analytics.js`,
+`public/app.js`, `public/index.html`, `server/analytics_api.py` and
+`server/analytics_overview.py` changed. All 46 tracked server/public source hashes
+match the running image; its verified base layers, dependencies, runtime settings,
+schema and shared edge remain intact.
+
+The dashboard and current owner exports now show text LLM tokens instead of
+unspecified accounting units. They include input/output consumption, retries and
+wording calls, deduplicate durable attempt IDs and exclude audio transcription.
+Missing counts retain partial `≥` values. Historical monetary journal facts and
+legacy report accounting fields remain available; opening analytics no longer
+depends on a billing GET. Live key/model metadata still does not declare a billing
+currency for any selected model, so no unverified conversion to RUB was applied.
+
+The controller completed verified backup/restore rehearsal (snapshot
+`1792088382035995354-54b061`), readiness and activation with idle queues beforehand.
+Participant activity continued afterward: an existing practice received a report
+and a new practice/job appeared; earlier job rows retained their content. No
+generation, recognition, practice refresh or production authentication was invoked
+for verification. Calculating the current metrics read the database in read-only
+mode and returned 281,120 known tokens (262,406 input / 18,714 output), reported for
+59 of 61 text calls at that instant. These counts can increase with real activity.
+
+Validation passed 291 Python tests, frontend syntax checks and the synthetic owner
+browser check of complete/partial token values. Export tests cover filtered totals,
+CSV/JSON units, privacy and absence of gateway units. External HTTPS health/readiness
+returned 200 with both workers, writable storage and maintenance disabled; all three
+public asset hashes match source. Private analytics/practice/export requests return
+401, public operator status returns 404, and the research reader returns 200.
+GitHub publication uses the `github` remote and explicit `HEAD:main` refspec.
+
 ### Migration evidence and recovery boundary
 
 The original application had no queued/running final or incremental jobs when it entered maintenance and stopped. A verified offline snapshot and complete restore rehearsal preceded transport. The destination verified every media checksum, restored into a new directory and matched the canonical content hashes of **every database table before activation**. At cutover it contained **3 users, 7 practices, 14 saved media segments, 13 jobs, 3 reports and one analytics owner**. Existing report versions, questions, transcripts, sessions, accounting and analytics data were retained. Private invitation files were transferred separately without exposing their codes.
