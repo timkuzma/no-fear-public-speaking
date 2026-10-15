@@ -141,7 +141,7 @@ function fixture({
       `
     meetingPage = p => events.push({type:'meeting', id:p.id, uploading:state.uploading});
     frame = content => events.push({type:'frame', content});
-    globalThis.flow = {state, beginMeeting, startNextAnswer, pumpAnswerUploads, queuedAnswers, closeMedia, practicePage, toggleMic, startRecording, stopRecording, saveRecording, questionChat, restorePending, sessionExpired, resumeAfterLogin, navigate, continueAfterSave, showPending, action, recordingLimit};
+    globalThis.flow = {state, beginMeeting, startNextAnswer, pumpAnswerUploads, queuedAnswers, closeMedia, practicePage, toggleMic, startRecording, stopRecording, saveRecording, questionChat, restorePending, sessionExpired, resumeAfterLogin, navigate, continueAfterSave, showPending, action, recordingLimit, recordingCopies, answerQueueMessage};
   `,
     context,
   );
@@ -538,7 +538,11 @@ for (const reason of ["fresh", "leave", "mute", "auth"]) {
   f.flow.stopRecording(); await settle();
   const chat = f.flow.questionChat(f.flow.state.practice, null, null);
   assert.match(chat, /Повторить сохранение/);
-  assert.doesNotMatch(chat, /<audio|download/);
+  assert.doesNotMatch(chat, /<audio/);
+  assert.match(chat, /download="Ответ 1.webm"/);
+  assert.match(chat, /Ответ 1 не сохранён/);
+  f.flow.state.answerQueue[0].error = {code: "MEDIA_INVALID"};
+  assert.match(f.flow.answerQueueMessage(f.flow.state.practice), /Не удалось прочитать эту запись/);
   f.allowUpload();
   f.flow.state.answerQueue.forEach(answer => { answer.error = null; });
   await f.flow.pumpAnswerUploads(f.flow.state.practice);
@@ -546,6 +550,24 @@ for (const reason of ["fresh", "leave", "mute", "auth"]) {
   assert.equal(f.events.filter(e => e.type === "job" && e.kind === "report").length, 1);
 }
 console.log("Continuous meeting, device reuse, automatic answers and cancellation cases passed");
+
+{
+  const drafts = new Map([
+    ["own", {ownerId:"account", practiceId:"practice", index:2, kind:"answer", blob:new Blob(["original bytes"],{type:"audio/mp4"})}],
+    ["other", {ownerId:"other", practiceId:"other-practice", index:9, kind:"answer", blob:new Blob(["private"])}],
+  ]);
+  const f = fixture({accountDrafts:drafts});
+  await f.flow.recordingCopies(f.flow.state.routeVersion);
+  const page = f.events.filter(e=>e.type==="frame").at(-1).content;
+  assert.match(page,/download="Ответ 2.m4a"/);
+  assert.doesNotMatch(page,/Ответ 9|private|original bytes/);
+  assert.equal(drafts.size,2,"Downloading copies must preserve all drafts");
+  assert.equal(f.events.filter(e=>e.type==="upload"||e.type==="job").length,0);
+  f.flow.state.user=null;
+  const count=f.events.filter(e=>e.type==="frame").length;
+  await f.flow.recordingCopies(f.flow.state.routeVersion);
+  assert.equal(f.events.filter(e=>e.type==="frame").length,count,"Guests must not get a copy page");
+}
 
 {
   const f = fixture({answer: true});

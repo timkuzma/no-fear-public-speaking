@@ -96,7 +96,7 @@ export function clearRecordingDraft(draft) {
   });
 }
 
-export async function loadRecordingDrafts(ownerId) {
+export async function loadRecordingDrafts(ownerId, { pruneExpired = true } = {}) {
   if (!ownerId) return [];
   const prefix = `account:${ownerId}:`;
   const drafts = await transact("readonly", (store) =>
@@ -105,8 +105,9 @@ export async function loadRecordingDrafts(ownerId) {
   const valid = [];
   for (const draft of drafts) {
     if (draft.ownerId !== ownerId) continue;
-    if (Date.now() - draft.createdAt >= TTL || !(draft.blob instanceof Blob))
-      await clearRecordingDraft(draft);
+    if (Date.now() - draft.createdAt >= TTL || !(draft.blob instanceof Blob)) {
+      if (pruneExpired) await clearRecordingDraft(draft);
+    }
     else valid.push(draft);
   }
   return valid.sort((a, b) => b.createdAt - a.createdAt);

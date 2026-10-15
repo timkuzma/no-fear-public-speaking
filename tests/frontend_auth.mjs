@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { api } from "../public/api.js";
-import { loadDraft } from "../public/guest-draft.js";
+import { loadDraft, loadRecordingDrafts } from "../public/guest-draft.js";
 
 const nativeTimer = globalThis.setTimeout;
 const nativeFetch = globalThis.fetch;
@@ -45,6 +45,37 @@ try {
 } finally {
   globalThis.setTimeout = nativeTimer;
   globalThis.fetch = nativeFetch;
+}
+
+{
+  const previousDB = globalThis.indexedDB, previousRange = globalThis.IDBKeyRange;
+  const draft = {ownerId:"owner",createdAt:Date.now(),blob:new Blob(["bytes"])};
+  globalThis.IDBKeyRange = {bound:(first,last)=>{
+    assert.equal(first,"account:owner:");
+    assert.equal(last,"account:owner:\uffff");
+    return {};
+  }};
+  globalThis.indexedDB = {open:()=>{
+    const opening = {result:{close(){},transaction(_store,mode){
+      assert.equal(mode,"readonly");
+      const tx={objectStore:()=>({
+        getAll:()=>{
+          const result={result:[draft,{...draft,createdAt:Date.now()-86400001},{...draft,ownerId:"other"}]};
+          queueMicrotask(()=>tx.oncomplete());
+          return result;
+        },
+        delete(){assert.fail("Copy recovery must never delete a draft")},
+      })};
+      return tx;
+    }}};
+    queueMicrotask(()=>opening.onsuccess());
+    return opening;
+  }};
+  try {
+    assert.deepEqual(await loadRecordingDrafts("owner",{pruneExpired:false}),[draft]);
+  } finally {
+    globalThis.indexedDB=previousDB;globalThis.IDBKeyRange=previousRange;
+  }
 }
 
 const source = readFileSync(new URL("../public/app.js", import.meta.url), "utf8")

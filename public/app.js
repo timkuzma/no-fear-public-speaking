@@ -10,7 +10,7 @@ import {
   saveRecordingDraft,
   loadRecordingDrafts,
   clearRecordingDraft,
-} from "./guest-draft.js?v=20261013-practice-settings";
+} from "./guest-draft.js?v=20261015-recording-copies";
 const app = document.querySelector("#app");
 const CURRENT_REPORT_VERSION = "speech-feedback-v2.4";
 let landingCleanup = () => {};
@@ -381,6 +381,7 @@ async function resumeAfterLogin() {
 }
 
 function sessionExpired() {
+  clearRecordingCopies();
   telemetry("reauthentication_needed",{},state.practice?.id);
   const ownerId =
     state.user?.id || state.pending?.ownerId || state.recordingOwnerId;
@@ -1186,13 +1187,48 @@ function queuedAnswers(p = state.practice) {
   return state.answerQueue.filter((answer) => answer.practiceId === p?.id &&
     (!state.user || answer.ownerId === state.user.id));
 }
+function recordingCopyLink(recording, url = recording.url) {
+  const type = recording.blob.type;
+  const extension = type.includes("mp4") ? (type.startsWith("video/") ? "mp4" : "m4a") : type.includes("ogg") ? "ogg" : type.includes("webm") ? "webm" : "bin";
+  const name = recording.kind === "speech" ? "Выступление" : `Ответ ${Number(recording.index)}`;
+  return `<a class="button secondary" href="${escape(url)}" download="${escape(name)}.${extension}">Скачать: ${escape(name.toLowerCase())}</a>`;
+}
+let recordingCopyUrls = [];
+function clearRecordingCopies() {
+  recordingCopyUrls.forEach((url) => URL.revokeObjectURL(url));
+  recordingCopyUrls = [];
+}
+async function recordingCopies(version) {
+  const ownerId = state.user?.id;
+  if (!ownerId) return go("/login");
+  frame('<div class="loading" role="status">Ищем копии записей…</div>');
+  try {
+    const drafts = await loadRecordingDrafts(ownerId, { pruneExpired: false });
+    if (version !== state.routeVersion || state.user?.id !== ownerId) return;
+    clearRecordingCopies();
+    const links = drafts.filter((draft) => draft.ownerId === ownerId).map((draft) => {
+      const url = URL.createObjectURL(draft.blob);
+      recordingCopyUrls.push(url);
+      return `<p>${recordingCopyLink(draft, url)}</p>`;
+    }).join("");
+    frame(`<section class="narrow"><h1>Копии записей</h1><p>Скачай копии перед продолжением тренировки. Вкладку с тренировкой пока оставь открытой.</p>${links || '<p>На этом устройстве не найдено доступных копий записей.</p>'}</section>`);
+  } catch {
+    if (version === state.routeVersion && state.user?.id === ownerId)
+      frame(`<section class="narrow"><h1>Копии записей</h1>${errorBox("Не удалось открыть копии записей. Оставь вкладку с тренировкой открытой и попробуй открыть эту страницу ещё раз.")}</section>`);
+  }
+}
 function answerQueueMessage(p) {
   const answers = queuedAnswers(p);
   if (!answers.length) return "";
   if (!state.user)
     return `<p>Ответы записаны. Войди снова, чтобы сохранить их и получить разбор.</p>${button("Войти и продолжить", "reauth-answers")}`;
-  if (answers.some((answer) => answer.error))
-    return `<p role="alert">Не удалось сохранить все ответы. Записи остаются доступными; повтори сохранение.</p>${button("Повторить сохранение", "retry-answers")}`;
+  const failed = answers.find((answer) => answer.error);
+  if (failed) {
+    const reason = failed.error.code === "MEDIA_INVALID"
+      ? "Не удалось прочитать эту запись. Скачай копии ответов перед продолжением."
+      : errorText(failed.error);
+    return `<p role="alert">Ответ ${Number(failed.index)} не сохранён. ${escape(reason)}</p>${button("Повторить сохранение", "retry-answers")}${answers.map((answer) => `<p>${recordingCopyLink(answer)}</p>`).join("")}`;
+  }
   return '<p role="status">Ответы записаны. Сохраняем их и готовим разбор…</p>';
 }
 function updateAnswerProgress(p) {
@@ -1640,6 +1676,7 @@ async function navigate() {
     if (!["/login", "/register", "/reset"].includes(path)) discardPending();
   }
   closeMedia();
+  clearRecordingCopies();
   clearTimeout(state.poll);
   window.scrollTo({ top: 0, behavior: "instant" });
   const version = ++state.routeVersion;
@@ -1676,6 +1713,7 @@ async function navigate() {
     go("/login");
     return;
   }
+  if (path === "/recording-copies") return recordingCopies(version);
   if (path === "/admin/analytics" || path === "/admin/analytics/export") {
     if(!state.user.analytics_access){frame('<h1>Доступ не предоставлен</h1><p>Аналитика доступна владельцу платформы.</p>');return}
     const module=await import("./admin-analytics.js?v=20261015-costs-4");
@@ -2084,7 +2122,7 @@ async function initialize() {
     if (/^[a-f0-9]{32}$/.test(saved?.practiceId)) state.authReturn = saved;
   } catch {}
   try {
-    const draft = await loadDraft();
+    const draft = route() === "/recording-copies" ? null : await loadDraft();
     if (draft) {
       state.guest = guestFromDraft(draft);
       state.guestPersisted = true;
