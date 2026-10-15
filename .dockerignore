@@ -9,3 +9,11 @@ outputs
 __pycache__
 .pytest_cache
 node_modules
+secrets.json
+credentials.json
+*.pem
+*.key
+*.p12
+*.pfx
+public/customer-development.html
+docs/customer-development-conclusions.json

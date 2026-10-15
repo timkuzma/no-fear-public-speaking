@@ -1,6 +1,10 @@
 # Public customer interview results page
 
-URL: https://no-fear-stage.72-56-96-17.nip.io/customer-development.html
+## Repository distribution boundary (15 October 2026)
+
+The user requested removal of interview pages from the GitHub repository, including its published branch history. `public/customer-development.html` and `docs/customer-development-conclusions.json` are private local/operator artifacts: they are ignored by Git and excluded from Docker build contexts. Do not re-add them. Preserve existing local copies and source archives. The builder, empty reader template and synthetic tests remain in source control; the real-archive inventory test skips in a clean clone without these artifacts.
+
+Repository removal does not unpublish the separately hosted reader. The operational instructions below describe that separate publication; changing it requires an explicit request. The application can run without the interview artifacts.
 
 This standalone, anonymous page contains 39 documents from the user-approved `CustDev PDF.zip` archive. Folder membership and document identifiers match the archive: `Идеальный клиент` contains 28 documents; `Другие сегменты` contains 11. Counts describe documents, not independently verified interviews or people. Interview answers and transcripts are preserved. Related-source sections and external links are removed from the public content at the user's request. Each document now has four authored findings and a product implication grounded in its source material.
 

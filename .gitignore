@@ -14,3 +14,12 @@ outputs/*-actual.json
 outputs/*-actual.wav
 outputs/*-actual.mp3
 node_modules/
+# Private deployment credentials and generated research content stay local.
+secrets.json
+credentials.json
+*.pem
+*.key
+*.p12
+*.pfx
+/public/customer-development.html
+/docs/customer-development-conclusions.json

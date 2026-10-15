@@ -81,6 +81,8 @@ class PublicationTests(unittest.TestCase):
         self.assertIsNone(builder.clean_editorial_note(block))
 
     def test_published_archive_inventory_and_removals(self):
+        if not (ROOT/'public/customer-development.html').is_file() or not (ROOT/'docs/customer-development-conclusions.json').is_file():
+            self.skipTest('Private research artifacts are not distributed with the repository')
         html = (ROOT/'public/customer-development.html').read_text()
         raw = re.search(r'<script type="application/json" id="research-data">(.*?)</script>', html, re.S)[1]
         data = json.loads(raw)
