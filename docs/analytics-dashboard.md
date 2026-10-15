@@ -136,7 +136,7 @@ Successful usage retains a validated provider response ID; the immediate durable
 price event also retains the gateway call header ID when supplied.
 
 Owner analytics reads in production refresh the configured key's read-only spend
-ledger at most once per 30 seconds, with a three-second network deadline and an
+ledger at most once per 30 seconds, with a six-second network deadline and an
 8 MiB response cap. Only a unique provider request ID or a unique model/token match
 inside the durable attempt interval can bind a price to an existing practice.
 Duplicate/ambiguous rows, conflicts with known header prices and calls belonging to

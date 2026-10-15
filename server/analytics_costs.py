@@ -114,8 +114,8 @@ async def sync_costs(store):
         if last and moment-float(last[0])<30:return
         db.execute("INSERT OR REPLACE INTO analytics_meta VALUES('cost_sync_at',?)",(str(moment),))
     try:
-        async with asyncio.timeout(3):
-            async with httpx.AsyncClient(timeout=2.5,follow_redirects=False) as client:
+        async with asyncio.timeout(6):
+            async with httpx.AsyncClient(timeout=5.5,follow_redirects=False) as client:
                 async with client.stream('GET',base+'/spend/logs',headers={'Authorization':'Bearer '+key},params={'api_key':hashlib.sha256(key.encode()).hexdigest()}) as response:
                     response.raise_for_status();raw=bytearray()
                     async for chunk in response.aiter_bytes():
