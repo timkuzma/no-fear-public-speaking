@@ -132,7 +132,7 @@ class Production:
             raise RuntimeError('Runtime configuration already exists')
         atomic_json(self.root / 'runtime.json', {'APP_ORIGIN': 'https://pilot.example.org',
                                   'LLM_BASE_URL': 'https://provider.invalid/v1', 'LLM_MODEL': 'gpt-5.4',
-                                  'FEEDBACK_EDITOR_MODEL': 'deepseek-v3.2',
+                                  'FEEDBACK_EDITOR_MODEL': 'gpt-5.4-mini',
                     'TRANSCRIPTION_MODEL': 'whisper-large-v3'})
         atomic_json(self.root / 'secrets.json', {'LLM_API_KEY': '', 'OPERATOR_TOKEN': secrets.token_urlsafe(32),
                     'RESTIC_REPOSITORY': 'local', 'RESTIC_PASSWORD': secrets.token_urlsafe(48)})

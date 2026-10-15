@@ -9,7 +9,7 @@
 | `LLM_BASE_URL` | `https://shared1.multitool.works:4000/v1` | OpenAI-compatible API root; never a browser setting. |
 | `LLM_API_KEY` | None | Required server-only provider credential. |
 | `LLM_MODEL` | `gpt-5.4` | Chat model supporting `/chat/completions` and `response_format: json_object`. |
-| `FEEDBACK_EDITOR_MODEL` | Empty (disabled) | Optional wording editor; production uses DeepSeek through the same provider. |
+| `FEEDBACK_EDITOR_MODEL` | Empty (disabled) | Optional wording editor; production/bootstrap select `gpt-5.4-mini` through the same provider. |
 | `TRANSCRIPTION_MODEL` | `whisper-large-v3` | Model supporting `/audio/transcriptions`, Russian language and JSON text output. |
 | `LLM_TIMEOUT_SECONDS` | `120` | Per-attempt HTTP timeout, clamped to 5–180 seconds; connection timeout 10 seconds. |
 | `LLM_MAX_ATTEMPTS` | `2` | Attempts including the initial call; clamped to 1–3. |
@@ -59,12 +59,12 @@ An owner may update a report from an older prompt version without re-recording. 
 
 ## DeepSeek wording stage
 
-The user explicitly requested editing model-authored formulations through DeepSeek. The worker now makes one additional bounded `questions_wording` or `report_wording` call when `FEEDBACK_EDITOR_MODEL` is nonempty. Analysis stays with `LLM_MODEL`. No new service, browser credential, audio transmission or assessment critic is added.
+The user originally requested editing model-authored formulations through DeepSeek, then requested a faster replacement without sacrificing wording quality. Production now selects `gpt-5.4-mini` after a [bounded comparison](wording-editor-comparison.md). The worker makes one additional bounded `questions_wording` or `report_wording` call when `FEEDBACK_EDITOR_MODEL` is nonempty. Analysis stays with `LLM_MODEL`. No new service, browser credential, audio transmission or assessment critic is added.
 
 The editor receives only allowlisted display strings and their exact source excerpt. It returns exactly the same field IDs once each. Unknown/missing/duplicate IDs, excess fields, invalid lengths, changed digit sequences (including signs/percent), unsupported inline quotations and compound/duplicate edited questions fail publication. Assessment status, criteria labels, number/order of findings, primary choice, transcript/recordings, metrics and canonical evidence are not offered as editable fields. Compatibility text/insight are derived from the edited observation/action.
 
-These are structural safeguards, not a semantic-equivalence proof. The prompt forbids changing meaning, evidence, uncertainty, facts or advice direction; actual wording needs review. Failure keeps the previous report/recording and offers the existing retry. A successful assessment's usage is persisted before editing, so failed editing does not lose accounting. Both requests still reserve work before transmission; an editor adds latency and usage.
+These are structural safeguards, not a semantic-equivalence proof. The prompt forbids changing meaning, evidence, uncertainty, facts or advice direction; actual wording needs review. Version `speech-wording-v2` explicitly preserves the author/listener distinction, local scope and uncertainty, a heading's original intent and observable verification actions. It requests minimal changes to already clear text. Failure keeps the previous report/recording and offers the existing retry. A successful assessment's usage is persisted before editing, so failed editing does not lose accounting. Both requests still reserve work before transmission; an editor adds latency and usage.
 
-A compatible saved v2.3/v2.4 report with matching transcript revision and exact evidence is reworded without another assessment or ASR call. Previous successful job results retain the earlier text. New report provenance records `analysis_report_prompt_version` and `wording_editor:{version,model,status}`. Fresh reports use `speech-feedback-v2.4`; questions use `questions-v2.3`, and editor usage uses `speech-wording-v1`.
+A compatible saved v2.3/v2.4 report with matching transcript revision and exact evidence is reworded without another assessment or ASR call. Previous successful job results retain the earlier text. New report provenance records `analysis_report_prompt_version` and `wording_editor:{version,model,status}`. Fresh reports use `speech-feedback-v2.4`; questions use `questions-v2.3`, and new editor usage uses `speech-wording-v2`. Existing reports retain their stored editor version.
 
 Default daily reserved output capacity increases from 300,000 to 600,000 to accommodate the added stage at the same bounded job capacity. Attempts, per-user caps, per-call 3,000 output limit, daily job count and audio caps remain unchanged. This is a work cap, not a monetary budget or a quoted tariff. Unknown provider prices/currency stay unknown. Explicit installations can choose a lower capacity.
