@@ -25,6 +25,22 @@ After deployment, the same final prompt/model passed all three cases again: ques
 
 The saved source/assessment and public report schema do not change. New provenance and usage identify `speech-wording-v2` and the actual editor alias. Old reports retain their original model/version. Prompt changes do not imply a semantic guarantee: this small synthetic development comparison has no independent human raters, locked acceptance result, sustained-capacity measurement or production end-to-end latency distribution.
 
+## Saved-practice check, 15 October 2026
+
+At the user's request, the latest saved practice was tested separately, using its exact saved speech/answer transcripts, configuration, questions and private source bindings. One fresh `gpt-5.4` assessment was passed unchanged to both editors: current `gpt-5.4-mini`/wording v2 and previous `deepseek-v3.2`/wording v1. This isolates editing from assessment variation. It is a separate private evaluation, not a published practice refresh.
+
+| Stage, seconds | Current editor | Previous editor |
+| --- | ---: | ---: |
+| Shared assessment | 10.725 | 10.725 |
+| Editing | 3.500 | 30.721 |
+| Assessment plus editing | 14.225 | 41.446 |
+
+The text pipeline was 2.91 times faster in this paired check; editing alone was 8.78 times faster. Original production processing had taken 59.532 seconds, including 1.680 seconds of answer-transcription HTTP and 48.166 seconds of editing. The replay reused saved transcripts: its measured duration excludes ASR, upload, queue wait and browser delivery. Adding historical transcription time would be an estimate, not an additional measurement. Gateway latency differs between runs; the paired check does not establish a latency distribution.
+
+Both reports passed the existing structural validator and preserved the fresh assessment's immutable data, evidence, metrics, finding order and primary selection. Editorial inspection found the same substantive advice, but a style regression in the current editor: one heading retained a formal/plural imperative, and more methodological wording survived than with DeepSeek. The current editor was more conservative about modifying the source assessment. This real-input result supersedes any inference that the small synthetic sample proved equal editorial quality. No automatic rejection currently checks all Russian address forms; prompt compliance alone did not enforce them. Speed improvement is measured; full wording-quality parity is not established.
+
+The source practice, segments and job history matched their pre-check hash afterward. The saved user report was not replaced, and production settings/code were not changed by this check. Three actual HTTP attempts (one assessment, two editors), zero ASR seconds, 32,097 reserved input characters and a 9,000-token output ceiling were recorded in the existing durable ledger under a separate evaluation run. Per-run limits were three attempts, 70,000 input characters and 9,000 reserved output tokens, with no retry. Private source text, raw assessment, both edited reports and usage remain only in ignored `outputs/last-practice-comparison-20261015/result.json`; none are published in this document. This is an agent's editorial inspection, not independent human acceptance.
+
 ## Reproduction and limits
 
 `scripts/benchmark_wording.py` uses `ExistingLedger` and `RunBudget` from `scripts/evaluate_ai.py`; it never constructs a Store or migrates the live database. Run it inside the application container with its existing private ledger and provider environment. Copy the script, evaluation helper and immutable baseline into a temporary writable tree if they are not in the image; keep the running server package on `PYTHONPATH`. The baseline manifest/hashes must verify before any request.
