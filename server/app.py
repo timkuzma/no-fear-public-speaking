@@ -340,8 +340,12 @@ def create_app(data_dir=None, start_worker=True):
             fail(401, 'LOGIN_INVALID', 'Почта или пароль не подходят. Проверьте их и попробуйте ещё раз.')
         if not user:
             fail(401, 'LOGIN_INVALID', 'Почта или пароль не подходят. Проверьте их и попробуйте ещё раз.')
-        store.event('login', user['id'])
-        return session_response(user)
+        from .analytics_api import identity, cookies
+        visitor, visit = identity(store, request, user['id'])
+        store.event('login', user['id'], visitor=visitor, session=visit)
+        response = session_response(user)
+        cookies(response, visitor, visit, production)
+        return response
 
     @app.post('/api/auth/logout')
     async def logout(request: Request):

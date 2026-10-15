@@ -422,5 +422,17 @@ class MediaTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(process.wait.await_count, 2)
 
 
+class ProviderCostTests(unittest.IsolatedAsyncioTestCase):
+    setUp = AIContractTests.setUp
+    provider = AIContractTests.provider
+
+    async def test_cost_header_recording_without_inferred_currency(self):
+        for raw,expected in [('0.025',.025),('0',0),('nan',None),('inf',None),('-1',None),('invalid',None)]:
+            with self.provider(lambda request: httpx.Response(200,json={'ok':True},headers={'x-litellm-response-cost':raw})):
+                _,usage=await ai._request('/chat/completions','fixture','report',payload={})
+            assert usage['attempts'][0]['gateway_cost']==expected
+            assert usage['attempts'][0]['cost_unit']=='gateway_unit'
+
+
 if __name__ == "__main__":
     unittest.main()

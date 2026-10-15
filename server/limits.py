@@ -113,10 +113,17 @@ def reserve_attempt(operation, audio_seconds=0, input_chars=0, output_tokens=0):
     return store, attempt_id
 
 
-def finish_attempt(reservation, status, latency_ms):
+def finish_attempt(reservation, status, latency_ms, gateway_cost=None):
     if reservation:
         store, attempt_id = reservation
-        store.execute('UPDATE ai_attempts SET status=?,latency_ms=? WHERE id=?', (status, latency_ms, attempt_id))
+        with store.connect() as db:
+            db.execute('UPDATE ai_attempts SET status=?,latency_ms=? WHERE id=?', (status, latency_ms, attempt_id))
+            attempt = db.execute('SELECT * FROM ai_attempts WHERE id=?', (attempt_id,)).fetchone()
+            practice = db.execute('SELECT practice_id FROM jobs WHERE id=? UNION ALL SELECT practice_id FROM live_chunks WHERE id=? LIMIT 1', (attempt['job_id'], attempt['job_id'])).fetchone()
+            from .analytics_events import record
+            record(db, 'provider_cost_recorded', attempt['user_id'], practice[0] if practice else None,
+                   {'attempt_id': attempt_id, 'job_id': attempt['job_id'], 'operation': attempt['operation'],
+                    'gateway_cost': gateway_cost, 'cost_unit': 'gateway_unit'}, event_id='cost:'+attempt_id)
 
 
 def queue_capacity(db, kind):

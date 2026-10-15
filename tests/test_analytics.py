@@ -319,3 +319,106 @@ def test_named_filter_choices_are_private_and_come_from_observed_data(setup):
     assert {'id':'campaign-a','name':'Campaign A'} in result['campaigns']
     assert 'owner@example.test' not in json.dumps(result)
     assert other.get('/api/admin/analytics/report').status_code==403
+
+
+def test_compact_overview_averages_activity_and_returns(setup):
+    app,owner,other,oid,uid,h,oh=setup;s=app.state.store
+    # Four accounts, two have recordings; an unused setup is not a training.
+    with s.connect() as db:
+        for n in (1,2):
+            db.execute('INSERT INTO users VALUES(?,?,?,?,?,?,?,?)',(f'{n:032x}',f'compact-{n}@example.test','Synthetic','unused','student',0,0,time.time()-20*86400))
+    fixture_practice(s,uid,days=10)
+    p,_=fixture_practice(s,uid,days=0)
+    fixture_practice(s,oid,days=10)
+    s.execute('INSERT INTO practices(id,user_id,config,created) VALUES(?,?,?,?)',(uuid.uuid4().hex,uid,'{}',time.time()-60))
+    # Multiple recordings of one person still mean one active person.
+    s.execute('INSERT INTO segments VALUES(?,?,?,?,?,?,?,?)',(uuid.uuid4().hex,p,'answer',1,'unused.wav',20,'Synthetic',time.time()-1))
+    o=owner.get('/api/admin/analytics/report').json()['overview']
+    assert o['accounts']==4 and o['started_practices']==3
+    assert o['average_per_user']==.75 and o['average_per_trainee']==1.5
+    assert o['last_hour']==1 and o['dau']==1
+    assert o['retention_7d']=={'numerator':1,'denominator':2,'value':50}
+    assert o['churn_7d']=={'numerator':1,'denominator':2,'value':50}
+    assert sum(d['registered'] for d in o['daily'])==4
+    assert o['daily'][-1]['active']==1
+    accounts=owner.get('/api/admin/analytics/accounts?kind=all').json()
+    assert accounts['total']==4 and sum(a['practices'] for a in accounts['items'])==3
+    assert all(a['ip_masked'] is None and a['last_name'] is None for a in accounts['items'])
+
+
+def test_compact_costs_include_retries_live_chunks_and_unknown_outcomes(setup):
+    from server import limits
+    app,owner,other,oid,uid,h,oh=setup;s=app.state.store
+    p,_=fixture_practice(s,uid,days=1)
+    jid=s.one('SELECT id FROM jobs WHERE practice_id=?',(p,))['id']
+    chunk=uuid.uuid4().hex
+    s.execute('INSERT INTO live_chunks(id,practice_id,session_id,chunk_index,offset_seconds,duration,filename,sha256,status,created) VALUES(?,?,?,?,?,?,?,?,?,?)',
+              (chunk,p,uuid.uuid4().hex,0,0,5,'fixture.wav','abc','succeeded',time.time()))
+    with limits.provider_scope(s,uid,jid):
+        first=limits.reserve_attempt('report');limits.finish_attempt(first,503,20,.2)
+        retry=limits.reserve_attempt('report');limits.finish_attempt(retry,200,20,.3)
+    with limits.provider_scope(s,uid,chunk):
+        audio=limits.reserve_attempt('transcription',5);limits.finish_attempt(audio,200,20,0)
+    o=owner.get('/api/admin/analytics/report').json()['overview']['economy']
+    assert o['attempts']==o['priced_attempts']==3 and o['total']==.5
+    assert o['per_practice']==.5 and o['per_user']==.5
+    # Quota expiry must not lose cost provenance.
+    s.execute('DELETE FROM ai_attempts')
+    assert owner.get('/api/admin/analytics/report').json()['overview']['economy']['total']==.5
+    with limits.provider_scope(s,uid,jid):
+        limits.reserve_attempt('report')  # Simulated process death / unknown outcome.
+    o=owner.get('/api/admin/analytics/report').json()['overview']['economy']
+    assert o['total'] is None and o['known_total']==.5 and o['attempts']==4
+    row=owner.get('/api/admin/analytics/practices').json()['items'][0]
+    assert row['cost']['total'] is None and row['cost']['priced_attempts']==3
+
+
+def test_compact_export_access_scope_identity_and_csv_safety(setup):
+    app,owner,other,oid,uid,h,oh=setup;s=app.state.store
+    fixture_practice(s,uid)
+    s.execute('UPDATE users SET name=? WHERE id=?',('=FORMULA()',uid))
+    for dataset in ('accounts','practices','summary','daily','funnel'):
+        url=f'/api/admin/analytics/export?dataset={dataset}&format=json'
+        assert other.get(url).status_code==403
+        assert TestClient(app).get(url).status_code==401
+        r=owner.get(url);assert r.status_code==200,r.text
+        assert r.json()['metadata']['cost_currency'] is None
+    text=owner.get('/api/admin/analytics/export?dataset=accounts&format=csv').text
+    assert "'=FORMULA()" in text and 'password' not in text and 'owner@example.test' in text
+    archive=zipfile.ZipFile(io.BytesIO(owner.get('/api/admin/analytics/export?dataset=all&format=zip').content))
+    assert set(archive.namelist())=={'summary.csv','accounts.csv','practices.csv','daily.csv','funnel.csv','metadata.json'}
+    daily=owner.get('/api/admin/analytics/export?dataset=daily&format=json').json()['rows']
+    assert daily==owner.get('/api/admin/analytics/report').json()['overview']['daily']
+    snapshot=owner.post('/api/admin/analytics/snapshots',headers=h,json={}).json()['id']
+    raw=owner.get('/api/admin/analytics/snapshots/'+snapshot).text
+    assert '=FORMULA()' not in raw and 'owner@example.test' not in raw
+
+
+def test_compact_funnel_keeps_question_branch_and_order(setup):
+    app,owner,other,oid,uid,h,oh=setup;s=app.state.store
+    fixture_practice(s,uid,questions=False)
+    fixture_practice(s,uid,questions=True)
+    p,_=fixture_practice(s,uid,questions=True,report=False,answers=0)
+    # Out-of-order legacy answer cannot claim conversion through question one.
+    s.execute('INSERT INTO segments VALUES(?,?,?,?,?,?,?,?)',(uuid.uuid4().hex,p,'answer',2,'fixture.wav',10,'Synthetic',time.time()))
+    rows=owner.get('/api/admin/analytics/report').json()['overview']['training_funnel']
+    assert [r['count'] for r in rows[:6]]==[3,3,1,1,1,2]
+    assert rows[2]['conversion']=={'numerator':1,'denominator':2,'value':50}
+    assert rows[5]['conversion']=={'numerator':2,'denominator':2,'value':100}
+
+
+def test_compact_acquisition_binds_login_to_the_observed_visit(setup):
+    app,owner,other,oid,uid,h,oh=setup
+    client=TestClient(app)
+    landing={'id':uuid.uuid4().hex,'kind':'page_viewed','data':{'route_id':'/landing'}}
+    assert client.post('/api/analytics/events',json={'events':[landing]}).status_code==200
+    assert client.post('/api/auth/login',json={'email':'owner@example.test','password':'TestPassword2026'}).status_code==200
+    funnel=owner.get('/api/admin/analytics/report').json()['overview']['acquisition_funnel']
+    assert [r['count'] for r in funnel]==[1,1,0]
+    pid,_=fixture_practice(app.state.store,oid,days=0,report=False)
+    event={'id':uuid.uuid4().hex,'kind':'capture_started','practice_id':pid,'data':{'segment_index':0}}
+    assert client.post('/api/analytics/events',json={'events':[event]}).status_code==200
+    funnel=owner.get('/api/admin/analytics/report').json()['overview']['acquisition_funnel']
+    assert [r['count'] for r in funnel]==[1,1,1]
+    login=app.state.store.one("SELECT session_id FROM analytics_events WHERE kind='login' AND actor_id=?",(oid,))
+    assert login['session_id']

@@ -384,7 +384,7 @@ function sessionExpired() {
   telemetry("reauthentication_needed",{},state.practice?.id);
   const ownerId =
     state.user?.id || state.pending?.ownerId || state.recordingOwnerId;
-  if(route()==="/admin/analytics"){state.adminReturn=true;try{sessionStorage.setItem("analytics-return","1")}catch{}}
+  if(route()==="/admin/analytics"||route()==="/admin/analytics/export"){state.adminReturn=true;try{sessionStorage.setItem("analytics-return","1")}catch{}}
   else if (state.practice?.id && state.practice.id !== "guest")
     rememberReturn(state.practice.id, ownerId);
   state.user = null;
@@ -1658,7 +1658,7 @@ async function navigate() {
   }
   if (path === "/guest") return go(state.user ? "/app" : "/register");
   if (!state.user) {
-    if(path==="/admin/analytics"){state.adminReturn=true;try{sessionStorage.setItem("analytics-return","1")}catch{}}
+    if(path==="/admin/analytics"||path==="/admin/analytics/export"){state.adminReturn=true;try{sessionStorage.setItem("analytics-return","1")}catch{}}
     const pendingPractice = path.match(/^\/practice\/([a-f0-9]{32})$/);
     if (pendingPractice)
       rememberReturn(
@@ -1676,10 +1676,10 @@ async function navigate() {
     go("/login");
     return;
   }
-  if (path === "/admin/analytics") {
+  if (path === "/admin/analytics" || path === "/admin/analytics/export") {
     if(!state.user.analytics_access){frame('<h1>Доступ не предоставлен</h1><p>Аналитика доступна владельцу платформы.</p>');return}
-    const module=await import("./admin-analytics.js?v=20261013-analytics-6");
-    if(version===state.routeVersion)await module.mountAdmin(frame);return;
+    const module=await import("./admin-analytics.js?v=20261015-compact-1");
+    if(version===state.routeVersion)await module.mountAdmin(frame,{page:path.endsWith("/export")?"export":"analytics"});return;
   }
   if (path === "/app") {if(typeof trackPage==="function")trackPage(path);return setup()}
   if (path === "/history") {if(typeof trackPage==="function")trackPage(path);return history()}

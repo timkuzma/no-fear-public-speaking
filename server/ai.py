@@ -59,6 +59,14 @@ def _tokens(value):
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
+def _response_cost(value):
+    try:
+        amount = float(value)
+        return amount if math.isfinite(amount) and amount >= 0 else None
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
 def _usage(model, operation, attempts, audio_seconds=0):
     def total(field):
         values = [attempt[field] for attempt in attempts]
@@ -116,6 +124,7 @@ async def _request(endpoint, model, operation, *, payload=None, audio=None, audi
             status = None
             response = None
             oversized = False
+            response_cost = None
             try:
                 arguments = {"headers": {"Authorization": "Bearer " + key}}
                 if audio is not None:
@@ -125,6 +134,7 @@ async def _request(endpoint, model, operation, *, payload=None, audio=None, audi
                     arguments["json"] = payload
                 async with client.stream("POST", base + endpoint, **arguments) as incoming:
                     status = incoming.status_code
+                    response_cost = _response_cost(incoming.headers.get('x-litellm-response-cost'))
                     response_bytes = bytearray()
                     body_limit = 1024 * 1024 if 200 <= status < 300 else 4096 if status in (400, 404) else 0
                     if body_limit:
@@ -139,8 +149,10 @@ async def _request(endpoint, model, operation, *, payload=None, audio=None, audi
                 status = None
                 response = None
             attempt = {"status": status, "latency_ms": round((time.monotonic() - start) * 1000),
-                       "input_tokens": None, "output_tokens": None}
-            limits.finish_attempt(reservation, status, attempt['latency_ms'])
+                       "input_tokens": None, "output_tokens": None,
+                       "gateway_cost": response_cost, "cost_unit": "gateway_unit",
+                       "attempt_id": reservation[1] if reservation else None}
+            limits.finish_attempt(reservation, status, attempt['latency_ms'], response_cost)
             attempts.append(attempt)
             if response is not None and 200 <= status < 300:
                 if oversized:

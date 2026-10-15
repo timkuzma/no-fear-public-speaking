@@ -215,9 +215,54 @@ def install(app,store,auth,check_origin,practice_json):
     @app.get('/api/admin/analytics/accounts')
     async def accounts(request:Request,kind:str='registrations',offset:int=0,limit:int=50):
         owner(request);data=await report(dict(request.query_params))
-        items=data['accounts'] if kind=='registrations' else [a for a in data['account_roster'] if a['id'] in data['active_account_ids']]
+        items=account_rows(data,kind)
         items.sort(key=lambda a:(a['created'],a['id']),reverse=True)
         return {'items':items[max(0,offset):max(0,offset)+min(100,max(1,limit))],'total':len(items)}
+
+    def account_rows(data,kind='all'):
+        roster=data['accounts'] if kind=='registrations' else [a for a in data['account_roster'] if a['created']<min(data['period']['to'],data['as_of']) and (kind=='all' or a['id'] in data['active_account_ids'])]
+        # Identity is confined to explicitly owner-authorized account tables and
+        # exports. Existing pseudonymous snapshots remain free of names/email.
+        identities={r['id']:r for r in store.all('SELECT id,name,email,onboarding_completed FROM users')}
+        return [dict(a,full_name=identities[a['id']]['name'],email=identities[a['id']]['email'],
+                     first_name=None,last_name=None,patronymic=None,ip_masked=None,
+                     onboarding_completed=bool(identities[a['id']]['onboarding_completed'])) for a in roster]
+
+    @app.get('/api/admin/analytics/export')
+    async def export_data(request:Request,dataset:str='summary',format:str='csv'):
+        user=owner(request)
+        if os.getenv('ANALYTICS_EXPORT_ENABLED','1')=='0':reject('EXPORT_PAUSED','Выгрузка временно отключена.',503)
+        if dataset not in ('summary','accounts','practices','daily','funnel','all') or format not in ('csv','json','zip') or (dataset=='all')!=(format=='zip'):
+            reject('FORMAT_INVALID','Проверь раздел и формат выгрузки.')
+        data=await report(dict(request.query_params))
+        if len(data['practices'])>10000 or len(data['account_roster'])>10000:
+            reject('EXPORT_LIMIT','В выгрузку можно включить до 10 000 аккаунтов и тренировок. Сократи период.')
+        overview=data['overview']
+        practices=[dict(p,cost_total=p['cost']['total'],cost_unit='gateway_unit',priced_attempts=p['cost']['priced_attempts'],provider_attempts=p['cost']['attempts']) for p in data['practices']]
+        sets={'summary':[{k:v for k,v in overview.items() if k not in ('daily','acquisition_funnel','training_funnel')}],
+              'accounts':account_rows(data),'practices':practices,'daily':overview['daily'],
+              'funnel':[dict(r,scope=scope) for scope,key in [('visits','acquisition_funnel'),('practices','training_funnel')] for r in overview[key]]}
+        audit(store,user['id'],'admin_data_export',{'dataset':dataset,'format':format})
+        metadata={'as_of':data['as_of'],'period':data['period'],'filters':data['filters'],'timezone':data['timezone'],
+                  'cost_unit':'gateway_unit','cost_currency':None,'accounts_scope':'registered before period end; practice counts in selected period',
+                  'activity':'confirmed saved recording','retention':'previous seven-day active accounts returning in next seven days',
+                  'identity_fields':'full_name is verbatim; separate name parts and masked IP were not collected'}
+        if format=='json':return dict(metadata=metadata,rows=sets[dataset])
+        # Flat columns keep numerical rates and prices usable in Excel.
+        def flat(row,prefix=''):
+            result={}
+            for key,value in row.items():
+                name=prefix+key
+                if isinstance(value,dict):result.update(flat(value,name+'_'))
+                else:result[name]=value
+            return result
+        csv_sets={key:[flat(row) for row in rows] for key,rows in sets.items()}
+        if format=='csv':return Response(safe_csv(csv_sets[dataset]),media_type='text/csv',headers={'Content-Disposition':f'attachment; filename="analytics-{dataset}.csv"'})
+        output=io.BytesIO()
+        with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:
+            for name,rows in csv_sets.items():archive.writestr(name+'.csv',safe_csv(rows))
+            archive.writestr('metadata.json',json.dumps(metadata,ensure_ascii=False,indent=2))
+        return Response(output.getvalue(),media_type='application/zip',headers={'Content-Disposition':'attachment; filename="analytics.zip"'})
 
     @app.get('/api/admin/analytics/practices')
     async def practices(request:Request,offset:int=0,limit:int=50,stage:str=''):

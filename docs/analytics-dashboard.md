@@ -78,3 +78,79 @@ Primary references reviewed on 13 October 2026:
 - [Mixpanel: metrics for product management](https://mixpanel.com/blog/product-management-metrics-and-analytics/). Activation, recording usage and return are separate product-specific outcomes.
 - [Amplitude: interpreting retention](https://amplitude.com/docs/analytics/charts/retention-analysis/retention-analysis-interpret). Exact-day return is separate from return within a time window, and calendar-day choice is explicit.
 - [Yandex Metrica: attribution models](https://yandex.ru/support/metrica/ru/reports/attribution-model.html). Source naming follows the first/last-significant distinction. This application retains its own 30-day, single-browser rules and does not claim Yandex integration, its 90-day window or cross-device recognition.
+
+## Compact owner interface (15 October 2026)
+
+The maintained UI now has exactly two routes: `/#/admin/analytics` and
+`/#/admin/analytics/export`. Only the inclusive Moscow date range and the
+staff/test-account switch are visible. Advanced calculation, journal, marketing
+and legacy snapshot APIs remain owner-authorized; they are not navigation tabs.
+Accounts and practices are lazy-loaded, paginated tables within expandable sections.
+A practice opens its real saved recordings, reports and feedback. These are
+completion and report-usefulness observations, not evidence of speech improvement.
+
+The compact calculations live in `server/analytics_overview.py`, returned under
+`overview` with `definition_version=owner-overview-v1`:
+
+- Total accounts: eligible accounts registered before the selected period end.
+- Started practices: selected practices with a speech `capture_started` observation
+  or a saved speech. Setup creation alone is excluded. Per-user mean divides these
+  starts by all eligible accounts; per-trainee mean divides them by distinct owners
+  of those starts. The user's requested second mean is **not a median**.
+- DAU: distinct accounts with a saved speech or answer on the last Moscow calendar
+  day of the period, clipped at calculation time. Last-hour activity is the same
+  action during the 60 minutes before calculation, independently of selected dates.
+- Daily chart: distinct accounts with saved recordings and new registrations on
+  each Moscow day. A user with multiple segments counts once per day.
+- Seven-day retention: accounts active in `[cutoff-14d,cutoff-7d)` that return in
+  `[cutoff-7d,cutoff)`, divided by the first set. Churn is the complementary share.
+  `cutoff=min(period_end,as_of)`. This is consecutive-week activity retention,
+  distinct from exact-day D7 cohort retention in the legacy API. Empty bases are null.
+- Acquisition funnel: distinct observed landing visits, then confirmed registration
+  or login **bound to the same visit**, then an observed speech start in that visit after
+  authentication. New logins bind first-party analytics cookies; old unbound login
+  events cannot be allocated retrospectively. Do not infer identity from IP.
+- Training funnel: started practice, saved speech, sequential saved answers 1–3,
+  generated report, observed view, later new speech after that view. The questions
+  branch excludes questions-disabled practices; these rejoin before report generation.
+  Rates use the eligible preceding step. Visits and practices have separate bases.
+  Report outcomes describe selected practices as of calculation time; an old report
+  GET still does not count as a view.
+
+Account rows expose the stored full name, email, registration time, occupation,
+onboarding flag and selected-period practice count to the owner. Separate surname,
+first name, patronymic and IP were not collected; their fields remain null. Never
+split or invent identity fields, and never include password/session/recovery data.
+
+### Provider accounting
+
+Each new HTTP attempt records a finite nonnegative `x-litellm-response-cost` when
+supplied, including failed HTTP responses and retries. `provider_cost_recorded`
+is written alongside the quota outcome, before provider-body validation. The durable
+journal keeps the practice binding for final jobs and incremental ASR chunks; usage
+records and start events identify attempts with missing prices. Quota-row pruning
+must not erase recorded prices. Cancellation or an unknown outcome remains unpriced.
+No extra real provider calls are made to measure or backfill cost.
+
+Totals include all recorded operations of selected practices (questions, assessment,
+wording, recognition and their retries/refreshes). Currency is unknown: UI and exports
+use `gateway_unit` / `уч. ед.` rather than RUB or USD. A known zero is a provider-meter
+observation, not proof of zero upstream cost. The 12 October recognition-accounting
+limitation in `observability-cost.md` still applies. Only fully priced practices can
+have a total; any missing attempt/legacy price makes aggregate total and means null.
+The known subtotal and coverage remain available. Per-user cost divides total by
+accounts with provider work; per-practice cost divides by practices with provider work.
+Event retention (180 days) and historical missing billing still limit coverage.
+
+Reference: [LiteLLM response headers](https://docs.litellm.ai/docs/proxy/response_headers).
+
+### Current owner exports
+
+`GET /api/admin/analytics/export?dataset=summary|daily|accounts|practices|funnel&format=csv|json`
+exports current filtered data. `dataset=all&format=zip` includes all five CSVs and
+metadata with filters, dates, units and definitions. CSV is UTF-8 with BOM and formula
+escaping. At most 10,000 selected practices/accounts are exported; over-limit exports
+fail explicitly. Every request rechecks owner access, honors `ANALYTICS_EXPORT_ENABLED`
+and records a content-free audit event. Unlike legacy pseudonymous snapshots, the
+explicitly requested **private owner account export includes name and email**.
+Existing snapshot formats remain pseudonymous and must never acquire identity fields.

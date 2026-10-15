@@ -227,9 +227,12 @@ def calculate(db,query):
       'client_late_events':sum(e['origin']=='client_observed' and abs(e['received']-e['occurred'])>60 for e in events),
       'schema_version':1,'historical_client_events_available':False}
     # One entity set drives all summary/detail/export values.
-    return {'metric_definition_version':VERSION,'attribution_version':'first-observed-touch-v1' if f['source_model']=='first' else 'last-nondirect-30d-v1','timezone':'Europe/Moscow','period':{'from':start,'to':end},'filters':f,'as_of':moment,
+    result = {'metric_definition_version':VERSION,'attribution_version':'first-observed-touch-v1' if f['source_model']=='first' else 'last-nondirect-30d-v1','timezone':'Europe/Moscow','period':{'from':start,'to':end},'filters':f,'as_of':moment,
       'source_watermark':db.execute('SELECT coalesce(MAX(seq),0) FROM analytics_events').fetchone()[0], 'coverage':quality,
       'summary':{'registrations':len(new),'practices':len(selected),'speeches':sum(bool(r['speech_at']) for r in selected),'reports':len(generated),'completed':sum(r['complete'] for r in selected),'active_accounts':len(active),'visits':len(sessions),'visitors':len({e['visitor_id'] for e in events if e['kind']=='page_viewed' and e['visitor_id']}),'dau':dau[1],'wau':dau[7],'mau':dau[30],
       'activation_7d':fraction(len(activated),len(mature))|{'pending':len(new)-len(mature),'members':activated},'completion':fraction(len(timely),len(matured))|{'pending':len(selected)-len(matured)},'registration_conversion':fraction(len(reg_converted),len(mature_views))|{'pending':len(reg_views)-len(mature_views)},'registration_observed':fraction(len(observed_reg),len(reg_views)),
       'seconds':sum(r['seconds'] for r in selected),'rating_average':statistics.mean(ratings) if ratings else None,'rating_count':len(ratings),'rating_distribution':{str(n):ratings.count(n) for n in range(1,6)},'time_to_value_p50':percentile([first_report[a['id']]-a['created'] for a in new if a['id'] in first_report and first_report[a['id']]>=a['created']],.5),'time_to_value_p90':percentile([first_report[a['id']]-a['created'] for a in new if a['id'] in first_report and first_report[a['id']]>=a['created']],.9)},
       'observed_memberships':{k:sorted(v) for k,v in memberships.items()},'acquisition':acquisition,'timings':timings,'unfinished':unfinished,'negative_intervals':negative_intervals,'funnel':funnel,'questions':questions,'no_questions':{'base':len(no_questions),'reports':sum(bool(r['report_at']) for r in no_questions)},'trend':trend,'retention':retention,'repeats':repeats,'practices':selected,'accounts':new,'account_roster':accounts,'active_account_ids':sorted(active)}
+
+    from .analytics_overview import overview
+    return overview(db, result, rows)

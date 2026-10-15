@@ -83,13 +83,13 @@ class Store:
         with self.connect() as db:
             return db.execute(sql, args).rowcount
 
-    def event(self, kind, user_id=None, practice_id=None, data=None):
+    def event(self, kind, user_id=None, practice_id=None, data=None, *, visitor=None, session=None):
         with self.connect() as db:
             db.execute('INSERT INTO events VALUES(?,?,?,?,?,?)', (uid(), user_id, practice_id, kind, now(), json.dumps(data or {})))
             if kind in ('request','service_failure','login','logout'):
                 from .analytics_events import record
                 safe = {k:v for k,v in (data or {}).items() if k in ('request_id','route','method','status','latency_ms','error_code','code','job_id','operation')}
-                record(db,kind,user_id,practice_id,safe,request_id=safe.get('request_id'))
+                record(db,kind,user_id,practice_id,safe,request_id=safe.get('request_id'),visitor=visitor,session=session)
 
     def limited(self, key, count, seconds):
         # Lock before reading so concurrent requests cannot overrun the bound.
