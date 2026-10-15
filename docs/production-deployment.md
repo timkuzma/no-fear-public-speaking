@@ -128,6 +128,42 @@ public asset hashes match source. Private analytics/practice/export requests ret
 401, public operator status returns 404, and the research reader returns 200.
 GitHub publication uses the `github` remote and explicit `HEAD:main` refspec.
 
+### Password-protected aggregate link, 15 October 2026
+
+Application revision `3ed08bb` is deployed as immutable image
+`sha256:2186181bd5dc867a10cc8bd8f565719ba53e3ec5a9d3fa1906e9c5f97846a3c6`,
+extending the token-dashboard release. Eight public/server files changed, including
+the dedicated viewer API/UI and stdin-only operator configuration command. All 48
+tracked server/public source hashes and all four published asset hashes match.
+Dependencies, schema family, provider settings and shared edge were unchanged.
+
+The user-authorized link is `/#/analytics`. A generated password was configured
+through the running container's CLI using stdin; plaintext was neither committed
+nor placed in frontend code, command arguments, URLs or logs. Only its Argon2 hash
+is stored. The viewer exposes allowlisted aggregate metrics with date filters;
+it does not authorize owner APIs, account/practice tables, exports, media or report
+content. Independent opaque sessions expire after eight hours and are revoked by
+logout, password rotation or disabling access. Existing owner access is unchanged.
+
+The controller completed verified offline backup/restore rehearsal (snapshot
+`1792096262303706818-e029bf`), readiness and activation with idle queues beforehand.
+Every prior row in eight immutable business tables, including owner membership,
+was preserved; all 355 snapshotted media files retained their hashes. All 15
+unrelated running containers retained their identities. Password setup changed
+only namespaced viewer configuration/session rows in existing operational state.
+
+Validation passed 297 Python tests, final focused analytics/access checks and
+frontend syntax checks. The synthetic browser verified invalid/valid password,
+date filtering, reload, logout and the separate owner table/export interface.
+The actual production browser rendered the password form. External HTTPS checks
+verified password login, Secure/HttpOnly/SameSite cookie attributes, aggregate
+response privacy/no-store, logout and rejection of a copied revoked cookie.
+Viewer credentials still receive 401 from owner report/account/practice/export
+and participant APIs; invalid extra filters receive 422. Health/readiness returned
+200 with both workers, writable storage and maintenance disabled; operator status
+remains 404 and the independent research reader remains 200. No account login,
+provider generation, ASR or report refresh was invoked for release verification.
+
 ### Migration evidence and recovery boundary
 
 The original application had no queued/running final or incremental jobs when it entered maintenance and stopped. A verified offline snapshot and complete restore rehearsal preceded transport. The destination verified every media checksum, restored into a new directory and matched the canonical content hashes of **every database table before activation**. At cutover it contained **3 users, 7 practices, 14 saved media segments, 13 jobs, 3 reports and one analytics owner**. Existing report versions, questions, transcripts, sessions, accounting and analytics data were retained. Private invitation files were transferred separately without exposing their codes.
