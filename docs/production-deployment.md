@@ -43,6 +43,48 @@ The normal controller completed verified backup/restore rehearsal (snapshot `179
 
 Validation passed 279 Python tests, frontend syntax checks, offline replay of both captured editor responses and a local synthetic browser recording-to-question flow. Public HTTPS readiness confirms both workers, writable storage and maintenance disabled. The smaller JPEG returned 200 with its complete 320,773 bytes in 7.171 seconds; the production landing rendered in the browser. Private practices still return 401 and public operator status 404. The investigation used four durably accounted text requests and zero ASR; deployment validation made no further provider calls. Source commits remain local; no Git push was requested or performed.
 
+### Visible LLM expenses and ledger reconciliation, 15 October 2026
+
+Application revisions `83dda0a` and `b84195d` are deployed as immutable image
+`sha256:46f51b7764b429f75615e8dc0ee0915bd623dff5c43e8c185c2bba30796a36b9`.
+The first image extended the question-editor release above and replaced eight
+server/public files; the final image adjusts only the ledger network deadline.
+Both verified base-layer prefixes and source baselines before building. All 46
+tracked server/public file hashes now match source, including the question-editor
+fix and audience asset. No dependencies, schema, runtime settings or shared edge
+were changed.
+
+The expense row now shows known sums and per-practice/per-user means with `≥`
+when some prices are missing. Practice rows use the same convention. Production
+owner reads reconcile the configured key's GET-only billing ledger through unique
+request IDs or conservative attempt intervals/model/tokens. The measured ledger
+response was 4.275 seconds / 4.07 MB, so the final bounded network deadline is six
+seconds; failed refreshes retain known prices. Accounting makes no generation or
+recognition requests. Currency remains unspecified gateway units.
+
+The first successful refresh increased the known subtotal from 12.694541335 to
+38.189629513 gateway units and priced coverage from 4/118 to 76/118 attempts;
+five of nine practices with provider work were fully priced. The remaining prices
+stay unknown. These are point-in-time observations during continued participant
+activity, not a frozen financial settlement.
+
+Both controller releases completed verified offline backup/restore rehearsals,
+readiness and activation with idle queues beforehand. Snapshots are
+`1792084944809484099-923d74` and `1792085074068736927-78d91d`. Every pre-release row
+in eleven business tables remained present with identical content; all 94 media
+files in the first snapshot retained their hashes. Participants subsequently added
+accounts, practices and usage normally. All 15 unrelated running containers retained
+their identities. Current data must be preserved on any code rollback.
+
+Validation passed 287 Python tests, frontend syntax checks and a synthetic owner
+browser check of complete/partial costs. Focused reconciliation tests passed again
+after the measured timeout adjustment. External HTTPS health/readiness returned 200,
+with writable storage, both workers alive and maintenance disabled; three public
+asset hashes match source. Unauthenticated report/account/export requests return
+401, public operator status returns 404, and the independent research page returns
+200. No production authentication was fabricated or account credential changed.
+Source commits remain local; no Git push was requested or performed.
+
 ### Migration evidence and recovery boundary
 
 The original application had no queued/running final or incremental jobs when it entered maintenance and stopped. A verified offline snapshot and complete restore rehearsal preceded transport. The destination verified every media checksum, restored into a new directory and matched the canonical content hashes of **every database table before activation**. At cutover it contained **3 users, 7 practices, 14 saved media segments, 13 jobs, 3 reports and one analytics owner**. Existing report versions, questions, transcripts, sessions, accounting and analytics data were retained. Private invitation files were transferred separately without exposing their codes.
