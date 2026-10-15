@@ -20,7 +20,22 @@ def main():
     reset.add_argument('--minutes', type=int, default=30)
     owner=commands.add_parser('analytics-owner')
     owner.add_argument('--email-stdin',action='store_true',required=True)
+    viewer=commands.add_parser('analytics-view')
+    option=viewer.add_mutually_exclusive_group(required=True)
+    option.add_argument('--password-stdin',action='store_true')
+    option.add_argument('--disable',action='store_true')
     args = parser.parse_args()
+    if args.command=='analytics-view':
+        import sys
+        from .analytics_view import configure
+        store=Store.__new__(Store)
+        store.directory=Path(args.data_dir).resolve();store.path=store.directory/'pilot.sqlite3';store.media=store.directory/'media'
+        if not store.path.is_file():parser.error('existing application database required')
+        with data_lock(args.data_dir,shared=True):
+            try:configure(store,sys.stdin.readline(512).rstrip('\r\n') if args.password_stdin else None)
+            except ValueError as exc:parser.error(str(exc))
+        print('Analytics viewer access updated; previous sessions revoked')
+        return
     if args.command=='analytics-owner':
         import sys
         from .analytics_events import grant_owner

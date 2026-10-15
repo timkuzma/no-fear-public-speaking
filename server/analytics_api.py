@@ -156,6 +156,9 @@ def install(app,store,auth,check_origin,practice_json):
         except sqlite3.OperationalError:reject('ANALYTICS_BUSY','Расчёт временно недоступен. Сократи период и повтори.',503)
         except asyncio.TimeoutError:reject('ANALYTICS_TIMEOUT','Расчёт занимает слишком много времени. Сократи период.',503)
 
+    from .analytics_view import install as install_view
+    install_view(app,store,check_origin,report)
+
     @app.post('/api/analytics/events')
     async def ingest(request:Request):
         check_origin(request)

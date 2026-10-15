@@ -15,6 +15,30 @@ docker exec -i no-fear-stage python -m server.cli analytics-owner --email-stdin
 
 Existing sessions obtain the navigation permission on the next auth envelope / page reload. Revocation takes effect immediately on server requests. Ordinary participant media endpoints retain ownership isolation; administrative media uses a different owner-protected endpoint.
 
+### Password-protected aggregate viewer
+
+`/#/analytics` is a separate read-only link requiring no user account. It reuses the
+compact dashboard's metric strip, LLM tokens, daily graph and conversion funnels.
+Only the date range can be changed. Its server response allowlists aggregate fields;
+no account/practice IDs, identities, topics, transcripts, reports, media, marketing
+details or raw event data are returned. Account/practice tables, exports and owner
+actions remain exclusive to the existing owner interface.
+
+`GET /api/analytics-view/session` returns only enabled/authenticated booleans.
+`POST` verifies a bounded password body with Argon2; `DELETE` revokes the current
+session. Both require exact same-origin Origin validation. An opaque HttpOnly,
+SameSite=Strict cookie, Secure in production and scoped to `/api/analytics-view`,
+expires after eight hours. Only its digest is stored. All responses use no-store;
+passwords/cookies are absent from request telemetry. Login attempts are limited to
+10 per IP and 100 globally per 15 minutes, with two concurrent password verifications.
+
+`GET /api/analytics-view/report` requires the current viewer session and accepts
+only `from`/`to`. It cannot authorize any admin, practice, export or media endpoint.
+Viewer access configuration and session digests use namespaced `operational_state`
+rows; there is no schema migration or synthetic account. Password rotation and
+disable revoke every viewer session. The CLI reads a password on stdin without
+initializing/migrating Store; see `operations.md` for rotation and disable commands.
+
 ## Sources and semantics
 
 - SQLite triggers atomically persist registration, practice creation, segment acceptance/capture-key binding, job transitions/results, feedback and provider attempts. Triggers use native SQLite functions so earlier schema-family-1 application connections remain writable on a code-only rollback. Trigger `release` is honestly `unknown`; correlated HTTP/diagnostic records carry the runtime image release. No UDF is required by a database trigger.

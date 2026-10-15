@@ -46,6 +46,25 @@ Manual rollback switches code and nonsecret settings while retaining CURRENT dat
 
 Registration/upload compatibility must survive a UI rollback. Current registration omits consent and stores the legacy flag as false; current uploads accept those accounts. An older server that gates uploads on that flag is not a valid rollback target for them. Retain the current server behavior when restoring earlier public assets, or build a compatible rollback image. Never fabricate consent flags to accommodate old code. Preserve current database/media as for any code rollback.
 
+## Analytics viewer password
+
+The separate `/#/analytics` link permits aggregate viewing only. Configure or rotate
+its password inside the active application container, supplying a 12–128 character
+password from a protected operator file on stdin:
+
+```sh
+docker exec -i no-fear-stage python -m server.cli analytics-view --password-stdin < /private/path/view-password.txt
+docker exec no-fear-stage python -m server.cli analytics-view --disable
+```
+
+Keep the plaintext file outside source control with mode 0600 and deliver it only
+to the intended recipient. The database retains an Argon2 hash, never plaintext.
+Both commands invalidate all prior viewer sessions; they do not change accounts,
+owner membership, recordings or reports and do not initialize/migrate Store.
+The viewer cookie is independent from participant/owner authentication and expires
+after eight hours. Existing private backups include the hashed access configuration;
+rotate after an actual data restore if prior credentials should no longer work.
+
 ## AI and capacity limits
 
 Every actual HTTP provider attempt, including each retry and both workers, reserves resources atomically in SQLite BEFORE transmission. Reservations survive restart, user/practice deletion and deployment. Failed/unknown calls retain reservations; recovery can repeat an upstream call and reserve again. This is a conservative work ceiling, not exactly-once billing or a monetary budget. Input characters bound prompt size; output reserves requested `max_tokens`, not measured completion usage. Configure the provider's own financial/quota limits using verified tariffs separately.

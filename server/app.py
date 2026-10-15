@@ -242,7 +242,7 @@ def create_app(data_dir=None, start_worker=True):
         REQUEST_ID.reset(context_token)
         response.headers['X-Request-ID'] = request_id
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        if request.url.path.startswith('/api/admin/'):
+        if request.url.path.startswith(('/api/admin/', '/api/analytics-view/')):
             response.headers['Cross-Origin-Resource-Policy']='same-origin'
         response.headers['Referrer-Policy'] = 'same-origin'
         response.headers['X-Frame-Options'] = 'DENY'
@@ -846,7 +846,7 @@ def create_app(data_dir=None, start_worker=True):
                 await response(scope, receive, send)
 
             try:
-                if is_analytics_events or scope['path'] in ('/api/auth/register', '/api/auth/login', '/api/auth/reset'):
+                if is_analytics_events or (scope['path']=='/api/analytics-view/session' and scope['method'] in ('POST','DELETE')) or scope['path'] in ('/api/auth/register', '/api/auth/login', '/api/auth/reset'):
                     check_origin(request)
                 elif scope['path'] != '/api/operator/ai':
                     auth(request, True)

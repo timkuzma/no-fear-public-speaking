@@ -33,6 +33,8 @@ def seed(app):
                 {'input_tokens':100*(n+1),'output_tokens':None if n==0 else 10*(n+1)}]}
             db.execute('INSERT INTO usage VALUES(?,?,?,?,?)',(uuid.uuid4().hex,jid,participant,at+35,json.dumps(usage)))
     grant_owner(store,'analytics-owner@example.test')
+    from server.analytics_view import configure
+    configure(store,'SyntheticViewerPassword2026!')
 
 
 if __name__=='__main__':

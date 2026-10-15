@@ -149,3 +149,18 @@ Authentication envelopes now include `user.analytics_access`; practice details i
 Closed owner routes: `/api/admin/analytics/report`, `/accounts`, `/practices`, `/practices/{id}`, `/events`, `/quality`, `/snapshots`, `/snapshots/{id}`; private owner media is `/api/admin/evidence/{practice_id}/segments/{segment_id}/media`. Marketing uses `/api/admin/marketing/imports` plus explicit confirm/rollback actions. Classification mutation uses `/api/admin/analytics/account-classifications/{user_id}`. All mutations retain Origin/CSRF checks. No administrator is assigned through registration or user role.
 
 Exact definitions, limits, snapshot privacy, filter date basis and the owner-only CLI are documented in `docs/analytics-dashboard.md`. Existing bearer-only `/api/operator/*` remains isolated and blocked by the public proxy.
+
+## Password-only analytics viewer (15 October 2026)
+
+UI `/#/analytics` has independent password authentication. `GET /api/analytics-view/session`
+returns `{enabled,authenticated}`; `POST` accepts `{password}` and sets a scoped
+HttpOnly session cookie; `DELETE` revokes that session. POST/DELETE require exact
+same-origin Origin even without a participant session. Password validation is bounded
+and rate-limited. No password/session data is included in telemetry or API results.
+
+`GET /api/analytics-view/report?from=YYYY-MM-DD&to=YYYY-MM-DD` returns only `{as_of,overview}`
+with allowlisted aggregate counts, rates, daily rows, token usage and funnel steps.
+The date interval follows existing owner semantics (exclusive `to`). Other filters
+return 422. Missing/expired viewer sessions return 401; disabled access returns 404.
+Viewer authentication never authorizes owner/admin, account, practice, export or
+media routes. Rotation/disable is operator CLI only and revokes all viewer sessions.
