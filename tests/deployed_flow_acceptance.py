@@ -1,6 +1,6 @@
 """Explicit real-provider acceptance against a deployed HTTPS origin.
 
-prepare consumes {origin, invite, speech, answers, state} JSON on stdin.
+prepare consumes {origin, speech, answers, state} JSON on stdin.
 verify consumes {state} after a process restart. Fixture state contains secrets;
 keep it mode 0600 outside Git, remove its account through the operator, and
 remove the file afterwards. Never use a participant's account/audio here.
@@ -42,7 +42,7 @@ def prepare(data):
     password=secrets.token_urlsafe(24)
     email='deployment-qa-'+secrets.token_hex(8)+'@example.invalid'
     with httpx.Client(base_url=data['origin'], timeout=30, headers={'Origin':data['origin']}) as client:
-        response=client.post('/api/auth/register',json={'email':email,'password':password,'name':'Проверка развёртывания','role':'other','consent':True,'invite_code':data['invite']})
+        response=client.post('/api/auth/register',json={'email':email,'password':password,'name':'Проверка развёртывания','role':'other','consent':True})
         registered=success(response)
         cookie_header=response.headers['set-cookie'].lower()
         assert 'secure' in cookie_header and 'httponly' in cookie_header and 'samesite=strict' in cookie_header

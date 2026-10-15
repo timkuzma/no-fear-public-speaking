@@ -18,7 +18,6 @@ const state = {
   user: null,
   adminReturn: false,
   providerReady: false,
-  inviteRequired: false,
   online: true,
   practice: null,
   guest: null,
@@ -148,7 +147,7 @@ function landing() {
         <p class="landing-kicker">Сцена без страха · Репетиция выступлений</p>
         <h1 id="landing-title">Отрепетируй речь до встречи с аудиторией</h1>
         <p class="landing-lead">Запиши выступление, ответь на вопросы по сказанному и выбери, что улучшить в следующей попытке.</p>
-        ${state.user ? "" : `<p class="landing-start-note">Зарегистрируйся или войди, чтобы записать выступление и получить разбор.${state.inviteRequired ? " Для регистрации нужен код приглашения от организатора." : ""}</p>`}
+        ${state.user ? "" : `<p class="landing-start-note">Зарегистрируйся или войди, чтобы записать выступление и получить разбор.</p>`}
         <div class="landing-hero-actions">${startLink("Начать тренировку", "primary landing-cta")}</div>
       </div>
     </section>
@@ -210,7 +209,7 @@ function authScreen(mode) {
   const register = mode === "register",
     reset = mode === "reset";
   frame(
-    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : state.guest?.blob && !reset ? "Получи разбор своего выступления" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? (state.guest?.blob ? "Твоя запись уже готова. После регистрации перенесём её в аккаунт и подготовим разбор. Повторять выступление не нужно." : "После регистрации выбери тему и время выступления, запиши речь и получи разбор.") : state.guest?.blob ? "Войди, чтобы получить разбор уже записанного выступления. Запись перейдёт в твой аккаунт." : state.authReturn ? "После входа вернёмся к незавершённой тренировке. Сохранённые записи повторять не нужно." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Регистрация" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>${state.inviteRequired ? '<label>Код приглашения<input name="invite_code" autocomplete="off" required></label>' : ""}` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Регистрация" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Регистрация</a> · <a href="#/reset">Восстановить доступ</a>'}</p></section></div>`,
+    `<div class="auth-layout"><div class="auth-intro"><p class="eyebrow">${reset ? "Восстановление доступа" : "Репетиция начинается здесь"}</p><h1>${reset ? "Вернись к своим тренировкам" : state.guest?.blob && !reset ? "Получи разбор своего выступления" : register ? "Подготовься к своему выступлению" : "Продолжи свою тренировку"}</h1><p>${reset ? "Организатор выдаёт одноразовый код после проверки владельца аккаунта." : register ? (state.guest?.blob ? "Твоя запись уже готова. После регистрации перенесём её в аккаунт и подготовим разбор. Повторять выступление не нужно." : "После регистрации выбери тему и время выступления, запиши речь и получи разбор.") : state.guest?.blob ? "Войди, чтобы получить разбор уже записанного выступления. Запись перейдёт в твой аккаунт." : state.authReturn ? "После входа вернёмся к незавершённой тренировке. Сохранённые записи повторять не нужно." : "Твои записи и разборы останутся в истории."}</p></div><section class="auth-panel"><h2>${reset ? "Новый пароль" : register ? "Регистрация" : "Войди в аккаунт"}</h2><form id="auth-form" data-mode="${mode}">${register ? '<label>Имя<input name="name" autocomplete="given-name" maxlength="80" required></label>' : ""}${reset ? '<label>Одноразовый код<input name="token" autocomplete="off" required></label>' : '<label>Электронная почта<input type="email" name="email" autocomplete="email" maxlength="254" required></label>'}<div class="field-group"><label>${reset ? "Новый пароль" : "Пароль"}<input type="password" name="password" autocomplete="${register || reset ? "new-password" : "current-password"}" ${register || reset ? 'minlength="10"' : ""} maxlength="128" required></label>${register || reset ? '<p class="field-hint">Не менее 10 символов.</p>' : ""}</div>${register ? `<label>Для чего тренируешься?<select name="role"><option value="student">Учёба и защита проекта</option><option value="professional">Работа и выступления</option><option value="other">Другое</option></select></label>` : ""}<div class="form-error" role="alert"></div><button class="button primary" type="submit">${reset ? "Сохранить пароль" : register ? "Регистрация" : "Войти"}</button></form><p class="auth-links">${reset ? '<a href="#/login">Вернуться ко входу</a>' : register ? 'Уже есть аккаунт? <a href="#/login">Войти</a>' : '<a href="#/register">Регистрация</a> · <a href="#/reset">Восстановить доступ</a>'}</p></section></div>`,
   );
   if(mode === "login" && state.adminReturn && !state.guest?.blob && !state.authReturn)
     document.querySelector(".auth-intro").innerHTML = "<h1>Статистика сервиса</h1>";
@@ -1795,7 +1794,6 @@ async function submitForm(event) {
       state.user = data.user;
       if(typeof analyticsActor==="function")analyticsActor(state.user?.id);
       state.providerReady = data.provider_ready ?? state.providerReady;
-      state.inviteRequired = data.registration_requires_invite ?? state.inviteRequired;
       state.online = true;
       frame(`<div class="loading" role="status">${mode === "register" ? "Аккаунт создан. Открываем тренировку…" : "Вход выполнен. Открываем тренировку…"}</div>`);
       await resumeAfterLogin();
@@ -2099,7 +2097,6 @@ async function initialize() {
     state.user = me.user;
     if(typeof analyticsActor==="function")analyticsActor(state.user?.id);
     state.providerReady = me.provider_ready;
-    state.inviteRequired = me.registration_requires_invite;
     state.online = true;
     if (state.pending && state.pending.ownerId !== state.user?.id)
       discardPending();

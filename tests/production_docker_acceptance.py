@@ -89,11 +89,7 @@ def run(previous_image, current_image, faulty_image, port):
                 assert all(binding['HostIp']=='127.0.0.1' for bindings in record['NetworkSettings']['Ports'].values() if bindings for binding in bindings)
                 checks['hardened_container']=True
                 client=httpx.Client(base_url=manager.url,timeout=15)
-                issued=subprocess.run(['docker','exec',name,'python','-m','server.cli','invite','--uses','1','--hours','1'],capture_output=True,text=True,timeout=30)
-                # Disposable fixture diagnostics contain no production identities/keys.
-                assert issued.returncode == 0, 'Synthetic invite CLI failed: ' + issued.stderr[-1800:]
-                invite=issued.stdout.strip()
-                result=client.post('/api/auth/register',json={'email':'ops-fixture@example.test','name':'Operational fixture','password':'SyntheticOpsPassword123','role':'other','consent':True,'invite_code':invite})
+                result=client.post('/api/auth/register',json={'email':'ops-fixture@example.test','name':'Operational fixture','password':'SyntheticOpsPassword123','role':'other','consent':True})
                 assert result.status_code==200
                 cookies=SimpleCookie(result.headers['set-cookie'])
                 headers={'Cookie':'nfs_session='+cookies['nfs_session'].value,'X-CSRF-Token':result.json()['csrf_token']}

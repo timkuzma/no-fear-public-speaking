@@ -8,13 +8,13 @@ Validation errors include only failing field labels and safe localized messages,
 
 - `GET /api/auth/me` -> `{user:null|{id,email,name,role,onboarding_completed},csrf_token:null|string,provider_ready:boolean,registration_requires_invite:boolean}`. Return 200 when anonymous.
 - Registration does not have a consent step. The historical `consent` database flag is not an access gate. New requests omit the flag and store `false`; an explicitly supplied legacy value remains accepted for compatibility. No hidden client acceptance is sent.
-- `POST /api/auth/register` body `{email,name,password,role,invite_code?}` -> `{user,csrf_token,provider_ready,registration_requires_invite}` and session cookie. Login returns the same session envelope; successful authentication needs no follow-up session request.
+- `POST /api/auth/register` body `{email,name,password,role}` -> `{user,csrf_token,provider_ready,registration_requires_invite}` and session cookie. Login returns the same session envelope; successful authentication needs no follow-up session request.
 - `POST /api/auth/login` body `{email,password}` -> `{user,csrf_token,provider_ready,registration_requires_invite}` and session cookie.
 - `POST /api/auth/logout` -> `{ok:true}`. Authenticated mutations carry `X-CSRF-Token`; auth entry endpoints validate Origin.
 - `POST /api/auth/reset` body `{token,password}` consumes an operator-issued one-use token -> `{ok:true}`. Never reveal an existing password. Operator CLI issues tokens only after identity checking outside the application.
 - `PATCH /api/auth/me` body `{onboarding_completed:true}` -> `{user}`.
 
-Development registration may omit an invite; production must fail closed without explicit invite configuration. Provider readiness means configured, not proven healthy.
+Registration is open in all environments. The compatibility field `registration_requires_invite` is always `false`; legacy `REQUIRE_INVITE` settings and submitted `invite_code` values have no effect. Provider readiness means configured, not proven healthy.
 
 ## Practices, segments and jobs
 

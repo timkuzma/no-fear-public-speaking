@@ -55,7 +55,6 @@ class Register(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=10, max_length=128)
     role: str = Field(default='other', max_length=40)
-    invite_code: str | None = Field(default=None, max_length=200)
     consent: bool = False  # Legacy clients may supply this; no implicit acceptance.
 
     @field_validator('email')
@@ -200,7 +199,6 @@ def create_app(data_dir=None, start_worker=True):
             'topic': 'Сократи тему выступления до 1000 символов.',
             'criteria': 'Сократи пожелания к разбору до 5000 символов.',
             'scenario': 'Выбери сценарий выступления.',
-            'invite_code': 'Проверь код приглашения.',
             'token': 'Открой действующую ссылку для восстановления пароля.',
             'rating': 'Выбери оценку от 1 до 5.',
             'text': 'Сократи отзыв до 2000 символов.',
@@ -294,7 +292,7 @@ def create_app(data_dir=None, start_worker=True):
     def session_response(user):
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         store.execute('INSERT INTO sessions VALUES(?,?,?,?)', (digest(token), user['id'], csrf, now() + 7 * 86400))
-        response = JSONResponse({'user': exposed_user(user), 'csrf_token': csrf, 'provider_ready': provider_ready(), 'registration_requires_invite': production or os.environ.get('REQUIRE_INVITE') == '1'})
+        response = JSONResponse({'user': exposed_user(user), 'csrf_token': csrf, 'provider_ready': provider_ready(), 'registration_requires_invite': False})
         response.set_cookie('nfs_session', token, max_age=7 * 86400, httponly=True, secure=production, samesite='strict', path='/')
         return response
 
@@ -310,21 +308,15 @@ def create_app(data_dir=None, start_worker=True):
             user = auth(request)
         except HTTPException:
             user = None
-        return {'user': exposed_user(user) if user else None, 'csrf_token': user['csrf'] if user else None, 'provider_ready': provider_ready(), 'registration_requires_invite': production or os.environ.get('REQUIRE_INVITE') == '1'}
+        return {'user': exposed_user(user) if user else None, 'csrf_token': user['csrf'] if user else None, 'provider_ready': provider_ready(), 'registration_requires_invite': False}
 
     @app.post('/api/auth/register')
     async def register(body: Register, request: Request):
         entry_limit(request)
-        require_invite = production or os.environ.get('REQUIRE_INVITE') == '1'
         user = {'id': uid(), 'email': body.email, 'name': body.name, 'password': await asyncio.to_thread(ph.hash, body.password), 'role': body.role, 'onboarding_completed': False, 'consent': body.consent, 'created': now()}
         try:
             with store.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
-                if require_invite or body.invite_code:
-                    invite = db.execute('SELECT * FROM invites WHERE token=? AND expires>? AND uses_left>0', (digest(body.invite_code or ''), now())).fetchone()
-                    if not invite:
-                        fail(403, 'INVITE_INVALID', 'Для регистрации нужен действующий код приглашения.')
-                    db.execute('UPDATE invites SET uses_left=uses_left-1 WHERE token=?', (invite['token'],))
                 db.execute('INSERT INTO users VALUES(?,?,?,?,?,?,?,?)', (user['id'], user['email'], user['name'], user['password'], user['role'], 0, int(user['consent']), user['created']))
         except sqlite3.IntegrityError:
             fail(409, 'ACCOUNT_EXISTS', 'Не удалось создать аккаунт. Попробуйте войти или обратитесь к организатору тестирования.')

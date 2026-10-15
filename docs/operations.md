@@ -112,14 +112,13 @@ Restore refuses existing data or a managed container, validates the exact reques
 
 ## Participant and external release gate
 
-Issue invite/recovery codes inside the running container; the CLI shares the app's kernel and lease:
+Registration is open without invitation codes. Issue recovery codes inside the running container; the CLI shares the app's kernel and lease:
 
 ```sh
-docker exec no-fear-stage python -m server.cli invite --uses 1 --hours 72
 docker exec no-fear-stage python -m server.cli reset participant@example.com --minutes 30
 ```
 
-Share codes privately after checking identity; do not put them in service logs. Production always requires invitations. Automated email verification/recovery remains deferred. Before inviting participants, configure the actual host/domain/TLS, provider limits and billing, offsite repository/password recovery, alert receiver and independent monitor, support/consent/recording-retention policy. Verify the complete flow and microphone access at the actual external origin on desktop and mobile. Local Docker acceptance is not an external deployment or real-provider capacity claim.
+Share codes privately after checking identity; do not put them in service logs. Automated email verification/recovery remains deferred. Before inviting participants, configure the actual host/domain/TLS, provider limits and billing, offsite repository/password recovery, alert receiver and independent monitor, support/consent/recording-retention policy. Verify the complete flow and microphone access at the actual external origin on desktop and mobile. Local Docker acceptance is not an external deployment or real-provider capacity claim.
 
 ## Existing shared TLS terminator
 

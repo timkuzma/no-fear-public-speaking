@@ -190,7 +190,7 @@ def test_limits_and_quota(app, monkeypatch):
     assert client.post('/api/practices', headers=headers, json={'scenario': 'speech', 'duration': 1}).status_code == 429
 
 
-def test_reset_single_use_invalidates_sessions_and_invite(app, monkeypatch):
+def test_reset_single_use_invalidates_sessions(app):
     client = TestClient(app)
     account(client)
     store = app.state.store
@@ -201,14 +201,6 @@ def test_reset_single_use_invalidates_sessions_and_invite(app, monkeypatch):
     assert client.get('/api/auth/me').json()['user'] is None
     assert client.post('/api/auth/reset', json={'token': token, 'password': 'ReplacementPassword123'}).status_code == 400
     assert client.post('/api/auth/login', json={'email': 'one@example.org', 'password': 'ReplacementPassword123'}).status_code == 200
-    monkeypatch.setenv('REQUIRE_INVITE', '1')
-    second = TestClient(app)
-    body = {'email': 'invite@example.org', 'name': 'Новый', 'password': 'LongEnoughPassword123', 'consent': True}
-    assert second.post('/api/auth/register', json=body).status_code == 403
-    invitation = 'OneUseInvitation123'
-    store.execute('INSERT INTO invites VALUES(?,?,?)', (hashlib.sha256(invitation.encode()).hexdigest(), now() + 60, 1))
-    assert second.post('/api/auth/register', json={**body, 'invite_code': invitation}).status_code == 200
-    assert second.post('/api/auth/register', json={**body, 'email': 'another@example.org', 'invite_code': invitation}).status_code == 403
 
 
 def test_jobs_persist_transcript_retry_recovery(app, monkeypatch):
@@ -262,7 +254,7 @@ def test_operator_metrics_and_production_fail_closed(app, monkeypatch, tmp_path)
         create_app(tmp_path / 'prod', start_worker=False)
     monkeypatch.setenv('APP_ORIGIN', 'https://pilot.example.org')
     production = TestClient(create_app(tmp_path / 'prod', start_worker=False), base_url='https://pilot.example.org')
-    assert production.get('/api/auth/me').json()['registration_requires_invite'] is True
+    assert production.get('/api/auth/me').json()['registration_requires_invite'] is False
 
 
 def test_upload_guard_auth_and_chunked_limit_before_parser(app, monkeypatch):
@@ -536,3 +528,31 @@ def test_owned_versioned_report_refresh_preserves_previous_result_and_media(app,
     if not fail_refresh:
         assert client.post(f'/api/practices/{pid}/jobs',headers=headers,json={'kind':'report','refresh':True}).json()['id'] == refreshed['id']
         assert store.one("SELECT COUNT(*) AS n FROM rate_limits WHERE key LIKE 'job:%'")['n'] == 2
+
+
+@pytest.mark.parametrize('legacy_invite', [None, '', 'expired-or-invalid-code'])
+def test_production_registration_is_open_with_legacy_invite_settings(tmp_path, monkeypatch, legacy_invite):
+    monkeypatch.setenv('APP_ENV', 'production')
+    monkeypatch.setenv('APP_ORIGIN', 'https://pilot.example.org')
+    monkeypatch.setenv('REQUIRE_INVITE', '1')
+    monkeypatch.setenv('OPERATOR_TOKEN', 'synthetic-operator-token-for-registration')
+    application = create_app(tmp_path, start_worker=False)
+    client = TestClient(application, base_url='https://pilot.example.org')
+    body = {'email': 'open@example.org', 'name': 'Новый', 'password': 'LongEnoughPassword123'}
+    if legacy_invite is not None:
+        body['invite_code'] = legacy_invite
+    assert client.get('/api/auth/me').json()['registration_requires_invite'] is False
+    assert client.post('/api/auth/register', json=body, headers={'Origin': 'https://hostile.example'}).status_code == 403
+    response = client.post('/api/auth/register', json=body, headers={'Origin': 'https://pilot.example.org'})
+    assert response.status_code == 200, response.text
+    assert response.json()['registration_requires_invite'] is False
+    cookie = response.headers['set-cookie'].lower()
+    assert 'secure' in cookie and 'httponly' in cookie and 'samesite=strict' in cookie
+    assert client.get('/api/auth/me').json()['user']['id'] == response.json()['user']['id']
+    assert application.state.store.one('SELECT consent FROM users')['consent'] == 0
+    assert client.post('/api/practices', json={'scenario': 'speech', 'duration': 1}).status_code == 403
+    assert client.post('/api/auth/register', json=body).status_code == 409
+    client.post('/api/auth/logout', headers={'X-CSRF-Token': response.json()['csrf_token']})
+    login = client.post('/api/auth/login', json={'email': body['email'], 'password': body['password']})
+    assert login.status_code == 200
+    assert login.json()['registration_requires_invite'] is False
